@@ -1345,67 +1345,93 @@ function EchoScriptApp() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal]);
     
+    // === 雲端版資料監聽 (取代原本的 LocalStorage 初始化) ===
     useEffect(() => {
-        try {
-            const savedNotes = JSON.parse(localStorage.getItem('echoScript_AllNotes'));
-            let finalNotes;
-            
-            // [修正] 只要是有效的陣列資料就信任它，不檢查 category 是否為空 (避免使用者新增無分類筆記時導致資料被誤刪)
-            if (Array.isArray(savedNotes) && savedNotes.length > 0) {
-                finalNotes = savedNotes;
-            } else {
-                console.log("偵測到無資料或格式錯誤，初始化為預設筆記...");
-                finalNotes = INITIAL_NOTES;
-                localStorage.setItem('echoScript_AllNotes', JSON.stringify(finalNotes));
-                localStorage.removeItem('echoScript_History');
-                setHistory([]); 
-            }
-            setNotes(finalNotes);
-            setFavorites(JSON.parse(localStorage.getItem('echoScript_Favorites') || '[]'));
-            setAllResponses(JSON.parse(localStorage.getItem('echoScript_AllResponses') || '{}'));
-            
-            setHistory(JSON.parse(localStorage.getItem('echoScript_History') || '[]'));
-            setRecentIndices(JSON.parse(localStorage.getItem('echoScript_Recents') || '[]'));
-            
-            // [地基工程] 啟動時立刻檢查：洗牌堆是否健康？
-            let loadedDeck = JSON.parse(localStorage.getItem('echoScript_ShuffleDeck') || '[]');
-            let loadedPointer = parseInt(localStorage.getItem('echoScript_DeckPointer') || '0', 10);
+        // 確保 window.fs 工具箱存在 (防止報錯)
+        if (!window.fs || !window.db) {
+            console.error("Firebase 未初始化，請檢查 index.html");
+            return;
+        }
 
-            // [關鍵] 如果數量對不上 (例如剛清除快取)，立刻產生新的洗牌堆
-            // 這能確保接下來的「新增」動作絕對安全，不會崩潰
-            if (loadedDeck.length !== finalNotes.length) {
-                console.log("初始化：偵測到洗牌堆與筆記數量不符，執行自動修復...");
-                loadedDeck = Array.from({length: finalNotes.length}, (_, i) => i);
-                // 執行全域洗牌
-                for (let i = loadedDeck.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [loadedDeck[i], loadedDeck[j]] = [loadedDeck[j], loadedDeck[i]];
-                }
-                loadedPointer = 0;
+        const { collection, onSnapshot, query, orderBy, setDoc, doc } = window.fs;
+        const db = window.db;
+
+        // 1. 建立監聽器：按建立時間倒序排列 (讓新筆記排前面)
+        // 這裡我們用 createdDate 排序，你也可以改用 modifiedDate
+        const q = query(collection(db, "notes"), orderBy("createdDate", "desc"));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const cloudNotes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // 2. [首次初始化] 如果雲端完全沒資料，自動上傳預設筆記
+            if (cloudNotes.length === 0 && !localStorage.getItem('echoScript_CloudInitDone')) {
+                console.log("☁️ 雲端無資料，正在初始化預設筆記...");
+                INITIAL_NOTES.forEach(note => {
+                    // 使用 setDoc 確保 ID 一致
+                    const noteId = String(note.id);
+                    setDoc(doc(db, "notes", noteId), {
+                        ...note,
+                        id: noteId, // 確保 ID 寫入欄位
+                        createdDate: new Date().toISOString(),
+                        modifiedDate: new Date().toISOString()
+                    }).catch(e => console.error("上傳失敗", e));
+                });
+                localStorage.setItem('echoScript_CloudInitDone', 'true');
+                return; // 等待下一次 snapshot 更新
             }
 
-            setShuffleDeck(loadedDeck);
-            setDeckPointer(loadedPointer);
+            // 3. 更新 React 狀態
+            setNotes(cloudNotes);
 
-            if (finalNotes.length > 0) {
-                // [修改] 智慧初始化：檢查是否有「最後編輯」的筆記需要恢復
-                const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
-                let idx = -1;
+            // 4. [洗牌邏輯修復] 資料來源改變後，必須檢查洗牌堆是否需要重建
+            try {
+                let loadedDeck = JSON.parse(localStorage.getItem('echoScript_ShuffleDeck') || '[]');
+                let loadedPointer = parseInt(localStorage.getItem('echoScript_DeckPointer') || '0', 10);
                 
-                if (resumeId) {
-                    // 嘗試尋找該筆記的索引 (ID可能是數字或字串，轉型比較保險)
-                    idx = finalNotes.findIndex(n => n.id == resumeId);
+                // 如果雲端資料筆數變了 (例如別台電腦新增了筆記)，或者這是第一次同步
+                if (loadedDeck.length !== cloudNotes.length) {
+                    console.log("♻️ 同步雲端：重建洗牌堆...");
+                    loadedDeck = Array.from({length: cloudNotes.length}, (_, i) => i);
+                    // Fisher-Yates 洗牌
+                    for (let i = loadedDeck.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [loadedDeck[i], loadedDeck[j]] = [loadedDeck[j], loadedDeck[i]];
+                    }
+                    loadedPointer = 0;
                 }
+                setShuffleDeck(loadedDeck);
+                setDeckPointer(loadedPointer);
 
-                // 如果沒有要恢復的紀錄，或是找不到該筆記，則執行隨機抽取
-                if (idx === -1) {
-                    idx = Math.floor(Math.random() * finalNotes.length);
+                // 5. [狀態恢復] 決定當前要顯示哪一張卡片
+                if (cloudNotes.length > 0) {
+                    const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
+                    let idx = -1;
+                    
+                    // 嘗試找回上次離開的那張筆記
+                    if (resumeId) {
+                        idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
+                    }
+
+                    // 如果找不到 (或沒紀錄)，就從洗牌堆拿一張新的
+                    if (idx === -1) {
+                        const deckIndex = loadedDeck[loadedPointer] || 0;
+                        idx = deckIndex;
+                    }
+                    
+                    // 只有當「目前顯示是 0 且沒動畫」時才更新，避免干擾使用中的切換
+                    setCurrentIndex(prev => (prev === 0 && !resumeId) ? idx : idx);
                 }
-                
-                setCurrentIndex(idx);
-                addToHistory(finalNotes[idx]);
-            }
-        } catch (e) { console.error("Init failed", e); }
+            } catch (e) { console.error("Deck sync error", e); }
+        });
+
+        // 6. 載入非核心資料 (這些保留在 LocalStorage 即可)
+        setFavorites(JSON.parse(localStorage.getItem('echoScript_Favorites') || '[]'));
+        setAllResponses(JSON.parse(localStorage.getItem('echoScript_AllResponses') || '{}'));
+        setHistory(JSON.parse(localStorage.getItem('echoScript_History') || '[]'));
+        setRecentIndices(JSON.parse(localStorage.getItem('echoScript_Recents') || '[]'));
+
+        // 關閉時取消監聽
+        return () => unsubscribe();
     }, []);
 
     useEffect(() => {
@@ -2024,6 +2050,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

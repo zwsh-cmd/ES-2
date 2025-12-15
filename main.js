@@ -1754,11 +1754,32 @@ function EchoScriptApp() {
 
     const handleDeleteResponse = (responseId) => {
         if(confirm("確定要刪除這則回應嗎？")) {
-            setAllResponses(prev => {
-                const noteResponses = prev[currentNote.id] || [];
-                const newNoteResponses = noteResponses.filter(r => r.id !== responseId);
-                return { ...prev, [currentNote.id]: newNoteResponses };
-            });
+            // 1. 計算刪除後的陣列
+            const prevResponses = allResponses;
+            const noteResponses = prevResponses[currentNote.id] || [];
+            const newNoteResponses = noteResponses.filter(r => r.id !== responseId);
+            const nextAllResponses = { ...prevResponses, [currentNote.id]: newNoteResponses };
+
+            // 2. 更新本地狀態與 LocalStorage (確保 UI 反應即時)
+            setAllResponses(nextAllResponses);
+            localStorage.setItem('echoScript_AllResponses', JSON.stringify(nextAllResponses));
+
+            // 3. [新增] 同步更新雲端 Firestore
+            try {
+                if (window.fs && window.db && currentNote) {
+                    // 將過濾後的陣列寫回雲端，覆蓋原本的 responses 欄位
+                    window.fs.setDoc(
+                        window.fs.doc(window.db, "notes", String(currentNote.id)), 
+                        { responses: newNoteResponses }, 
+                        { merge: true }
+                    );
+                    console.log("✅ 雲端回應刪除成功");
+                }
+            } catch (e) {
+                console.error("雲端回應刪除失敗", e);
+                showNotification("⚠️ 雲端同步失敗，請檢查網路");
+            }
+
             setHasDataChangedInSession(true); // [新增] 標記資料已變更
             showNotification("回應已刪除");
         }
@@ -2100,6 +2121,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

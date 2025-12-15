@@ -1718,6 +1718,22 @@ function EchoScriptApp() {
         // [新增] 只要有編輯或新增回應，就表示使用者正在關注此筆記，鎖定它！
         localStorage.setItem('echoScript_ResumeNoteId', currentNote.id);
 
+        // [新增] 同步寫入雲端 (更新該筆記的 responses 欄位)
+        try {
+            if (window.fs && window.db && currentNote) {
+                // 使用 merge: true，只更新 responses 欄位，不影響 title/content
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "notes", String(currentNote.id)), 
+                    { responses: newNoteResponses }, 
+                    { merge: true }
+                );
+                console.log("✅ 雲端回應儲存成功");
+            }
+        } catch (e) {
+            console.error("雲端回應儲存失敗", e);
+            // 這裡不跳出 Alert，避免干擾使用者體驗，但會在 Console 留紀錄
+        }
+
         setHasDataChangedInSession(true); // [新增] 標記資料已變更
         showNotification("回應已儲存");
     };
@@ -2070,6 +2086,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

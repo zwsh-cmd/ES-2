@@ -1397,6 +1397,13 @@ function EchoScriptApp() {
                  localStorage.setItem('echoScript_AllResponses', JSON.stringify(cloudResponses));
             }
 
+            // [新增] 同步雲端收藏 (解決清快取後收藏消失問題)
+            // 檢查雲端資料中的 isFavorite 標記，重建 favorites 列表
+            const cloudFavorites = cloudNotes.filter(n => n.isFavorite === true);
+            // 無論是否有收藏，都更新狀態 (以雲端為準)，確保多裝置或清快取後資料一致
+            setFavorites(cloudFavorites);
+            localStorage.setItem('echoScript_Favorites', JSON.stringify(cloudFavorites));
+
             // 4. [洗牌邏輯修復] 資料來源改變後，必須檢查洗牌堆是否需要重建
             try {
                 let loadedDeck = JSON.parse(localStorage.getItem('echoScript_ShuffleDeck') || '[]');
@@ -2144,6 +2151,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

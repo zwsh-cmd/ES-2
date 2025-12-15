@@ -3,11 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
     <title>MyNotes | 隨手筆記</title>
-    
     <meta name="description" content="簡單好用的雲端筆記，隨時記錄想法">
-    
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon.png">
     
@@ -20,9 +17,7 @@
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    
     <meta name="apple-mobile-web-app-title" content="MyNotes">
-    
     <link rel="apple-touch-icon" href="icon.png">
 
     <style>
@@ -30,6 +25,12 @@
             overscroll-behavior-y: none;
             -webkit-tap-highlight-color: transparent;
         }
+        /* 自定義捲軸樣式 (搭配 main.js 使用) */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #d6d3d1; border-radius: 20px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-stone-50 text-stone-800">
@@ -39,8 +40,22 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+        // 這裡引入了所有你會用到的資料庫功能
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            setDoc,       // 用於指定 ID 寫入 (重要)
+            updateDoc,    // 用於修改筆記 (重要)
+            deleteDoc, 
+            doc, 
+            onSnapshot,   // 用於即時監聽
+            query, 
+            orderBy, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
+        // 你的專屬鑰匙
         const firebaseConfig = {
             apiKey: "AIzaSyDXkI3yKLNsE1HZ-cmI_nfaPslTpc8M5Xg",
             authDomain: "es-2-78ee8.firebaseapp.com",
@@ -50,12 +65,26 @@
             appId: "1:426271640868:web:3729eb8d1cf0d7696e37b1"
         };
 
+        // 啟動 Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        window.db = db; 
 
-        // 4. Console 訊息也改掉
-        console.log("Firebase 資料庫已連線！(MyNotes)");
+        // 【關鍵】把 db 和功能包 (fs) 掛載到 window，讓 main.js 可以隨便用
+        window.db = db;
+        window.fs = { 
+            collection, 
+            addDoc, 
+            setDoc,
+            updateDoc,
+            deleteDoc, 
+            doc, 
+            onSnapshot, 
+            query, 
+            orderBy, 
+            serverTimestamp 
+        };
+
+        console.log("Firebase 雲端資料庫已就緒 (MyNotes)");
     </script>
 
     <script>

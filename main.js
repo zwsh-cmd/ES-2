@@ -1551,67 +1551,75 @@ function EchoScriptApp() {
         }, 300);
     };
 
-    const handleSaveNote = (updatedNote) => {
+    // [修改] 雲端版儲存邏輯 (保留了原本的洗牌與智慧插入算法，但寫入改為 Firestore)
+    const handleSaveNote = async (updatedNote) => {
         const now = new Date().toISOString();
         let targetId;
         let nextNotes;
         
-        // 取得當前的洗牌狀態 (因初始化已修復，保證正確)
+        // 取得當前的洗牌狀態
         let nextDeck = [...shuffleDeck];
         let nextPointer = deckPointer;
 
         if (isCreatingNew) {
-            // 1. 準備新筆記資料 (使用 modal 傳來的 ID 或當下產生)
-            const newId = updatedNote.id || Date.now();
+            // 1. 準備新筆記資料 (確保 ID 為字串，這是雲端資料庫的要求)
+            const newId = updatedNote.id ? String(updatedNote.id) : String(Date.now());
             const newNote = { ...updatedNote, id: newId, createdDate: now, modifiedDate: now };
             
-            // 2. 更新筆記列表 (新筆記加入最前面，Index 變為 0)
+            // 2. 更新筆記列表 (新筆記加入最前面)
             nextNotes = [newNote, ...notes];
             targetId = newId;
             
-            // 3. [智慧插入] 
-            
-            // A. 【關鍵】原本洗牌堆裡的所有號碼都要 +1 (因為 0 號被新筆記拿走了)
-            // 這就是確保 "9號" 會自動變成 "10號" 的關鍵代碼！
+            // 3. [智慧插入] 邏輯保留：原本洗牌堆裡的號碼+1，並將新筆記(0)隨機插入未來
             nextDeck = nextDeck.map(i => i + 1);
-            
-            // B. 將新筆記 (Index 0) 隨機插入到「還沒抽完的未來牌堆」中
             const futureSlots = nextDeck.length - nextPointer;
-            // 隨機選一個插入點 (範圍：目前指標位置 ~ 最後)
-            // 確保新筆記一定會出現在未來，且不影響已經看過的歷史
             const insertOffset = Math.floor(Math.random() * (futureSlots + 1));
             const insertPos = nextPointer + insertOffset;
             
             nextDeck.splice(insertPos, 0, 0);
             
             setCurrentIndex(0); 
-            showNotification("新筆記已建立");
+            showNotification("新筆記已建立 (同步中...)");
 
         } else {
-            // 修改模式：內容更新，順序不動
+            // 修改模式
             const editedNote = { 
                 ...updatedNote, 
+                id: String(updatedNote.id), // 確保 ID 為字串
                 createdDate: updatedNote.createdDate || now, 
                 modifiedDate: now 
             };
-            nextNotes = notes.map(n => n.id === editedNote.id ? editedNote : n);
-            setFavorites(prev => prev.map(f => f.id === editedNote.id ? { ...f, ...editedNote } : f));
+            nextNotes = notes.map(n => String(n.id) === String(editedNote.id) ? editedNote : n);
+            setFavorites(prev => prev.map(f => String(f.id) === String(editedNote.id) ? { ...f, ...editedNote } : f));
             targetId = editedNote.id;
             
-            showNotification("筆記已更新");
+            showNotification("筆記已更新 (同步中...)");
         }
         
-        // 4. 同步更新所有狀態與儲存
+        // 4. [樂觀更新] 先立刻更新畫面與本地狀態，讓使用者感覺不到延遲
         setNotes(nextNotes);
         setShuffleDeck(nextDeck);
         setDeckPointer(nextPointer);
         
-        localStorage.setItem('echoScript_AllNotes', JSON.stringify(nextNotes));
+        // 5. [雲端寫入] 取代原本的 LocalStorage 寫入
+        try {
+            const noteToSave = nextNotes.find(n => String(n.id) === String(targetId));
+            if (noteToSave) {
+                // 使用 setDoc (若 ID 存在則覆蓋，不存在則新增)
+                await window.fs.setDoc(window.fs.doc(window.db, "notes", String(targetId)), noteToSave);
+                console.log("✅ 雲端儲存成功");
+            }
+        } catch (e) {
+            console.error("雲端儲存失敗", e);
+            showNotification("⚠️ 雲端儲存失敗，請檢查網路");
+        }
+        
+        // 6. 這些是「暫存狀態」，依然保留在 LocalStorage (因為這屬於你個人的操作進度，不需要存雲端)
         localStorage.setItem('echoScript_ShuffleDeck', JSON.stringify(nextDeck));
         localStorage.setItem('echoScript_DeckPointer', nextPointer.toString());
         localStorage.setItem('echoScript_ResumeNoteId', String(targetId));
         
-        setHasDataChangedInSession(true); // [新增] 標記資料已變更
+        setHasDataChangedInSession(true); 
         setShowEditModal(false);
     };
 
@@ -2050,6 +2058,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

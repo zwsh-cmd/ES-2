@@ -1699,13 +1699,36 @@ function EchoScriptApp() {
     };
 
     const handleToggleFavorite = () => {
+        const nextStatus = !isFavorite;
+
+        // 1. 更新本地 Favorites 狀態 (讓 UI 立即變色)
         if (isFavorite) {
             setFavorites(prev => prev.filter(f => f.id !== currentNote.id));
             showNotification("已移除收藏");
         } else {
-            setFavorites(prev => [currentNote, ...prev]);
+            // 加入時，確保物件內也有 isFavorite: true
+            setFavorites(prev => [{ ...currentNote, isFavorite: true }, ...prev]);
             showNotification("已加入收藏");
         }
+
+        // 2. [新增] 同步更新雲端 Firestore
+        try {
+            if (window.fs && window.db && currentNote) {
+                // 只更新 isFavorite 欄位，不影響其他內容
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "notes", String(currentNote.id)), 
+                    { isFavorite: nextStatus }, 
+                    { merge: true }
+                );
+                
+                // 3. 同步更新本地 notes 列表中的狀態 (確保資料一致性)
+                setNotes(prev => prev.map(n => n.id === currentNote.id ? { ...n, isFavorite: nextStatus } : n));
+            }
+        } catch (e) {
+            console.error("雲端收藏同步失敗", e);
+            // 這裡不阻擋 UI，僅紀錄錯誤
+        }
+
         setHasDataChangedInSession(true); // [新增] 標記資料已變更 (觸發備份提醒)
     };
 
@@ -2121,6 +2144,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

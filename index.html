@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>EchoScript | 編劇靈感庫</title>
-    <meta name="description" content="隨機汲取編劇知識，激發創作靈感">
+    
+    <title>MyNotes | 隨手筆記</title>
+    
+    <meta name="description" content="簡單好用的雲端筆記，隨時記錄想法">
+    
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon.png">
     
@@ -17,11 +20,12 @@
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="EchoScript">
+    
+    <meta name="apple-mobile-web-app-title" content="MyNotes">
+    
     <link rel="apple-touch-icon" href="icon.png">
 
     <style>
-        /* iOS下防止回彈效果 */
         html, body {
             overscroll-behavior-y: none;
             -webkit-tap-highlight-color: transparent;
@@ -30,9 +34,31 @@
 </head>
 <body class="bg-stone-50 text-stone-800">
     <div id="root"></div>
+
     <script type="text/babel" src="main.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDXkI3yKLNsE1HZ-cmI_nfaPslTpc8M5Xg",
+            authDomain: "es-2-78ee8.firebaseapp.com",
+            projectId: "es-2-78ee8",
+            storageBucket: "es-2-78ee8.firebasestorage.app",
+            messagingSenderId: "426271640868",
+            appId: "1:426271640868:web:3729eb8d1cf0d7696e37b1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        window.db = db; 
+
+        // 4. Console 訊息也改掉
+        console.log("Firebase 資料庫已連線！(MyNotes)");
+    </script>
+
     <script>
-        // 註冊 Service Worker (PWA 必備)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed', err));

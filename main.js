@@ -1628,9 +1628,21 @@ function EchoScriptApp() {
             // 1. 先找出這張筆記「刪除前」的 Index
             const deletedIndex = notes.findIndex(n => n.id === id);
 
-            // 2. 執行刪除 (更新筆記列表)
+            // 2. 執行刪除 (更新筆記列表 - 本地 React State 先跑，確保 UI 反應快)
             const newNotes = notes.filter(n => n.id !== id);
             setNotes(newNotes);
+
+            // [新增] 同步刪除雲端資料 (Firestore)
+            // 必須執行這一步，否則 onSnapshot 會把刪除的筆記又抓回來
+            try {
+                if (window.fs && window.db) {
+                    window.fs.deleteDoc(window.fs.doc(window.db, "notes", String(id)));
+                    console.log("✅ 雲端刪除成功");
+                }
+            } catch (e) {
+                console.error("雲端刪除失敗", e);
+                showNotification("⚠️ 雲端同步失敗，請檢查網路");
+            }
             
             // 3. 處理畫面顯示
             if (currentNote && currentNote.id === id) {
@@ -1664,7 +1676,7 @@ function EchoScriptApp() {
                 localStorage.setItem('echoScript_DeckPointer', newPointer.toString());
             }
             
-            // 確保資料庫同步
+            // 確保資料庫同步 (本地備份用)
             localStorage.setItem('echoScript_AllNotes', JSON.stringify(newNotes));
 
             setHasDataChangedInSession(true); // [新增] 標記資料已變更
@@ -2058,6 +2070,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

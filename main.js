@@ -1383,6 +1383,20 @@ function EchoScriptApp() {
             // 3. 更新 React 狀態
             setNotes(cloudNotes);
 
+            // [新增] 同步雲端回應 (解決回應消失問題)
+            // 從下載的筆記資料中，把 responses 欄位抓出來，更新到 allResponses 狀態
+            const cloudResponses = {};
+            cloudNotes.forEach(note => {
+                if (note.responses && Array.isArray(note.responses)) {
+                    cloudResponses[note.id] = note.responses;
+                }
+            });
+            // 只有當雲端有回應資料時才更新，確保 UI 能顯示出來，並同步寫入 LocalStorage
+            if (Object.keys(cloudResponses).length > 0) {
+                 setAllResponses(prev => ({ ...prev, ...cloudResponses }));
+                 localStorage.setItem('echoScript_AllResponses', JSON.stringify(cloudResponses));
+            }
+
             // 4. [洗牌邏輯修復] 資料來源改變後，必須檢查洗牌堆是否需要重建
             try {
                 let loadedDeck = JSON.parse(localStorage.getItem('echoScript_ShuffleDeck') || '[]');
@@ -2086,6 +2100,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

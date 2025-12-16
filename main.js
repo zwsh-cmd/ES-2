@@ -342,23 +342,10 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
     const handleSave = () => {
         if (!formData.title || !formData.content) { alert("請至少填寫標題和內容"); return; }
         
+        // [修正] 移除舊版「流水號 ID」生成邏輯 (maxId + 1)
+        // 改為傳遞 null/undefined，讓主程式的 handleSaveNote 自動使用 Date.now() 生成時間戳 ID
+        // 這能避免在多裝置同時新增筆記時發生 ID 衝突 (例如兩台裝置都搶著用 ID: 11)
         let finalId = note?.id;
-        
-        // 如果是新筆記 (沒有 ID)，則計算新的序號
-        if (!finalId) {
-            // 1. 取出所有 ID，並轉為數字
-            const allIds = existingNotes.map(n => Number(n.id) || 0);
-            
-            // 2. [關鍵邏輯] 過濾掉那些像是時間戳記的長亂碼 (例如大於 100 萬的數字)
-            // 這樣就算資料庫裡有 "171358..." 這種怪 ID，我們也不會被它影響
-            const validIds = allIds.filter(id => id < 1000000);
-            
-            // 3. 找出最大值，若沒有則從 0 開始 (預設資料最大是 10)
-            const maxId = validIds.length > 0 ? Math.max(...validIds) : 0;
-            
-            // 4. 新 ID 就是最大值 + 1
-            finalId = maxId + 1;
-        }
 
         onSave({ ...note, ...formData, id: finalId });
     };
@@ -2296,6 +2283,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

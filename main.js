@@ -799,7 +799,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         };
     };
 
-    // [新增] 處理重新命名 (已修正：同步更新雲端)
+    // [新增] 處理重新命名 (已修正：同步更新雲端與分類結構)
     const handleRename = async () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
@@ -827,6 +827,17 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                 }
             });
             setCategoryMap(newMap);
+
+            // [新增] 同步更新雲端分類結構 (settings/layout) 確保舊名被移除
+            if (window.fs && window.db) {
+                updates.push(
+                    window.fs.setDoc(
+                        window.fs.doc(window.db, "settings", "layout"), 
+                        { categoryMapJSON: JSON.stringify(newMap) }, 
+                        { merge: true }
+                    )
+                );
+            }
             
             // 2. 更新筆記 (本地 + 雲端)
             const newNotes = notes.map(n => {
@@ -853,6 +864,17 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             const subs = newMap[selectedCategory].map(s => s === item ? newName : s);
             newMap[selectedCategory] = subs;
             setCategoryMap(newMap);
+
+            // [新增] 同步更新雲端分類結構 (settings/layout)
+            if (window.fs && window.db) {
+                updates.push(
+                    window.fs.setDoc(
+                        window.fs.doc(window.db, "settings", "layout"), 
+                        { categoryMapJSON: JSON.stringify(newMap) }, 
+                        { merge: true }
+                    )
+                );
+            }
             
             // 2. 更新筆記 (本地 + 雲端)
             const newNotes = notes.map(n => {
@@ -878,7 +900,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         if (updates.length > 0) {
             try {
                 await Promise.all(updates);
-                console.log(`✅ 已同步更新 ${updates.length} 則筆記的分類`);
+                console.log(`✅ 已同步更新 ${updates.length} 則筆記與分類結構`);
             } catch (e) {
                 console.error("雲端分類更新失敗", e);
                 alert("⚠️ 雲端同步部分失敗，請檢查網路");
@@ -2275,6 +2297,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

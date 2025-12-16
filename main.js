@@ -603,13 +603,15 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
     const dragItem = useRef(null);
     const dragOverItem = useRef(null);
 
-    // [新增] 執行排序資料更新
+    // [新增] 執行排序資料更新 (已修正：同步寫入雲端)
     const handleSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
             dragItem.current = null;
             dragOverItem.current = null;
             return;
         }
+
+        let newMap = null; // [新增] 用來暫存並上傳雲端的分類地圖
 
         if (viewLevel === 'categories') {
              let _categories = Object.keys(categoryMap);
@@ -618,7 +620,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
              _categories.splice(dragOverItem.current, 0, draggedItemContent);
              
              // 確實依序重建物件，確保順序被保存
-             const newMap = {};
+             newMap = {};
              _categories.forEach(cat => { newMap[cat] = categoryMap[cat]; });
              setCategoryMap(newMap);
         }
@@ -628,7 +630,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             _subs.splice(dragItem.current, 1);
             _subs.splice(dragOverItem.current, 0, draggedItemContent);
             
-            const newMap = { ...categoryMap };
+            newMap = { ...categoryMap };
             newMap[selectedCategory] = _subs;
             setCategoryMap(newMap);
         }
@@ -656,6 +658,15 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         dragOverItem.current = null;
         setDraggingIndex(null); 
         setDragOverIndex(null);
+
+        // [新增] 同步分類排序到雲端 (settings/layout)
+        if (newMap && window.fs && window.db) {
+            window.fs.setDoc(
+                window.fs.doc(window.db, "settings", "layout"), 
+                { categoryMap: newMap }, 
+                { merge: true }
+            ).then(() => console.log("✅ 分類排序已同步雲端"));
+        }
 
         // [關鍵修正] 只要有排序，就標記資料已變更，確保退出時提醒備份
         if (setHasDataChangedInSession) setHasDataChangedInSession(true);
@@ -1219,6 +1230,22 @@ function EchoScriptApp() {
         if (savedMap) setCategoryMap(JSON.parse(savedMap));
     }, []);
     useEffect(() => { localStorage.setItem('echoScript_CategoryMap', JSON.stringify(categoryMap)); }, [categoryMap]);
+
+    // [新增] 監聽雲端分類排序 (settings/layout)
+    // 這樣當你在其他裝置排序分類時，這裡會即時更新
+    useEffect(() => {
+        if (!window.fs || !window.db) return;
+        const unsubscribe = window.fs.onSnapshot(
+            window.fs.doc(window.db, "settings", "layout"), 
+            (doc) => {
+                if (doc.exists() && doc.data().categoryMap) {
+                    console.log("📥 同步雲端分類排序");
+                    setCategoryMap(doc.data().categoryMap);
+                }
+            }
+        );
+        return () => unsubscribe();
+    }, []);
 
     // [新增] 儲存 AllNotesModal 的內部導航層級狀態，用於支援 PopState
     const [allNotesViewLevel, setAllNotesViewLevel] = useState('categories'); // 'categories', 'subcategories', 'notes'
@@ -2192,6 +2219,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

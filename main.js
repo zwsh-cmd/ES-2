@@ -2,6 +2,31 @@
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 const { createRoot } = ReactDOM;
 
+// [新增] 主題配色定義
+const THEMES = {
+    light: { 
+        id: 'light', name: '簡約淺色', 
+        bg: 'bg-stone-50', text: 'text-stone-800', 
+        card: 'bg-white', border: 'border-stone-200', 
+        accent: 'bg-[#2c3e50]', accentText: 'text-stone-50',
+        subtext: 'text-stone-400', activeTab: 'bg-[#2c3e50] text-white'
+    },
+    dark: { 
+        id: 'dark', name: '深邃夜空', 
+        bg: 'bg-slate-950', text: 'text-slate-200', 
+        card: 'bg-slate-900', border: 'border-slate-800', 
+        accent: 'bg-sky-600', accentText: 'text-white',
+        subtext: 'text-slate-500', activeTab: 'bg-sky-600 text-white'
+    },
+    morandi: { 
+        id: 'morandi', name: '莫蘭迪花園', 
+        bg: 'bg-[#F2E6D8]', text: 'text-[#5E503F]', 
+        card: 'bg-[#FFFBF0]', border: 'border-[#E6DCC8]', 
+        accent: 'bg-[#B5838D]', accentText: 'text-white', // 乾燥玫瑰粉
+        subtext: 'text-[#9A8C98]', activeTab: 'bg-[#B5838D] text-white'
+    }
+};
+
 // === 1. 圖示組件庫 ===
 const IconBase = ({ d, className, ...props }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
@@ -1239,6 +1264,57 @@ function EchoScriptApp() {
     const [categoryMap, setCategoryMap] = useState({});
     // [新增] 安全鎖：標記雲端設定是否已載入，防止手機端在還沒拿到資料前，就用不完整的本地資料覆蓋雲端
     const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
+    
+    // [新增] 外觀主題狀態
+    const [currentThemeId, setCurrentThemeId] = useState('light');
+    const theme = THEMES[currentThemeId] || THEMES.light;
+
+    // [新增] 初始化與監聽雲端主題設定 (settings/preferences)
+    useEffect(() => {
+        // 1. 先讀取本地快取，避免閃爍
+        const localTheme = localStorage.getItem('echoScript_Theme');
+        if (localTheme && THEMES[localTheme]) setCurrentThemeId(localTheme);
+
+        // 2. 監聽雲端
+        if (!window.fs || !window.db) return;
+        const unsubscribe = window.fs.onSnapshot(
+            window.fs.doc(window.db, "settings", "preferences"),
+            (doc) => {
+                if (doc.exists() && doc.data().themeId) {
+                    const cloudTheme = doc.data().themeId;
+                    if (THEMES[cloudTheme]) {
+                        setCurrentThemeId(cloudTheme);
+                        localStorage.setItem('echoScript_Theme', cloudTheme);
+                    }
+                }
+            }
+        );
+        return () => unsubscribe();
+    }, []);
+
+    // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
+    useEffect(() => {
+        document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
+        // 設定 meta theme-color 讓手機瀏覽器狀態列變色
+        const metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (metaTheme) {
+            metaTheme.content = currentThemeId === 'dark' ? '#020617' : (currentThemeId === 'morandi' ? '#F2E6D8' : '#fafaf9');
+        }
+    }, [theme, currentThemeId]);
+
+    // [新增] 切換主題並儲存
+    const handleSetTheme = (id) => {
+        setCurrentThemeId(id);
+        localStorage.setItem('echoScript_Theme', id);
+        
+        if (window.fs && window.db) {
+            window.fs.setDoc(
+                window.fs.doc(window.db, "settings", "preferences"), 
+                { themeId: id }, 
+                { merge: true }
+            ).catch(e => console.error("主題同步失敗", e));
+        }
+    };
 
     // [同步] 當筆記更新時，將新的分類補入結構中 (只增不減，達成保留效果)
     // [修正] 加入 isSettingsLoaded 檢查，防止在雲端分類尚未下載前，就用本地不完整的資料覆蓋雲端
@@ -2072,20 +2148,20 @@ function EchoScriptApp() {
     };
 
     return (
-        <div className="min-h-screen bg-stone-50 text-stone-800 font-sans pb-20">
-            <nav className="sticky top-0 z-30 bg-stone-50/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b border-stone-200/50">
+        <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`}>
+            <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
                 <div className="flex items-center gap-2">
                     <img src="icon.png" className="w-8 h-8 rounded-lg object-cover" alt="App Icon" />
-                    <h1 className="text-lg font-bold tracking-tight text-stone-800">EchoScript</h1>
+                    <h1 className={`text-lg font-bold tracking-tight ${theme.text}`}>EchoScript</h1>
                 </div>
                 <div className="flex gap-2">
-                     <button onClick={() => { setIsCreatingNew(true); setShowEditModal(true); }} className="bg-white border border-stone-200 text-stone-600 p-2 rounded-full shadow-sm active:bg-stone-100" title="新增筆記">
+                     <button onClick={() => { setIsCreatingNew(true); setShowEditModal(true); }} className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} title="新增筆記">
                         <Plus className="w-5 h-5" />
                     </button>
-                    <button onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} className="bg-white border border-stone-200 text-stone-600 p-2 rounded-full shadow-sm active:bg-stone-100" title="所有筆記">
+                    <button onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} title="所有筆記">
                         <List className="w-5 h-5" />
                     </button>
-                    <button onClick={handleNextNote} disabled={isAnimating || notes.length <= 1} className="bg-[#2c3e50] text-stone-50 px-4 py-2 rounded-full text-xs font-bold shadow-lg shadow-stone-300 active:scale-95 transition-transform flex items-center gap-2">
+                    <button onClick={handleNextNote} disabled={isAnimating || notes.length <= 1} className={`${theme.accent} ${theme.accentText} px-4 py-2 rounded-full text-xs font-bold shadow-lg active:scale-95 transition-transform flex items-center gap-2`}>
                         <RefreshCw className={`w-3 h-3 ${isAnimating ? 'animate-spin' : ''}`}/> 下一張
                     </button>
                 </div>
@@ -2095,37 +2171,38 @@ function EchoScriptApp() {
                 {currentNote ? (
                     <div className={`transition-all duration-500 ${isAnimating ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}`}>
                         {/* 主卡片區域 (包含內容與按鈕) */}
-                        <div className="bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden relative min-h-[400px] flex flex-col">
+                        <div className={`${theme.card} rounded-xl shadow-xl border ${theme.border} overflow-hidden relative min-h-[400px] flex flex-col transition-colors duration-300`}>
                             
                             <div className="p-8 flex-1 flex flex-col">
                                 <div className="mb-2">
                                     <div className="flex justify-between items-baseline mb-2">
-                                        <div className="flex items-baseline gap-2 text-sm font-bold text-stone-400 tracking-widest uppercase">
+                                        <div className={`flex items-baseline gap-2 text-sm font-bold ${theme.subtext} tracking-widest uppercase`}>
                                             <h2>{currentNote.category || "未分類"}</h2>
-                                            <span className="text-stone-300">|</span>
+                                            <span className="opacity-50">|</span>
                                             <h3>{currentNote.subcategory}</h3>
                                         </div>
-                                        <span className="text-xs text-stone-300 font-sans">#{currentNote.id}</span>
+                                        <span className={`text-xs ${theme.subtext} font-sans opacity-70`}>#{currentNote.id}</span>
                                     </div>
                                 </div>
                                 
                                 <div className="flex-1">
-                                    <h1 className="text-2xl font-bold text-stone-900 mb-4">{currentNote.title}</h1>
+                                    <h1 className={`text-2xl font-bold ${theme.text} mb-4`}>{currentNote.title}</h1>
                                     
                                     {/* 日期顯示區 - 移至主旨語下方 */}
-                                    <div className="flex gap-4 mb-6 text-[10px] text-stone-400 font-mono border-y border-stone-100 py-2 w-full">
-                                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> 建立日期: {currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設資料'}</span>
-                                        <span className="flex items-center gap-1"><Edit className="w-3 h-3"/> 修改日期: {currentNote.modifiedDate ? new Date(currentNote.modifiedDate).toLocaleDateString() : (currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設資料')}</span>
+                                    <div className={`flex gap-4 mb-6 text-[10px] ${theme.subtext} font-mono border-y ${theme.border} py-2 w-full`}>
+                                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> 建立: {currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設'}</span>
+                                        <span className="flex items-center gap-1"><Edit className="w-3 h-3"/> 修改: {currentNote.modifiedDate ? new Date(currentNote.modifiedDate).toLocaleDateString() : (currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設')}</span>
                                     </div>
 
-                                    <div className="-mt-5 text-lg leading-loose text-stone-700 font-sans text-justify whitespace-pre-wrap">
+                                    {/* 內文區域 - 這裡強制使用深色字體以確保 Markdown 在淺色底的卡片上可讀，若為深色模式則自動調整 */}
+                                    <div className={`-mt-5 text-lg leading-loose font-sans text-justify whitespace-pre-wrap ${currentThemeId === 'dark' ? 'text-slate-300' : 'text-stone-700'}`}>
                                         <MarkdownRenderer content={currentNote.content} />
                                     </div>
                                 </div>
                             </div>
 
                             {/* 操作按鈕區 (位於卡片內部底部) */}
-                            <div className="bg-stone-50 px-12 py-4 border-t border-stone-100 flex justify-between items-center">
+                            <div className={`${currentThemeId === 'dark' ? 'bg-slate-950/30' : 'bg-stone-50'} px-12 py-4 border-t ${theme.border} flex justify-between items-center`}>
                                 <button onClick={() => { setIsCreatingNew(false); setShowEditModal(true); }} className="flex flex-col items-center gap-1 text-stone-400 hover:scale-110 transition-transform duration-200">
                                     <Edit className="w-6 h-6" />
                                     <span className="text-[9px] font-bold">修改筆記</span>
@@ -2204,9 +2281,9 @@ function EchoScriptApp() {
                             <button onClick={() => setShowMenuModal(false)}><X className="w-6 h-6 text-gray-400" /></button>
                         </div>
                        <div className="flex p-2 gap-2 bg-white border-b border-stone-100">
-                            {['favorites', 'history', 'settings'].map(tab => (
-                                <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === tab ? 'bg-[#2c3e50] text-white' : 'text-stone-500 hover:bg-stone-100'}`}>
-                                    {tab === 'favorites' ? '收藏筆記' : tab === 'history' ? '歷史紀錄' : '備份設定'}
+                            {['favorites', 'history', 'appearance', 'settings'].map(tab => (
+                                <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-colors ${activeTab === tab ? theme.activeTab : 'text-stone-400 hover:bg-stone-100'}`}>
+                                    {tab === 'favorites' ? '收藏' : tab === 'history' ? '歷史' : tab === 'appearance' ? '外觀' : '備份'}
                                 </button>
                             ))}
                         </div>
@@ -2228,6 +2305,42 @@ function EchoScriptApp() {
                                     allResponses={allResponses} 
                                 />
                             ))}
+
+                            {/* [新增] 外觀主題選擇面板 */}
+                            {activeTab === 'appearance' && (
+                                <div className="space-y-4">
+                                    <h3 className="font-bold text-gray-700 mb-2">選擇主題</h3>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {Object.values(THEMES).map(t => (
+                                            <button 
+                                                key={t.id}
+                                                onClick={() => handleSetTheme(t.id)}
+                                                className={`
+                                                    relative p-4 rounded-xl border-2 text-left transition-all flex items-center gap-4 overflow-hidden
+                                                    ${currentThemeId === t.id ? 'border-[#2c3e50] ring-1 ring-[#2c3e50]' : 'border-transparent hover:border-gray-200'}
+                                                `}
+                                                style={{ backgroundColor: t.id === 'dark' ? '#0f172a' : (t.id === 'morandi' ? '#FFFBF0' : '#ffffff') }}
+                                            >
+                                                {/* 預覽色塊 */}
+                                                <div className={`w-12 h-12 rounded-full shadow-sm flex items-center justify-center ${t.bg} border border-gray-100`}>
+                                                    <div className={`w-6 h-6 rounded-full ${t.accent}`}></div>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className={`font-bold ${t.id === 'dark' ? 'text-slate-200' : 'text-stone-800'}`}>{t.name}</h4>
+                                                    <p className={`text-xs ${t.id === 'dark' ? 'text-slate-500' : 'text-stone-400'}`}>
+                                                        {t.id === 'light' ? '經典簡約風格' : t.id === 'dark' ? '適合低光源閱讀' : '柔和多彩的花園配色'}
+                                                    </p>
+                                                </div>
+                                                {currentThemeId === t.id && (
+                                                    <div className="absolute right-3 top-3 text-[#2c3e50]">
+                                                        <IconBase d="M20 6 9 17l-5-5" className="w-5 h-5"/>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             
                             {activeTab === 'settings' && (
                                 <div className="space-y-4">
@@ -2314,6 +2427,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

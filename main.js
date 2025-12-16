@@ -1876,6 +1876,11 @@ function EchoScriptApp() {
             showNotification("已加入收藏");
         }
 
+        // [關鍵修正] 鎖定當前筆記 ID，避免雲端同步(onSnapshot)觸發時，App 誤以為要跳到下一張卡片
+        if (currentNote) {
+            localStorage.setItem('echoScript_ResumeNoteId', String(currentNote.id));
+        }
+
         // 2. [新增] 同步更新雲端 Firestore
         try {
             if (window.fs && window.db && currentNote) {
@@ -2309,6 +2314,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

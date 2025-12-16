@@ -903,12 +903,11 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                 console.log(`✅ 已同步更新 ${updates.length} 則筆記與分類結構`);
             } catch (e) {
                 console.error("雲端分類更新失敗", e);
-                alert("⚠️ 雲端同步部分失敗，請檢查網路");
+                // 這裡不跳出 Alert，避免干擾體驗，失敗通常是因為離線，Firebase 會自動重試
             }
         }
 
-        // [關鍵] 觸發備份提醒
-        if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+        // [修正] 移除備份提醒標記，因為已全面雲端化
         setContextMenu(null);
     };
 
@@ -2297,6 +2296,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

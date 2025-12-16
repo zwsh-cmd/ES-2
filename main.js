@@ -660,12 +660,13 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         setDragOverIndex(null);
 
         // [新增] 同步分類排序到雲端 (settings/layout)
+        // [修正] 改用 JSON 字串儲存，避開 Firestore 自動重排 Key 的問題
         if (newMap && window.fs && window.db) {
             window.fs.setDoc(
                 window.fs.doc(window.db, "settings", "layout"), 
-                { categoryMap: newMap }, 
+                { categoryMapJSON: JSON.stringify(newMap) }, 
                 { merge: true }
-            ).then(() => console.log("✅ 分類排序已同步雲端"));
+            ).then(() => console.log("✅ 分類排序已同步雲端 (JSON格式)"));
         }
 
         // [關鍵修正] 只要有排序，就標記資料已變更，確保退出時提醒備份
@@ -1232,15 +1233,23 @@ function EchoScriptApp() {
     useEffect(() => { localStorage.setItem('echoScript_CategoryMap', JSON.stringify(categoryMap)); }, [categoryMap]);
 
     // [新增] 監聽雲端分類排序 (settings/layout)
-    // 這樣當你在其他裝置排序分類時，這裡會即時更新
+    // [修正] 優先讀取 JSON 字串格式，確保順序正確
     useEffect(() => {
         if (!window.fs || !window.db) return;
         const unsubscribe = window.fs.onSnapshot(
             window.fs.doc(window.db, "settings", "layout"), 
             (doc) => {
-                if (doc.exists() && doc.data().categoryMap) {
-                    console.log("📥 同步雲端分類排序");
-                    setCategoryMap(doc.data().categoryMap);
+                if (doc.exists()) {
+                    const data = doc.data();
+                    if (data.categoryMapJSON) {
+                        console.log("📥 同步雲端分類排序 (JSON)");
+                        try {
+                            setCategoryMap(JSON.parse(data.categoryMapJSON));
+                        } catch (e) { console.error("解析排序失敗", e); }
+                    } else if (data.categoryMap) {
+                        // 相容舊資料 (若還沒轉成 JSON 格式)
+                        setCategoryMap(data.categoryMap);
+                    }
                 }
             }
         );
@@ -2219,6 +2228,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

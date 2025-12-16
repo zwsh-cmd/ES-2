@@ -716,7 +716,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         return categoryMap[selectedCategory] || [];
     }, [categoryMap, selectedCategory]);
 
-    // 刪除大分類邏輯
+    // 刪除大分類邏輯 (已修正：同步刪除雲端)
     const handleDeleteCategory = (cat) => {
         const hasNotes = notes.some(n => (n.category || "未分類") === cat);
         if (hasNotes) {
@@ -727,12 +727,22 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             const newMap = { ...categoryMap };
             delete newMap[cat];
             setCategoryMap(newMap);
+
+            // [新增] 同步刪除雲端分類 (settings/layout)
+            if (window.fs && window.db) {
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", "layout"), 
+                    { categoryMapJSON: JSON.stringify(newMap) }, 
+                    { merge: true }
+                ).then(() => console.log("✅ 雲端分類已刪除"));
+            }
+
             // [關鍵] 觸發備份提醒
             if (setHasDataChangedInSession) setHasDataChangedInSession(true);
         }
     };
 
-    // 刪除次分類邏輯
+    // 刪除次分類邏輯 (已修正：同步刪除雲端)
     const handleDeleteSubcategory = (sub) => {
         const hasNotes = notes.some(n => (n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === sub);
         if (hasNotes) {
@@ -743,6 +753,16 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             const newMap = { ...categoryMap };
             newMap[selectedCategory] = newMap[selectedCategory].filter(s => s !== sub);
             setCategoryMap(newMap);
+
+            // [新增] 同步刪除雲端次分類 (settings/layout)
+            if (window.fs && window.db) {
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", "layout"), 
+                    { categoryMapJSON: JSON.stringify(newMap) }, 
+                    { merge: true }
+                ).then(() => console.log("✅ 雲端次分類已刪除"));
+            }
+
             // [關鍵] 觸發備份提醒
             if (setHasDataChangedInSession) setHasDataChangedInSession(true);
         }
@@ -2228,6 +2248,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

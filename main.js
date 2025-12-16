@@ -767,8 +767,8 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         };
     };
 
-    // [新增] 處理重新命名
-    const handleRename = () => {
+    // [新增] 處理重新命名 (已修正：同步更新雲端)
+    const handleRename = async () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
         const newName = prompt(`請輸入新的${type === 'category' ? '分類' : '次分類'}名稱`, item);
@@ -781,8 +781,11 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         if (type === 'category' && categoryMap[newName]) { alert("該分類名稱已存在"); return; }
         if (type === 'subcategory' && categoryMap[selectedCategory].includes(newName)) { alert("該次分類名稱已存在"); return; }
 
+        // [新增] 準備批次更新雲端的清單
+        const updates = [];
+
         if (type === 'category') {
-            // 1. 更新 Map (依序重建，確保舊鍵 'item' 被 'newName' 取代，且順序不變)
+            // 1. 更新 Map (本地 UI)
             const newMap = {};
             Object.keys(categoryMap).forEach(key => {
                 if (key === item) {
@@ -793,25 +796,63 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             });
             setCategoryMap(newMap);
             
-            // 2. 更新筆記
-            const newNotes = notes.map(n => (n.category || "未分類") === item ? { ...n, category: newName } : n);
+            // 2. 更新筆記 (本地 + 雲端)
+            const newNotes = notes.map(n => {
+                if ((n.category || "未分類") === item) {
+                    // 加入雲端更新排程
+                    if (window.fs && window.db) {
+                        updates.push(
+                            window.fs.setDoc(
+                                window.fs.doc(window.db, "notes", String(n.id)), 
+                                { category: newName }, 
+                                { merge: true }
+                            )
+                        );
+                    }
+                    return { ...n, category: newName };
+                }
+                return n;
+            });
             setNotes(newNotes);
+
         } else {
-            // 1. 更新 Map (次分類)
+            // 1. 更新 Map (本地 UI)
             const newMap = { ...categoryMap };
             const subs = newMap[selectedCategory].map(s => s === item ? newName : s);
             newMap[selectedCategory] = subs;
             setCategoryMap(newMap);
             
-            // 2. 更新筆記
-            const newNotes = notes.map(n => 
-                ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) 
-                ? { ...n, subcategory: newName } 
-                : n
-            );
+            // 2. 更新筆記 (本地 + 雲端)
+            const newNotes = notes.map(n => {
+                if (((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item)) {
+                    // 加入雲端更新排程
+                    if (window.fs && window.db) {
+                        updates.push(
+                            window.fs.setDoc(
+                                window.fs.doc(window.db, "notes", String(n.id)), 
+                                { subcategory: newName }, 
+                                { merge: true }
+                            )
+                        );
+                    }
+                    return { ...n, subcategory: newName };
+                }
+                return n;
+            });
             setNotes(newNotes);
         }
         
+        // 3. 執行雲端更新
+        if (updates.length > 0) {
+            try {
+                await Promise.all(updates);
+                console.log(`✅ 已同步更新 ${updates.length} 則筆記的分類`);
+            } catch (e) {
+                console.error("雲端分類更新失敗", e);
+                alert("⚠️ 雲端同步部分失敗，請檢查網路");
+            }
+        }
+
         // [關鍵] 觸發備份提醒
         if (setHasDataChangedInSession) setHasDataChangedInSession(true);
         setContextMenu(null);
@@ -2151,6 +2192,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

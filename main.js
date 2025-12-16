@@ -1231,19 +1231,45 @@ function EchoScriptApp() {
     const [categoryMap, setCategoryMap] = useState({});
 
     // [同步] 當筆記更新時，將新的分類補入結構中 (只增不減，達成保留效果)
+    // [修正] 當發現新分類時，除了更新本地，也同步寫入雲端 settings/layout，確保空分類不丟失
     useEffect(() => {
-        setCategoryMap(prev => {
-            const newMap = { ...prev };
-            let hasChange = false;
-            notes.forEach(n => {
-                const c = n.category || "未分類";
-                const s = n.subcategory || "一般";
-                if (!newMap[c]) { newMap[c] = []; hasChange = true; }
-                if (!newMap[c].includes(s)) { newMap[c].push(s); hasChange = true; }
-            });
-            return hasChange ? newMap : prev;
+        if (notes.length === 0) return; 
+
+        // 這裡我們直接拿當前的 categoryMap 來比對
+        // 這樣才能在發現變化時，同時執行 setDoc
+        const newMap = { ...categoryMap };
+        let hasChange = false;
+
+        notes.forEach(n => {
+            const c = n.category || "未分類";
+            const s = n.subcategory || "一般";
+            
+            // 檢查大分類是否存在
+            if (!newMap[c]) { 
+                newMap[c] = []; 
+                hasChange = true; 
+            }
+            // 檢查次分類是否存在
+            if (!newMap[c].includes(s)) { 
+                newMap[c].push(s); 
+                hasChange = true; 
+            }
         });
-    }, [notes]);
+
+        if (hasChange) {
+            console.log("♻️ 發現新分類，正在同步至雲端...");
+            setCategoryMap(newMap);
+            
+            // 同步寫入雲端 (使用 JSON 字串格式)
+            if (window.fs && window.db) {
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", "layout"), 
+                    { categoryMapJSON: JSON.stringify(newMap) }, 
+                    { merge: true }
+                ).catch(e => console.error("自動同步分類失敗", e));
+            }
+        }
+    }, [notes, categoryMap]);
 
     // [存取] 持久化分類結構
     useEffect(() => {
@@ -2248,6 +2274,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

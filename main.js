@@ -1632,25 +1632,47 @@ function EchoScriptApp() {
             let currentDeck = [...shuffleDeck];
             let currentPointer = deckPointer;
 
-            // 檢查是否需要重新洗牌：
-            // 1. 牌堆是空的
-            // 2. 牌堆長度與筆記總數不符 (可能有新增/刪除筆記)
-            // 3. 指標已經指到最後一張了 (currentPointer >= currentDeck.length)
-            if (currentDeck.length !== notes.length || currentPointer >= currentDeck.length) {
-                // 建立新的索引陣列 [0, 1, 2, ... n-1]
-                const newDeck = Array.from({length: notes.length}, (_, i) => i);
+            // [修正] 智慧洗牌邏輯：避免因筆記數量變動而強制重洗，導致容易抽到重複卡片
+            
+            // 情況 A: 牌堆長度不符 (有新增或刪除筆記) -> 執行「智慧修補」，而不是重洗
+            if (currentDeck.length !== notes.length) {
+                // 1. 建立目前所有有效的索引集合
+                const allIndices = new Set(notes.map((_, i) => i));
+                // 2. 過濾掉牌堆裡已經無效的索引 (例如被刪除的筆記)
+                currentDeck = currentDeck.filter(idx => allIndices.has(idx));
                 
-                // Fisher-Yates 洗牌演算法
+                // 3. 找出哪些是新筆記的索引 (不在目前牌堆裡的)
+                const existingIndices = new Set(currentDeck);
+                const newIndices = [...allIndices].filter(idx => !existingIndices.has(idx));
+
+                // 4. 將新筆記隨機插入到「未來」的牌堆中 (Pointer 之後)
+                if (newIndices.length > 0) {
+                    newIndices.forEach(newIdx => {
+                        // 在 pointer 到 結尾 之間隨機找個位置插進去
+                        // 這樣保證你下一張還是原本排好的，但新筆記會在未來出現
+                        const remainingSlots = currentDeck.length - currentPointer;
+                        const insertOffset = Math.floor(Math.random() * (remainingSlots + 1));
+                        currentDeck.splice(currentPointer + insertOffset, 0, newIdx);
+                    });
+                }
+            }
+
+            // 情況 B: 牌真的抽完了 (或是修補後還是空的) -> 執行「全域洗牌」
+            if (currentPointer >= currentDeck.length || currentDeck.length === 0) {
+                console.log("🃏 牌堆用盡，重新洗牌...");
+                const newDeck = Array.from({length: notes.length}, (_, i) => i);
+                // Fisher-Yates 洗牌
                 for (let i = newDeck.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
                 }
-                
                 currentDeck = newDeck;
                 currentPointer = 0;
-                // 如果剛洗完牌的第一張剛好跟現在顯示的一樣，為了避免重複感，將第一張跟最後一張交換
-                if (notes[currentDeck[0]].id === (currentNote ? currentNote.id : null)) {
-                    [currentDeck[0], currentDeck[currentDeck.length - 1]] = [currentDeck[currentDeck.length - 1], currentDeck[0]];
+
+                // 防重複：如果剛洗完的第一張跟現在顯示的一樣，把它塞到最後面去
+                if (notes[currentDeck[0]]?.id === (currentNote ? currentNote.id : null)) {
+                    const firstCard = currentDeck.shift();
+                    currentDeck.push(firstCard);
                 }
             }
 
@@ -1661,10 +1683,8 @@ function EchoScriptApp() {
             setShuffleDeck(currentDeck);
             setDeckPointer(currentPointer + 1);
 
-            // 為了支援「上一張」功能，我們仍然需要維護 recentIndices
             setRecentIndices(prev => {
                 const updated = [newIndex, ...prev];
-                // 這裡可以保留較多的歷史紀錄以便回溯
                 if (updated.length > 50) updated.pop();
                 return updated;
             });
@@ -2283,6 +2303,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

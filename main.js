@@ -1229,14 +1229,14 @@ function EchoScriptApp() {
     
     // [新增] 分類結構地圖 { "大分類": ["次分類1", "次分類2"] }，用於保留空分類
     const [categoryMap, setCategoryMap] = useState({});
+    // [新增] 安全鎖：標記雲端設定是否已載入，防止手機端在還沒拿到資料前，就用不完整的本地資料覆蓋雲端
+    const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
 
     // [同步] 當筆記更新時，將新的分類補入結構中 (只增不減，達成保留效果)
-    // [修正] 當發現新分類時，除了更新本地，也同步寫入雲端 settings/layout，確保空分類不丟失
+    // [修正] 加入 isSettingsLoaded 檢查，防止在雲端分類尚未下載前，就用本地不完整的資料覆蓋雲端
     useEffect(() => {
         if (notes.length === 0) return; 
 
-        // 這裡我們直接拿當前的 categoryMap 來比對
-        // 這樣才能在發現變化時，同時執行 setDoc
         const newMap = { ...categoryMap };
         let hasChange = false;
 
@@ -1244,12 +1244,10 @@ function EchoScriptApp() {
             const c = n.category || "未分類";
             const s = n.subcategory || "一般";
             
-            // 檢查大分類是否存在
             if (!newMap[c]) { 
                 newMap[c] = []; 
                 hasChange = true; 
             }
-            // 檢查次分類是否存在
             if (!newMap[c].includes(s)) { 
                 newMap[c].push(s); 
                 hasChange = true; 
@@ -1257,11 +1255,13 @@ function EchoScriptApp() {
         });
 
         if (hasChange) {
-            console.log("♻️ 發現新分類，正在同步至雲端...");
+            console.log("♻️ 發現新分類，更新本地顯示...");
             setCategoryMap(newMap);
             
-            // 同步寫入雲端 (使用 JSON 字串格式)
-            if (window.fs && window.db) {
+            // [關鍵修正] 只有當雲端設定已經載入過一次後，才允許寫回雲端
+            // 避免手機端剛開啟時，因為還沒拿到完整的分類表，就誤以為只有這幾個分類，而把雲端資料洗掉
+            if (window.fs && window.db && isSettingsLoaded) {
+                console.log("☁️ 同步寫入雲端 settings/layout");
                 window.fs.setDoc(
                     window.fs.doc(window.db, "settings", "layout"), 
                     { categoryMapJSON: JSON.stringify(newMap) }, 
@@ -1269,7 +1269,7 @@ function EchoScriptApp() {
                 ).catch(e => console.error("自動同步分類失敗", e));
             }
         }
-    }, [notes, categoryMap]);
+    }, [notes, categoryMap, isSettingsLoaded]);
 
     // [存取] 持久化分類結構
     useEffect(() => {
@@ -1279,7 +1279,7 @@ function EchoScriptApp() {
     useEffect(() => { localStorage.setItem('echoScript_CategoryMap', JSON.stringify(categoryMap)); }, [categoryMap]);
 
     // [新增] 監聽雲端分類排序 (settings/layout)
-    // [修正] 優先讀取 JSON 字串格式，確保順序正確
+    // [修正] 優先讀取 JSON 字串格式，確保順序正確，並設定 isSettingsLoaded 標記
     useEffect(() => {
         if (!window.fs || !window.db) return;
         const unsubscribe = window.fs.onSnapshot(
@@ -1293,10 +1293,11 @@ function EchoScriptApp() {
                             setCategoryMap(JSON.parse(data.categoryMapJSON));
                         } catch (e) { console.error("解析排序失敗", e); }
                     } else if (data.categoryMap) {
-                        // 相容舊資料 (若還沒轉成 JSON 格式)
                         setCategoryMap(data.categoryMap);
                     }
                 }
+                // [關鍵] 標記已完成首次載入 (無論有沒有資料)，允許後續的寫入操作
+                setIsSettingsLoaded(true);
             }
         );
         return () => unsubscribe();
@@ -2274,6 +2275,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

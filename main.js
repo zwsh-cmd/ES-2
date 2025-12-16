@@ -1632,6 +1632,12 @@ function EchoScriptApp() {
             let currentDeck = [...shuffleDeck];
             let currentPointer = deckPointer;
 
+            // [新增] 防重複檢查：解決「剛開啟 App 時按下一張會重複」的問題
+            // 如果指標指向的卡片就是當前正在顯示的卡片，直接跳過這張，往後移一格
+            if (currentPointer < currentDeck.length && notes[currentDeck[currentPointer]]?.id === (currentNote ? currentNote.id : null)) {
+                currentPointer++;
+            }
+
             // [修正] 智慧洗牌邏輯：避免因筆記數量變動而強制重洗，導致容易抽到重複卡片
             
             // 情況 A: 牌堆長度不符 (有新增或刪除筆記) -> 執行「智慧修補」，而不是重洗
@@ -2303,6 +2309,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

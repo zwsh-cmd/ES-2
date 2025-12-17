@@ -1409,6 +1409,9 @@ function EchoScriptApp() {
     // [新增] 追蹤本次會話是否有資料變更 (用於離線備份提示)
     const [hasDataChangedInSession, setHasDataChangedInSession] = useState(false);
     const hasDataChangedInSessionRef = useRef(false);
+    
+    // [新增] 自定義「未存檔警告」視窗狀態 (取代不穩定的 native confirm)
+    const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
 
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
@@ -2436,6 +2439,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

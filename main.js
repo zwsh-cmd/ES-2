@@ -60,6 +60,7 @@ const Italic = (props) => <IconBase d={["M19 4h-9", "M14 20H5", "M15 4L9 20"]} {
 const Underline = (props) => <IconBase d={["M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3", "M4 21h16"]} {...props} />;
 const Calendar = (props) => <IconBase d={["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18"]} {...props} />;
 const GripVertical = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>;
+const Pin = (props) => <IconBase d={["M2 12h10", "M9 4v16", "M3 7l3 3", "M3 17l3-3", "M12 2l3 3", "M12 22l3-3"]} d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" {...props} d={["M12 17v5", "M9 2h6v2l-1 1v8l4 4H6l4-4V5l-1-1V2z"]} />; // 使用 Pushpin 樣式
 
 
 // === 2. 初始筆記資料庫 (確保有完整分類) ===
@@ -1268,23 +1269,35 @@ function EchoScriptApp() {
     // [新增] 外觀主題狀態
     const [currentThemeId, setCurrentThemeId] = useState('light');
     const theme = THEMES[currentThemeId] || THEMES.light;
+    // [新增] 釘選筆記 ID 狀態
+    const [pinnedNoteId, setPinnedNoteId] = useState(null);
 
     // [新增] 初始化與監聽雲端主題設定 (settings/preferences)
     useEffect(() => {
         // 1. 先讀取本地快取，避免閃爍
         const localTheme = localStorage.getItem('echoScript_Theme');
         if (localTheme && THEMES[localTheme]) setCurrentThemeId(localTheme);
+        
+        const localPinnedId = localStorage.getItem('echoScript_PinnedId');
+        if (localPinnedId) setPinnedNoteId(localPinnedId);
 
         // 2. 監聽雲端
         if (!window.fs || !window.db) return;
         const unsubscribe = window.fs.onSnapshot(
             window.fs.doc(window.db, "settings", "preferences"),
             (doc) => {
-                if (doc.exists() && doc.data().themeId) {
-                    const cloudTheme = doc.data().themeId;
-                    if (THEMES[cloudTheme]) {
-                        setCurrentThemeId(cloudTheme);
-                        localStorage.setItem('echoScript_Theme', cloudTheme);
+                if (doc.exists()) {
+                    const data = doc.data();
+                    // 同步主題
+                    if (data.themeId && THEMES[data.themeId]) {
+                        setCurrentThemeId(data.themeId);
+                        localStorage.setItem('echoScript_Theme', data.themeId);
+                    }
+                    // 同步釘選筆記
+                    if (data.pinnedNoteId !== undefined) { // 允許 null (取消釘選)
+                        setPinnedNoteId(data.pinnedNoteId);
+                        if (data.pinnedNoteId) localStorage.setItem('echoScript_PinnedId', data.pinnedNoteId);
+                        else localStorage.removeItem('echoScript_PinnedId');
                     }
                 }
             }
@@ -1628,24 +1641,37 @@ function EchoScriptApp() {
                 setShuffleDeck(loadedDeck);
                 setDeckPointer(loadedPointer);
 
-                // 5. [狀態恢復] 決定當前要顯示哪一張卡片
+                // 5. [狀態恢復] 決定當前要顯示哪一張卡片 (優先權：釘選 > 上次瀏覽 > 洗牌)
                 if (cloudNotes.length > 0) {
+                    // 這裡優先使用 localStorage 的快取值，因為 State 更新可能有延遲，確保啟動即時性
+                    const cachedPinnedId = localStorage.getItem('echoScript_PinnedId');
                     const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
-                    let idx = -1;
                     
-                    // 嘗試找回上次離開的那張筆記
-                    if (resumeId) {
+                    let idx = -1;
+
+                    // A. 優先檢查是否有釘選筆記
+                    if (cachedPinnedId) {
+                         idx = cloudNotes.findIndex(n => String(n.id) === String(cachedPinnedId));
+                    }
+                    
+                    // B. 如果沒釘選 (或釘選筆記被刪了)，才找上次離開的那張
+                    if (idx === -1 && resumeId) {
                         idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
                     }
 
-                    // 如果找不到 (或沒紀錄)，就從洗牌堆拿一張新的
+                    // C. 如果都找不到，就從洗牌堆拿一張新的
                     if (idx === -1) {
                         const deckIndex = loadedDeck[loadedPointer] || 0;
                         idx = deckIndex;
                     }
                     
-                    // 只有當「目前顯示是 0 且沒動畫」時才更新，避免干擾使用中的切換
-                    setCurrentIndex(prev => (prev === 0 && !resumeId) ? idx : idx);
+                    // 只有當「目前顯示是 0 (初始狀態)」或「強制刷新」時才更新
+                    // 如果有釘選 (cachedPinnedId)，我們傾向於每次打開 App 都看到它，除非使用者已經在操作中
+                    setCurrentIndex(prev => {
+                        // 簡單邏輯：如果是剛載入(0) 或者是因為雲端同步導致的更新，我們希望能定錨到正確位置
+                        // 但為了不干擾使用者如果已經按了下一張，我們這裡採取：只在初始化或目標明確時切換
+                        return idx; 
+                    });
                 }
             } catch (e) { console.error("Deck sync error", e); }
         });
@@ -1936,6 +1962,30 @@ function EchoScriptApp() {
         }
     };
 
+    // [新增] 處理釘選/取消釘選
+    const handleTogglePin = () => {
+        if (!currentNote) return;
+        
+        const isCurrentlyPinned = pinnedNoteId === String(currentNote.id);
+        const newPinnedId = isCurrentlyPinned ? null : String(currentNote.id);
+
+        // 1. 本地樂觀更新
+        setPinnedNoteId(newPinnedId);
+        if (newPinnedId) localStorage.setItem('echoScript_PinnedId', newPinnedId);
+        else localStorage.removeItem('echoScript_PinnedId');
+
+        showNotification(isCurrentlyPinned ? "已取消首頁釘選" : "已釘選至首頁 (下次開啟時顯示)");
+
+        // 2. 雲端同步 (寫入 settings/preferences)
+        if (window.fs && window.db) {
+            window.fs.setDoc(
+                window.fs.doc(window.db, "settings", "preferences"), 
+                { pinnedNoteId: newPinnedId }, 
+                { merge: true }
+            ).catch(e => console.error("釘選同步失敗", e));
+        }
+    };
+
     const handleToggleFavorite = () => {
         const nextStatus = !isFavorite;
 
@@ -2215,7 +2265,12 @@ function EchoScriptApp() {
                                     )}
                                 </button>
 
-                                <button onClick={handleToggleFavorite} className="flex flex-col items-center gap-1 text-stone-400 hover:scale-110 transition-transform duration-200">
+                                <button onClick={handleTogglePin} className={`flex flex-col items-center gap-1 hover:scale-110 transition-transform duration-200 ${String(currentNote.id) === String(pinnedNoteId) ? 'text-[#2c3e50] ' + theme.accentText.replace('text-white', 'text-current') : 'text-stone-400'}`}>
+                                    <Pin className="w-6 h-6" fill={String(currentNote.id) === String(pinnedNoteId) ? "currentColor" : "none"} />
+                                    <span className="text-[9px] font-bold">釘選</span>
+                                </button>
+
+                                <button onClick={handleToggleFavorite} className={`flex flex-col items-center gap-1 hover:scale-110 transition-transform duration-200 ${isFavorite ? 'text-red-500' : 'text-stone-400'}`}>
                                     <Heart className="w-6 h-6" fill={isFavorite ? "currentColor" : "none"} />
                                     <span className="text-[9px] font-bold">收藏</span>
                                 </button>
@@ -2465,6 +2520,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

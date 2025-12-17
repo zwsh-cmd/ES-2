@@ -624,7 +624,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         }
 
         let newMap = null; 
-        let currentOrder = null; // [新增] 用來記錄最新的排序陣列
+        let currentOrder = null; 
 
         if (viewLevel === 'categories') {
              // 1. 取得目前的分類 Keys 陣列
@@ -635,16 +635,15 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
              _categories.splice(dragItem.current, 1);
              _categories.splice(dragOverItem.current, 0, draggedItemContent);
              
-             // 3. 記錄順序
+             // 3. 記錄順序 (這就是我們的聖旨)
              currentOrder = _categories;
 
-             // 4. 重建物件
+             // 4. 重建 Map
              newMap = {};
              _categories.forEach(cat => { newMap[cat] = categoryMap[cat] || []; });
              
              // 5. 更新本地狀態
              setCategoryMap(newMap);
-             console.log("排序後的新順序:", _categories);
         }
         else if (viewLevel === 'subcategories') {
             let _subs = [...(categoryMap[selectedCategory] || [])];
@@ -681,13 +680,13 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         setDraggingIndex(null); 
         setDragOverIndex(null);
 
-        // [新增] 同步分類排序到雲端 (settings/layout)
+        // [同步] 寫入雲端
         if (newMap && window.fs && window.db) {
             const payload = { 
                 categoryMapJSON: JSON.stringify(newMap),
                 updatedAt: Date.now() 
             };
-            // [關鍵] 如果有調整大分類順序，額外儲存 categoryOrder 陣列
+            // 只有在大分類排序時，才更新全域順序表
             if (currentOrder) {
                 payload.categoryOrder = currentOrder;
             }
@@ -696,9 +695,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                 window.fs.doc(window.db, "settings", "layout"), 
                 payload, 
                 { merge: true }
-            )
-            .then(() => console.log("✅ 分類排序已同步雲端 (含順序陣列)"))
-            .catch(e => console.error("❌ 分類排序同步失敗:", e));
+            ).catch(e => console.error("❌ 分類排序同步失敗:", e));
         }
 
         if (setHasDataChangedInSession) setHasDataChangedInSession(true);
@@ -830,7 +827,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         };
     };
 
-    // [新增] 處理重新命名 (已修正：同步更新雲端與分類結構)
+    // [新增] 處理重新命名 (已修正：同步更新雲端、分類結構與排序陣列)
     const handleRename = async () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
@@ -844,36 +841,39 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         if (type === 'category' && categoryMap[newName]) { alert("該分類名稱已存在"); return; }
         if (type === 'subcategory' && categoryMap[selectedCategory].includes(newName)) { alert("該次分類名稱已存在"); return; }
 
-        // [新增] 準備批次更新雲端的清單
         const updates = [];
 
         if (type === 'category') {
-            // 1. 更新 Map (本地 UI)
+            // 1. 計算新的順序 (保持原位)
+            const currentKeys = Object.keys(categoryMap);
+            const newOrder = currentKeys.map(k => k === item ? newName : k);
+
+            // 2. 重建 Map
             const newMap = {};
-            Object.keys(categoryMap).forEach(key => {
-                if (key === item) {
-                    newMap[newName] = categoryMap[item]; 
-                } else {
-                    newMap[key] = categoryMap[key];
-                }
+            newOrder.forEach(k => {
+                if (k === newName) newMap[newName] = categoryMap[item];
+                else newMap[k] = categoryMap[k];
             });
             setCategoryMap(newMap);
 
-            // [新增] 同步更新雲端分類結構 (settings/layout) 確保舊名被移除
+            // 3. 同步更新雲端 (包含 categoryOrder)
             if (window.fs && window.db) {
                 updates.push(
                     window.fs.setDoc(
                         window.fs.doc(window.db, "settings", "layout"), 
-                        { categoryMapJSON: JSON.stringify(newMap) }, 
+                        { 
+                            categoryMapJSON: JSON.stringify(newMap),
+                            categoryOrder: newOrder, // [關鍵] 改名也要更新順序表
+                            updatedAt: Date.now()
+                        }, 
                         { merge: true }
                     )
                 );
             }
             
-            // 2. 更新筆記 (本地 + 雲端)
+            // 4. 更新筆記
             const newNotes = notes.map(n => {
                 if ((n.category || "未分類") === item) {
-                    // 加入雲端更新排程
                     if (window.fs && window.db) {
                         updates.push(
                             window.fs.setDoc(
@@ -890,13 +890,12 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             setNotes(newNotes);
 
         } else {
-            // 1. 更新 Map (本地 UI)
+            // 次分類邏輯保持不變
             const newMap = { ...categoryMap };
             const subs = newMap[selectedCategory].map(s => s === item ? newName : s);
             newMap[selectedCategory] = subs;
             setCategoryMap(newMap);
 
-            // [新增] 同步更新雲端分類結構 (settings/layout)
             if (window.fs && window.db) {
                 updates.push(
                     window.fs.setDoc(
@@ -907,10 +906,8 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                 );
             }
             
-            // 2. 更新筆記 (本地 + 雲端)
             const newNotes = notes.map(n => {
                 if (((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item)) {
-                    // 加入雲端更新排程
                     if (window.fs && window.db) {
                         updates.push(
                             window.fs.setDoc(
@@ -927,18 +924,9 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             setNotes(newNotes);
         }
         
-        // 3. 執行雲端更新
         if (updates.length > 0) {
-            try {
-                await Promise.all(updates);
-                console.log(`✅ 已同步更新 ${updates.length} 則筆記與分類結構`);
-            } catch (e) {
-                console.error("雲端分類更新失敗", e);
-                // 這裡不跳出 Alert，避免干擾體驗，失敗通常是因為離線，Firebase 會自動重試
-            }
+            try { await Promise.all(updates); } catch (e) { console.error("雲端更新失敗", e); }
         }
-
-        // [修正] 移除備份提醒標記，因為已全面雲端化
         setContextMenu(null);
     };
 
@@ -1382,7 +1370,7 @@ function EchoScriptApp() {
     useEffect(() => { localStorage.setItem('echoScript_CategoryMap', JSON.stringify(categoryMap)); }, [categoryMap]);
 
     // [新增] 監聽雲端分類排序 (settings/layout)
-    // [修正] 優先使用 categoryOrder 陣列來重建 Map，這是確保順序不被瀏覽器重排的終極手段
+    // [修正] 使用 hasOwnProperty 嚴格檢查 Key，確保「空分類」也能被正確排序，不會被誤判跳過
     useEffect(() => {
         if (!window.fs || !window.db) return;
         const unsubscribe = window.fs.onSnapshot(
@@ -1403,23 +1391,25 @@ function EchoScriptApp() {
 
                     // 2. [關鍵] 如果有 categoryOrder 陣列，依此順序強制重建 Map
                     if (data.categoryOrder && Array.isArray(data.categoryOrder)) {
-                        console.log("📥 依照 categoryOrder 陣列校正順序");
                         const orderedMap = {};
-                        // 依照陣列順序插入 Key
+                        // A. 優先依照順序陣列插入 Key (包含空分類)
                         data.categoryOrder.forEach(key => {
-                            if (map[key]) orderedMap[key] = map[key];
+                            // 使用 hasOwnProperty 確保即使值是空陣列 [] 也能被正確抓取
+                            if (Object.prototype.hasOwnProperty.call(map, key)) {
+                                orderedMap[key] = map[key];
+                            }
                         });
-                        // 把剩下沒在陣列裡的 Key (防呆) 補在後面
+                        // B. 把剩下沒在陣列裡的 Key (防呆：例如新同步的分類) 補在後面
                         Object.keys(map).forEach(key => {
-                            if (!orderedMap[key]) orderedMap[key] = map[key];
+                            if (!Object.prototype.hasOwnProperty.call(orderedMap, key)) {
+                                orderedMap[key] = map[key];
+                            }
                         });
                         setCategoryMap(orderedMap);
                     } else {
-                        // 如果沒有順序陣列，就直接使用 Map
                         setCategoryMap(map);
                     }
                 }
-                // [關鍵] 標記已完成首次載入 (無論有沒有資料)，允許後續的寫入操作
                 setIsSettingsLoaded(true);
             }
         );
@@ -2504,6 +2494,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

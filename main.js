@@ -1412,7 +1412,7 @@ function EchoScriptApp() {
     
     // [新增] 自定義「未存檔警告」視窗狀態 (取代不穩定的 native confirm)
     const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
-
+    
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
     useEffect(() => { hasDataChangedInSessionRef.current = hasDataChangedInSession; }, [hasDataChangedInSession]);
@@ -1449,28 +1449,13 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 ===
             if (hasUnsavedChangesRef.current) {
-                // 1. 先同步執行 pushState，把歷史紀錄「塞回去」作為防護網
-                // 使用 Math.random() 確保每次的 state 都是全新的，強迫瀏覽器認帳，避免被誤判為重複狀態
-                window.history.pushState({ page: 'modal_trap', id: Math.random(), time: Date.now() }, '', '');
+                // 1. 同步執行 pushState，把歷史紀錄「塞回去」作為防護網
+                // 這樣無論使用者按幾次返回，因為沒有 confirm 阻擋執行緒，這裡一定會執行成功
+                window.history.pushState({ page: 'modal_trap', id: Math.random() }, '', '');
                 
-                // 2. 延遲執行 confirm (關鍵修正)
-                // 給予 100ms 緩衝，讓瀏覽器有時間確認 pushState 已生效，然後再跳出阻斷視窗。
-                // 這是解決「第二次返回閃退」的核心：避免同步的 confirm 打斷了歷史紀錄的寫入流程。
-                setTimeout(() => {
-                    if (confirm("編輯內容還未存檔，是否離開？")) {
-                        // 使用者選擇「確定離開」
-                        setHasUnsavedChanges(false);
-                        hasUnsavedChangesRef.current = false;
-                        
-                        // 關閉所有視窗
-                        setShowMenuModal(false);
-                        setShowAllNotesModal(false);
-                        setAllNotesViewLevel('categories');
-                        setShowEditModal(false);
-                        setShowResponseModal(false);
-                        setResponseViewMode('list');
-                    }
-                }, 100);
+                // 2. 顯示自定義的提示視窗 (非阻塞式)
+                // 這能徹底解決「按第二次返回會閃退」的問題，因為我們不再依賴瀏覽器不穩定的 confirm 行為
+                setShowUnsavedAlert(true);
                 return;
             }
 
@@ -2428,6 +2413,47 @@ function EchoScriptApp() {
                 />
             )}
 
+            {/* [新增] 自定義未存檔警告視窗 (徹底解決返回閃退問題) */}
+            {showUnsavedAlert && (
+                <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowUnsavedAlert(false); }}>
+                    <div className="bg-white rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95">
+                        <h3 className="font-bold text-lg mb-2 text-stone-800">尚未存檔</h3>
+                        <p className="text-sm text-stone-600 mb-6">您有變更尚未儲存，確定要直接離開嗎？</p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setShowUnsavedAlert(false)}
+                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-700 hover:bg-stone-200 rounded-lg font-bold transition-colors"
+                            >
+                                繼續編輯
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    // 1. 解除未存檔狀態
+                                    hasUnsavedChangesRef.current = false; // 手動更新 Ref 確保同步
+                                    setHasUnsavedChanges(false);
+                                    setShowUnsavedAlert(false);
+                                    
+                                    // 2. 關閉所有編輯視窗
+                                    setShowMenuModal(false);
+                                    setShowAllNotesModal(false);
+                                    setAllNotesViewLevel('categories');
+                                    setShowEditModal(false);
+                                    setShowResponseModal(false);
+                                    setResponseViewMode('list');
+
+                                    // 3. 模擬「確定離開」，退回上一頁 (抵銷剛剛為了攔截而 pushState 的那一層)
+                                    // 這樣使用者就會回到列表頁，感覺像是「真的退出了」
+                                    window.history.back();
+                                }} 
+                                className="flex-1 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg font-bold transition-colors"
+                            >
+                                確定離開
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {notification && (
                 <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-[#2c3e50] text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 z-50">
                     {notification}
@@ -2439,6 +2465,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1446,24 +1446,32 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 ===
             if (hasUnsavedChangesRef.current) {
-                // 1. 先同步執行 pushState，把歷史紀錄「塞回去」，確保瀏覽器認為我們還在當前頁面
-                window.history.pushState({ page: 'modal_trap', time: Date.now() }, '', '');
+                // 1. 先同步執行 pushState，把歷史紀錄「塞回去」
+                // 使用 Math.random() 確保每次的 state 都是全新的，強迫瀏覽器認帳
+                window.history.pushState({ page: 'modal_trap', id: Math.random() }, '', '');
                 
-                // 2. 將 confirm 延遲執行 (setTimeout)
-                // 這是關鍵修正：讓瀏覽器有時間先消化完 pushState 的動作，再跳出阻斷視窗。
-                // 如果同步執行 confirm，某些瀏覽器 (尤其是手機版) 會在第二次返回時，因為狀態切換太快而判定失效，導致直接退出。
+                // 2. 延遲執行 confirm (關鍵修正)
+                // 給予 100ms 緩衝，讓瀏覽器有時間確認 pushState 已生效，然後再跳出阻斷視窗。
+                // 解決了「同步執行會導致第二次返回時 pushState 失效」的瀏覽器 Bug。
                 setTimeout(() => {
                     if (confirm("編輯內容還未存檔，是否離開？")) {
+                        // 使用者選「確定離開」
                         setHasUnsavedChanges(false);
                         hasUnsavedChangesRef.current = false;
+                        
+                        // 關閉所有視窗
                         setShowMenuModal(false);
                         setShowAllNotesModal(false);
                         setAllNotesViewLevel('categories');
                         setShowEditModal(false);
                         setShowResponseModal(false);
                         setResponseViewMode('list');
+                        
+                        // [優化] 既然使用者同意離開，我們可以主動退回上一頁 (抵銷剛剛的 pushState)
+                        // 讓體驗更流暢，不用多按一次返回
+                        window.history.back();
                     }
-                }, 50); // 給予 50ms 緩衝，確保瀏覽器狀態穩定
+                }, 100);
                 return;
             }
 
@@ -2432,6 +2440,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1446,20 +1446,24 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 ===
             if (hasUnsavedChangesRef.current) {
-                // [修正] 改為同步 pushState，確保每次按返回都能穩定攔截，不會因為非同步延遲導致第二次按下時直接退出
+                // 1. 先同步執行 pushState，把歷史紀錄「塞回去」，確保瀏覽器認為我們還在當前頁面
                 window.history.pushState({ page: 'modal_trap', time: Date.now() }, '', '');
                 
-                // 直接執行確認，若使用者選擇「取消」，因為上面已經 pushState 回去了，所以會停留在原地
-                if (confirm("編輯內容還未存檔，是否離開？")) {
-                    setHasUnsavedChanges(false);
-                    hasUnsavedChangesRef.current = false;
-                    setShowMenuModal(false);
-                    setShowAllNotesModal(false);
-                    setAllNotesViewLevel('categories');
-                    setShowEditModal(false);
-                    setShowResponseModal(false);
-                    setResponseViewMode('list');
-                }
+                // 2. 將 confirm 延遲執行 (setTimeout)
+                // 這是關鍵修正：讓瀏覽器有時間先消化完 pushState 的動作，再跳出阻斷視窗。
+                // 如果同步執行 confirm，某些瀏覽器 (尤其是手機版) 會在第二次返回時，因為狀態切換太快而判定失效，導致直接退出。
+                setTimeout(() => {
+                    if (confirm("編輯內容還未存檔，是否離開？")) {
+                        setHasUnsavedChanges(false);
+                        hasUnsavedChangesRef.current = false;
+                        setShowMenuModal(false);
+                        setShowAllNotesModal(false);
+                        setAllNotesViewLevel('categories');
+                        setShowEditModal(false);
+                        setShowResponseModal(false);
+                        setResponseViewMode('list');
+                    }
+                }, 50); // 給予 50ms 緩衝，確保瀏覽器狀態穩定
                 return;
             }
 
@@ -2428,6 +2432,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

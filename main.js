@@ -1446,19 +1446,20 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 ===
             if (hasUnsavedChangesRef.current) {
-                setTimeout(() => window.history.pushState({ page: 'modal_trap', time: Date.now() }, '', ''), 0);
-                setTimeout(() => {
-                    if (confirm("編輯內容還未存檔，是否離開？")) {
-                        setHasUnsavedChanges(false);
-                        hasUnsavedChangesRef.current = false;
-                        setShowMenuModal(false);
-                        setShowAllNotesModal(false);
-                        setAllNotesViewLevel('categories');
-                        setShowEditModal(false);
-                        setShowResponseModal(false);
-                        setResponseViewMode('list');
-                    }
-                }, 20);
+                // [修正] 改為同步 pushState，確保每次按返回都能穩定攔截，不會因為非同步延遲導致第二次按下時直接退出
+                window.history.pushState({ page: 'modal_trap', time: Date.now() }, '', '');
+                
+                // 直接執行確認，若使用者選擇「取消」，因為上面已經 pushState 回去了，所以會停留在原地
+                if (confirm("編輯內容還未存檔，是否離開？")) {
+                    setHasUnsavedChanges(false);
+                    hasUnsavedChangesRef.current = false;
+                    setShowMenuModal(false);
+                    setShowAllNotesModal(false);
+                    setAllNotesViewLevel('categories');
+                    setShowEditModal(false);
+                    setShowResponseModal(false);
+                    setResponseViewMode('list');
+                }
                 return;
             }
 
@@ -2427,6 +2428,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

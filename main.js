@@ -615,26 +615,36 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
     const dragItem = useRef(null);
     const dragOverItem = useRef(null);
 
-    // [新增] 執行排序資料更新 (已修正：同步寫入雲端)
+    // [新增] 執行排序資料更新 (已修正：確保空白分類排序也能同步雲端)
     const handleSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
+            // 重置拖曳狀態
             dragItem.current = null;
             dragOverItem.current = null;
             return;
         }
 
-        let newMap = null; // [新增] 用來暫存並上傳雲端的分類地圖
+        let newMap = null; // 用來暫存並上傳雲端的分類地圖
 
         if (viewLevel === 'categories') {
+             // 1. 取得目前的分類 Keys 陣列
              let _categories = Object.keys(categoryMap);
              const draggedItemContent = _categories[dragItem.current];
+             
+             // 2. 執行陣列位移
              _categories.splice(dragItem.current, 1);
              _categories.splice(dragOverItem.current, 0, draggedItemContent);
              
-             // 確實依序重建物件，確保順序被保存
+             // 3. [關鍵] 依照新的 Key 順序重建物件
+             // 這一步對於空白分類至關重要，必須確保新物件的 Key 插入順序是正確的
              newMap = {};
-             _categories.forEach(cat => { newMap[cat] = categoryMap[cat]; });
+             for (const cat of _categories) {
+                 newMap[cat] = categoryMap[cat] || []; // 確保值存在，即使是空陣列
+             }
+             
+             // 4. 更新本地狀態
              setCategoryMap(newMap);
+             console.log("排序後的新順序:", _categories);
         }
         else if (viewLevel === 'subcategories') {
             let _subs = [...(categoryMap[selectedCategory] || [])];
@@ -666,22 +676,25 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             setNotes(_notes);
         }
         
+        // 重置拖曳指標
         dragItem.current = null;
         dragOverItem.current = null;
         setDraggingIndex(null); 
         setDragOverIndex(null);
 
         // [新增] 同步分類排序到雲端 (settings/layout)
-        // [修正] 改用 JSON 字串儲存，避開 Firestore 自動重排 Key 的問題
+        // [修正] 強制寫入 JSON 字串，確保包含所有分類（含空白分類）的新順序
         if (newMap && window.fs && window.db) {
             window.fs.setDoc(
                 window.fs.doc(window.db, "settings", "layout"), 
                 { categoryMapJSON: JSON.stringify(newMap) }, 
                 { merge: true }
-            ).then(() => console.log("✅ 分類排序已同步雲端 (JSON格式)"));
+            )
+            .then(() => console.log("✅ 分類排序已同步雲端 (JSON格式)"))
+            .catch(e => console.error("❌ 分類排序同步失敗:", e));
         }
 
-        // [關鍵修正] 只要有排序，就標記資料已變更，確保退出時提醒備份
+        // [關鍵修正] 只要有排序，就標記資料已變更
         if (setHasDataChangedInSession) setHasDataChangedInSession(true);
     };
 
@@ -2465,6 +2478,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

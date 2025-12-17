@@ -615,7 +615,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
     const dragItem = useRef(null);
     const dragOverItem = useRef(null);
 
-    // [新增] 執行排序資料更新 (已修正：確保空白分類排序也能同步雲端 - 強制模式)
+    // [新增] 執行排序資料更新 (已修正：使用 categoryOrder 陣列確保排序絕對正確)
     const handleSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
             dragItem.current = null;
@@ -623,7 +623,8 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             return;
         }
 
-        let newMap = null; // 用來暫存並上傳雲端的分類地圖
+        let newMap = null; 
+        let currentOrder = null; // [新增] 用來記錄最新的排序陣列
 
         if (viewLevel === 'categories') {
              // 1. 取得目前的分類 Keys 陣列
@@ -634,13 +635,14 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
              _categories.splice(dragItem.current, 1);
              _categories.splice(dragOverItem.current, 0, draggedItemContent);
              
-             // 3. [關鍵修正] 使用 Object.fromEntries 強制依照陣列順序重建物件
-             // 這比迴圈賦值更可靠，能確保瀏覽器尊重我們的排序
-             newMap = Object.fromEntries(
-                 _categories.map(cat => [cat, categoryMap[cat] || []])
-             );
+             // 3. 記錄順序
+             currentOrder = _categories;
+
+             // 4. 重建物件
+             newMap = {};
+             _categories.forEach(cat => { newMap[cat] = categoryMap[cat] || []; });
              
-             // 4. 更新本地狀態
+             // 5. 更新本地狀態
              setCategoryMap(newMap);
              console.log("排序後的新順序:", _categories);
         }
@@ -674,28 +676,31 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             setNotes(_notes);
         }
         
-        // 重置拖曳指標
         dragItem.current = null;
         dragOverItem.current = null;
         setDraggingIndex(null); 
         setDragOverIndex(null);
 
         // [新增] 同步分類排序到雲端 (settings/layout)
-        // [修正] 加入 updatedAt 時間戳，強迫 Firestore 觸發更新，防止因資料看似無變更而被忽略
         if (newMap && window.fs && window.db) {
+            const payload = { 
+                categoryMapJSON: JSON.stringify(newMap),
+                updatedAt: Date.now() 
+            };
+            // [關鍵] 如果有調整大分類順序，額外儲存 categoryOrder 陣列
+            if (currentOrder) {
+                payload.categoryOrder = currentOrder;
+            }
+
             window.fs.setDoc(
                 window.fs.doc(window.db, "settings", "layout"), 
-                { 
-                    categoryMapJSON: JSON.stringify(newMap),
-                    updatedAt: Date.now() // 強制觸發 onSnapshot
-                }, 
+                payload, 
                 { merge: true }
             )
-            .then(() => console.log("✅ 分類排序已同步雲端 (強制更新)"))
+            .then(() => console.log("✅ 分類排序已同步雲端 (含順序陣列)"))
             .catch(e => console.error("❌ 分類排序同步失敗:", e));
         }
 
-        // [關鍵修正] 只要有排序，就標記資料已變更
         if (setHasDataChangedInSession) setHasDataChangedInSession(true);
     };
 
@@ -1377,7 +1382,7 @@ function EchoScriptApp() {
     useEffect(() => { localStorage.setItem('echoScript_CategoryMap', JSON.stringify(categoryMap)); }, [categoryMap]);
 
     // [新增] 監聽雲端分類排序 (settings/layout)
-    // [修正] 優先讀取 JSON 字串格式，確保順序正確，並設定 isSettingsLoaded 標記
+    // [修正] 優先使用 categoryOrder 陣列來重建 Map，這是確保順序不被瀏覽器重排的終極手段
     useEffect(() => {
         if (!window.fs || !window.db) return;
         const unsubscribe = window.fs.onSnapshot(
@@ -1385,13 +1390,33 @@ function EchoScriptApp() {
             (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
+                    let map = {};
+
+                    // 1. 先嘗試解析 JSON 資料
                     if (data.categoryMapJSON) {
-                        console.log("📥 同步雲端分類排序 (JSON)");
                         try {
-                            setCategoryMap(JSON.parse(data.categoryMapJSON));
+                            map = JSON.parse(data.categoryMapJSON);
                         } catch (e) { console.error("解析排序失敗", e); }
                     } else if (data.categoryMap) {
-                        setCategoryMap(data.categoryMap);
+                        map = data.categoryMap;
+                    }
+
+                    // 2. [關鍵] 如果有 categoryOrder 陣列，依此順序強制重建 Map
+                    if (data.categoryOrder && Array.isArray(data.categoryOrder)) {
+                        console.log("📥 依照 categoryOrder 陣列校正順序");
+                        const orderedMap = {};
+                        // 依照陣列順序插入 Key
+                        data.categoryOrder.forEach(key => {
+                            if (map[key]) orderedMap[key] = map[key];
+                        });
+                        // 把剩下沒在陣列裡的 Key (防呆) 補在後面
+                        Object.keys(map).forEach(key => {
+                            if (!orderedMap[key]) orderedMap[key] = map[key];
+                        });
+                        setCategoryMap(orderedMap);
+                    } else {
+                        // 如果沒有順序陣列，就直接使用 Map
+                        setCategoryMap(map);
                     }
                 }
                 // [關鍵] 標記已完成首次載入 (無論有沒有資料)，允許後續的寫入操作
@@ -2479,6 +2504,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

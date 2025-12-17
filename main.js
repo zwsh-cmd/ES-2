@@ -615,10 +615,9 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
     const dragItem = useRef(null);
     const dragOverItem = useRef(null);
 
-    // [新增] 執行排序資料更新 (已修正：確保空白分類排序也能同步雲端)
+    // [新增] 執行排序資料更新 (已修正：確保空白分類排序也能同步雲端 - 強制模式)
     const handleSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
-            // 重置拖曳狀態
             dragItem.current = null;
             dragOverItem.current = null;
             return;
@@ -635,12 +634,11 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
              _categories.splice(dragItem.current, 1);
              _categories.splice(dragOverItem.current, 0, draggedItemContent);
              
-             // 3. [關鍵] 依照新的 Key 順序重建物件
-             // 這一步對於空白分類至關重要，必須確保新物件的 Key 插入順序是正確的
-             newMap = {};
-             for (const cat of _categories) {
-                 newMap[cat] = categoryMap[cat] || []; // 確保值存在，即使是空陣列
-             }
+             // 3. [關鍵修正] 使用 Object.fromEntries 強制依照陣列順序重建物件
+             // 這比迴圈賦值更可靠，能確保瀏覽器尊重我們的排序
+             newMap = Object.fromEntries(
+                 _categories.map(cat => [cat, categoryMap[cat] || []])
+             );
              
              // 4. 更新本地狀態
              setCategoryMap(newMap);
@@ -683,14 +681,17 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         setDragOverIndex(null);
 
         // [新增] 同步分類排序到雲端 (settings/layout)
-        // [修正] 強制寫入 JSON 字串，確保包含所有分類（含空白分類）的新順序
+        // [修正] 加入 updatedAt 時間戳，強迫 Firestore 觸發更新，防止因資料看似無變更而被忽略
         if (newMap && window.fs && window.db) {
             window.fs.setDoc(
                 window.fs.doc(window.db, "settings", "layout"), 
-                { categoryMapJSON: JSON.stringify(newMap) }, 
+                { 
+                    categoryMapJSON: JSON.stringify(newMap),
+                    updatedAt: Date.now() // 強制觸發 onSnapshot
+                }, 
                 { merge: true }
             )
-            .then(() => console.log("✅ 分類排序已同步雲端 (JSON格式)"))
+            .then(() => console.log("✅ 分類排序已同步雲端 (強制更新)"))
             .catch(e => console.error("❌ 分類排序同步失敗:", e));
         }
 
@@ -2478,6 +2479,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

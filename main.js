@@ -25,37 +25,37 @@ const THEMES = {
         accent: 'bg-[#B5838D]', accentText: 'text-white', // 乾燥玫瑰粉
         subtext: 'text-[#9A8C98]', activeTab: 'bg-[#B5838D] text-white'
     },
-    // 修改主題 1: 綠色 (枣綠色調，增加對比)
+    // 修改主題 1: 綠色 (按鈕顏色調深，增強對比)
     morandiGreen: {
         id: 'morandiGreen', name: '莫蘭迪綠',
-        bg: 'bg-[#D9E0D6]', text: 'text-[#4A5D4F]', // 背景加深帶灰暖調
-        card: 'bg-[#F7FAF7]', border: 'border-[#C8D6CA]', // 卡片極淺
-        accent: 'bg-[#8FB396]', accentText: 'text-white',
-        subtext: 'text-[#8EA394]', activeTab: 'bg-[#8FB396] text-white'
+        bg: 'bg-[#D9E0D6]', text: 'text-[#4A5D4F]',
+        card: 'bg-[#F7FAF7]', border: 'border-[#C8D6CA]',
+        accent: 'bg-[#6A8D73]', accentText: 'text-white', // 深鼠尾草綠
+        subtext: 'text-[#8EA394]', activeTab: 'bg-[#6A8D73] text-white'
     },
-    // 修改主題 2: 紫色 (增加對比)
+    // 修改主題 2: 紫色 (按鈕顏色調深，增強對比)
     morandiPurple: {
         id: 'morandiPurple', name: '莫蘭迪紫',
-        bg: 'bg-[#E2D6E2]', text: 'text-[#5D4F5D]', // 背景加深
-        card: 'bg-[#FCF8FC]', border: 'border-[#DBC8DB]', // 卡片極淺
-        accent: 'bg-[#B396B3]', accentText: 'text-white',
-        subtext: 'text-[#A38EA3]', activeTab: 'bg-[#B396B3] text-white'
+        bg: 'bg-[#E2D6E2]', text: 'text-[#5D4F5D]',
+        card: 'bg-[#FCF8FC]', border: 'border-[#DBC8DB]',
+        accent: 'bg-[#8E6F8E]', accentText: 'text-white', // 深煙燻紫
+        subtext: 'text-[#A38EA3]', activeTab: 'bg-[#8E6F8E] text-white'
     },
-    // 修改主題 3: 藍色 (增加對比)
+    // 修改主題 3: 藍色 (按鈕顏色調深，增強對比)
     morandiBlue: {
         id: 'morandiBlue', name: '莫蘭迪藍',
-        bg: 'bg-[#D3DFE6]', text: 'text-[#4A5D6B]', // 背景加深
-        card: 'bg-[#F6FAFC]', border: 'border-[#C8D9E3]', // 卡片極淺
-        accent: 'bg-[#8FAAB3]', accentText: 'text-white',
-        subtext: 'text-[#8E9FA3]', activeTab: 'bg-[#8FAAB3] text-white'
+        bg: 'bg-[#D3DFE6]', text: 'text-[#4A5D6B]',
+        card: 'bg-[#F6FAFC]', border: 'border-[#C8D9E3]',
+        accent: 'bg-[#64818D]', accentText: 'text-white', // 深岩石藍
+        subtext: 'text-[#8E9FA3]', activeTab: 'bg-[#64818D] text-white'
     },
-    // 修改主題 4: 橘色 (增加對比)
+    // 修改主題 4: 橘色 (按鈕顏色調深，增強對比)
     morandiOrange: {
         id: 'morandiOrange', name: '莫蘭迪橘',
-        bg: 'bg-[#EBD4CC]', text: 'text-[#6B4F45]', // 背景加深
-        card: 'bg-[#FDF6F4]', border: 'border-[#E3C8C0]', // 卡片極淺
-        accent: 'bg-[#CFA899]', accentText: 'text-white',
-        subtext: 'text-[#A38E86]', activeTab: 'bg-[#CFA899] text-white'
+        bg: 'bg-[#EBD4CC]', text: 'text-[#6B4F45]',
+        card: 'bg-[#FDF6F4]', border: 'border-[#E3C8C0]',
+        accent: 'bg-[#B08474]', accentText: 'text-white', // 深陶土色
+        subtext: 'text-[#A38E86]', activeTab: 'bg-[#B08474] text-white'
     },
     // 維持主題 5: 溫暖黃 (保持不變)
     morandiYellow: {
@@ -2659,6 +2659,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

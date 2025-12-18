@@ -25,47 +25,47 @@ const THEMES = {
         accent: 'bg-[#B5838D]', accentText: 'text-white', // 乾燥玫瑰粉
         subtext: 'text-[#9A8C98]', activeTab: 'bg-[#B5838D] text-white'
     },
-    // 新增主題 1: 淺綠色
+    // 新增主題 1: 綠色 (加深)
     morandiGreen: {
-        id: 'morandiGreen', name: '莫蘭迪淺綠',
-        bg: 'bg-[#E9F0EA]', text: 'text-[#4A5D4F]',
-        card: 'bg-[#F4F9F5]', border: 'border-[#CEDED0]',
+        id: 'morandiGreen', name: '莫蘭迪綠',
+        bg: 'bg-[#D9E6DC]', text: 'text-[#4A5D4F]',
+        card: 'bg-[#E6F2E9]', border: 'border-[#C2D6C6]',
         accent: 'bg-[#8FB396]', accentText: 'text-white',
         subtext: 'text-[#8EA394]', activeTab: 'bg-[#8FB396] text-white'
     },
-    // 新增主題 2: 淺紫色
+    // 新增主題 2: 紫色 (加深)
     morandiPurple: {
-        id: 'morandiPurple', name: '莫蘭迪淺紫',
-        bg: 'bg-[#F0EBF0]', text: 'text-[#5D4F5D]',
-        card: 'bg-[#F7F4F7]', border: 'border-[#DBCEDB]',
+        id: 'morandiPurple', name: '莫蘭迪紫',
+        bg: 'bg-[#E6D9E6]', text: 'text-[#5D4F5D]',
+        card: 'bg-[#F2E6F2]', border: 'border-[#D6C2D6]',
         accent: 'bg-[#B396B3]', accentText: 'text-white',
         subtext: 'text-[#A38EA3]', activeTab: 'bg-[#B396B3] text-white'
     },
-    // 新增主題 3: 淺藍色
+    // 新增主題 3: 藍色 (加深)
     morandiBlue: {
-        id: 'morandiBlue', name: '莫蘭迪淺藍',
-        bg: 'bg-[#EBF2F5]', text: 'text-[#4A5D6B]',
-        card: 'bg-[#F2F8FA]', border: 'border-[#CEDDE6]',
+        id: 'morandiBlue', name: '莫蘭迪藍',
+        bg: 'bg-[#D9E6EB]', text: 'text-[#4A5D6B]',
+        card: 'bg-[#E6F2F5]', border: 'border-[#C2D6DE]',
         accent: 'bg-[#8FAAB3]', accentText: 'text-white',
         subtext: 'text-[#8E9FA3]', activeTab: 'bg-[#8FAAB3] text-white'
     },
-    // 新增主題 4: 淺普魯士藍 (帶灰調的深藍)
+    // 新增主題 4: 普魯士藍 (加深)
     morandiPrussian: {
-        id: 'morandiPrussian', name: '莫蘭迪普魯士',
-        bg: 'bg-[#E0E6E9]', text: 'text-[#2C3E50]',
-        card: 'bg-[#EBF0F3]', border: 'border-[#BCCCD6]',
+        id: 'morandiPrussian', name: '莫蘭迪普魯士藍',
+        bg: 'bg-[#D1DBE0]', text: 'text-[#2C3E50]',
+        card: 'bg-[#E0E9ED]', border: 'border-[#B4C4CE]',
         accent: 'bg-[#5A7382]', accentText: 'text-white',
         subtext: 'text-[#7D8F9A]', activeTab: 'bg-[#5A7382] text-white'
     },
-    // 新增主題 5: 淺橘色
+    // 新增主題 5: 橘色 (加深)
     morandiOrange: {
-        id: 'morandiOrange', name: '莫蘭迪淺橘',
-        bg: 'bg-[#F5EBE6]', text: 'text-[#6B4F45]',
-        card: 'bg-[#FAF4F0]', border: 'border-[#E6D5CC]',
+        id: 'morandiOrange', name: '莫蘭迪橘',
+        bg: 'bg-[#EBD9D1]', text: 'text-[#6B4F45]',
+        card: 'bg-[#F5E6DF]', border: 'border-[#DEC2B6]',
         accent: 'bg-[#CFA899]', accentText: 'text-white',
         subtext: 'text-[#A38E86]', activeTab: 'bg-[#CFA899] text-white'
     },
-    // 新增主題 6: 溫暖黃
+    // 新增主題 6: 溫暖黃 (維持原樣)
     morandiYellow: {
         id: 'morandiYellow', name: '莫蘭迪暖黃',
         bg: 'bg-[#F5F2E6]', text: 'text-[#6B6345]',
@@ -2667,6 +2667,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

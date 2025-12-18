@@ -2395,7 +2395,7 @@ function EchoScriptApp() {
                         </div>
                        <div className="flex p-2 gap-2 bg-white border-b border-stone-100">
                             {['favorites', 'history', 'appearance', 'settings'].map(tab => (
-                                <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-colors ${activeTab === tab ? theme.activeTab : 'text-stone-400 hover:bg-stone-100'}`}>
+                                <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-2 text-[15px] font-bold rounded-lg transition-colors ${activeTab === tab ? theme.activeTab : 'text-stone-400 hover:bg-stone-100'}`}>
                                     {tab === 'favorites' ? '收藏' : tab === 'history' ? '歷史' : tab === 'appearance' ? '外觀' : '備份'}
                                 </button>
                             ))}
@@ -2610,6 +2610,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

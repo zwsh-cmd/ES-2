@@ -2504,10 +2504,9 @@ function EchoScriptApp() {
                                                 key={t.id}
                                                 onClick={() => handleSetTheme(t.id)}
                                                 className={`
-                                                    relative p-4 rounded-xl border-2 text-left transition-all flex items-center gap-4 overflow-hidden
+                                                    relative p-4 rounded-xl border-2 text-left transition-all flex items-center gap-4 overflow-hidden ${t.card}
                                                     ${currentThemeId === t.id ? 'border-[#2c3e50] ring-1 ring-[#2c3e50]' : 'border-transparent hover:border-gray-200'}
                                                 `}
-                                                style={{ backgroundColor: t.id === 'dark' ? '#0f172a' : (t.id === 'morandi' ? '#FFFBF0' : '#ffffff') }}
                                             >
                                                 {/* 預覽色塊 */}
                                                 <div className={`w-12 h-12 rounded-full shadow-sm flex items-center justify-center ${t.bg} border border-gray-100`}>
@@ -2659,6 +2658,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

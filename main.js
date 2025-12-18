@@ -2222,13 +2222,18 @@ function EchoScriptApp() {
                             
                             <div className="p-8 flex-1 flex flex-col">
                                 <div className="mb-2">
-                                    <div className="flex justify-between items-baseline mb-2">
+                                    <div className="flex justify-between items-center mb-2">
                                         <div className={`flex items-baseline gap-2 text-sm font-bold ${theme.subtext} tracking-widest uppercase`}>
                                             <h2>{currentNote.category || "未分類"}</h2>
                                             <span className="opacity-50">|</span>
                                             <h3>{currentNote.subcategory}</h3>
                                         </div>
-                                        <span className={`text-xs ${theme.subtext} font-sans opacity-70`}>#{currentNote.id}</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`text-xs ${theme.subtext} font-sans opacity-70`}>#{currentNote.id}</span>
+                                            <button onClick={handleTogglePin} className={`transition-transform duration-200 hover:scale-110 ${String(currentNote.id) === String(pinnedNoteId) ? theme.text : 'text-stone-300'}`} title="釘選這則筆記">
+                                                <Pin className="w-5 h-5" fill={String(currentNote.id) === String(pinnedNoteId) ? "currentColor" : "none"} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 
@@ -2265,12 +2270,7 @@ function EchoScriptApp() {
                                     )}
                                 </button>
 
-                                <button onClick={handleTogglePin} className={`flex flex-col items-center gap-1 hover:scale-110 transition-transform duration-200 ${String(currentNote.id) === String(pinnedNoteId) ? 'text-[#2c3e50] ' + theme.accentText.replace('text-white', 'text-current') : 'text-stone-400'}`}>
-                                    <Pin className="w-6 h-6" fill={String(currentNote.id) === String(pinnedNoteId) ? "currentColor" : "none"} />
-                                    <span className="text-[9px] font-bold">釘選</span>
-                                </button>
-
-                                <button onClick={handleToggleFavorite} className={`flex flex-col items-center gap-1 hover:scale-110 transition-transform duration-200 ${isFavorite ? 'text-red-500' : 'text-stone-400'}`}>
+                                <button onClick={handleToggleFavorite} className="flex flex-col items-center gap-1 hover:scale-110 transition-transform duration-200 text-stone-400">
                                     <Heart className="w-6 h-6" fill={isFavorite ? "currentColor" : "none"} />
                                     <span className="text-[9px] font-bold">收藏</span>
                                 </button>
@@ -2520,6 +2520,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

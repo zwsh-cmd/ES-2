@@ -1641,7 +1641,7 @@ function EchoScriptApp() {
                 setShuffleDeck(loadedDeck);
                 setDeckPointer(loadedPointer);
 
-                // 5. [狀態恢復] 決定當前要顯示哪一張卡片 (優先權：釘選 > 上次瀏覽 > 洗牌)
+                // 5. [狀態恢復] 決定當前要顯示哪一張卡片 (優先權：上次瀏覽/剛操作 > 釘選 > 洗牌)
                 if (cloudNotes.length > 0) {
                     // 這裡優先使用 localStorage 的快取值，因為 State 更新可能有延遲，確保啟動即時性
                     const cachedPinnedId = localStorage.getItem('echoScript_PinnedId');
@@ -1649,14 +1649,18 @@ function EchoScriptApp() {
                     
                     let idx = -1;
 
-                    // A. 優先檢查是否有釘選筆記
-                    if (cachedPinnedId) {
-                         idx = cloudNotes.findIndex(n => String(n.id) === String(cachedPinnedId));
-                    }
-                    
-                    // B. 如果沒釘選 (或釘選筆記被刪了)，才找上次離開的那張
-                    if (idx === -1 && resumeId) {
+                    // [修改] 交換 A 與 B 的順序：
+                    // 當我們按下收藏或編輯時，會設定 resumeId。這時資料庫更新觸發此處，
+                    // 我們希望它停留在 resumeId (當前卡片)，而不是因為有釘選就跳走。
+
+                    // A. 優先檢查是否有上次離開或剛操作的筆記 (Resume)
+                    if (resumeId) {
                         idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
+                    }
+
+                    // B. 如果沒有 Resume (例如使用者按了下一張，Resume 被清空)，且有釘選，才回到釘選首頁
+                    if (idx === -1 && cachedPinnedId) {
+                         idx = cloudNotes.findIndex(n => String(n.id) === String(cachedPinnedId));
                     }
 
                     // C. 如果都找不到，就從洗牌堆拿一張新的
@@ -2520,6 +2524,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

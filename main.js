@@ -1839,6 +1839,32 @@ function EchoScriptApp() {
 
         // 檢查是否有上一張紀錄 (recentIndices[0] 是當前，recentIndices[1] 是上一張)
         if (recentIndices.length < 2) {
+            // [修改] 如果隨機歷史沒了，檢查是否可以「回到釘選首頁」
+            // 條件：有設定釘選 ID + 當前卡片不是釘選卡片 + 釘選卡片存在於筆記列表中
+            const pinnedIndex = pinnedNoteId ? notes.findIndex(n => String(n.id) === String(pinnedNoteId)) : -1;
+            
+            if (pinnedNoteId && currentNote && String(currentNote.id) !== String(pinnedNoteId) && pinnedIndex !== -1) {
+                setIsAnimating(true);
+                setTimeout(() => {
+                    // 把當前這張 (例如 F) 推入未來堆疊，確保按「下一張」可以依序回去 (FZJQ)
+                    if (recentIndices.length > 0) {
+                         setFutureIndices(prev => [recentIndices[0], ...prev]);
+                    } else {
+                        // 防呆：如果 recentIndices 全空，用 currentIndex 找
+                         setFutureIndices(prev => [currentIndex, ...prev]);
+                    }
+
+                    // 跳轉回釘選卡片
+                    setCurrentIndex(pinnedIndex);
+                    // 這裡我們不把釘選卡片加回 recentIndices，因為它視為一個「起點」或「首頁」
+                    // 當使用者從釘選卡片按「下一張」時，會觸發 handleNextNote 的 futureIndices 檢查，從而回到 F
+                    
+                    setIsAnimating(false);
+                    window.scrollTo(0,0);
+                }, 300);
+                return;
+            }
+
             showNotification("沒有上一個筆記了");
             return;
         }
@@ -2375,14 +2401,43 @@ function EchoScriptApp() {
                             ))}
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                            {activeTab === 'favorites' && favorites.map(item => (
-                                <NoteListItem 
-                                    key={item.id} 
-                                    item={item} 
-                                    allResponses={allResponses} 
-                                />
-                            ))}
-                            {activeTab === 'favorites' && favorites.length === 0 && <div className="text-center text-stone-400 mt-10 text-xs">暫無收藏</div>}
+                            {/* [新增] 釘選筆記置頂區塊 */}
+                            {activeTab === 'favorites' && pinnedNoteId && (
+                                (() => {
+                                    const pinnedNote = notes.find(n => String(n.id) === String(pinnedNoteId));
+                                    if (!pinnedNote) return null;
+                                    return (
+                                        <div className="mb-4">
+                                            <div className="flex items-center gap-2 mb-2 px-1">
+                                                <Pin className="w-3 h-3 text-stone-400" />
+                                                <span className="text-[10px] font-bold text-stone-400 tracking-wider">首頁釘選</span>
+                                            </div>
+                                            <div className="border-2 border-[#2c3e50]/10 rounded-xl overflow-hidden relative">
+                                                {/* 這裡加一個淡色背景區別 */}
+                                                <div className="absolute inset-0 bg-[#2c3e50]/[0.02] pointer-events-none"></div>
+                                                <NoteListItem 
+                                                    item={pinnedNote} 
+                                                    allResponses={allResponses} 
+                                                />
+                                            </div>
+                                            <div className="my-4 border-b border-stone-100"></div>
+                                        </div>
+                                    );
+                                })()
+                            )}
+
+                            {activeTab === 'favorites' && favorites.map(item => {
+                                // 選擇性：如果不想讓釘選筆記重複出現在下方列表，可以過濾掉
+                                // if (String(item.id) === String(pinnedNoteId)) return null;
+                                return (
+                                    <NoteListItem 
+                                        key={item.id} 
+                                        item={item} 
+                                        allResponses={allResponses} 
+                                    />
+                                );
+                            })}
+                            {activeTab === 'favorites' && favorites.length === 0 && !pinnedNoteId && <div className="text-center text-stone-400 mt-10 text-xs">暫無收藏</div>}
                             
                             {activeTab === 'history' && history.map((item, i) => (
                                 <NoteListItem 
@@ -2555,6 +2610,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

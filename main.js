@@ -1249,6 +1249,8 @@ function EchoScriptApp() {
     
     const [history, setHistory] = useState([]);
     const [recentIndices, setRecentIndices] = useState([]);
+    // [新增] 未來堆疊：用於記錄「返回上一張」後，原本的「下一張」是誰 (實現重播機制)
+    const [futureIndices, setFutureIndices] = useState([]);
     // [新增] 洗牌機制狀態：儲存洗好的順序 (Deck) 與目前抽到的位置 (Pointer)
     const [shuffleDeck, setShuffleDeck] = useState([]); 
     const [deckPointer, setDeckPointer] = useState(0);
@@ -1685,6 +1687,7 @@ function EchoScriptApp() {
         setAllResponses(JSON.parse(localStorage.getItem('echoScript_AllResponses') || '{}'));
         setHistory(JSON.parse(localStorage.getItem('echoScript_History') || '[]'));
         setRecentIndices(JSON.parse(localStorage.getItem('echoScript_Recents') || '[]'));
+        setFutureIndices(JSON.parse(localStorage.getItem('echoScript_FutureRecents') || '[]'));
 
         // 關閉時取消監聽
         return () => unsubscribe();
@@ -1709,6 +1712,7 @@ function EchoScriptApp() {
     useEffect(() => { localStorage.setItem('echoScript_AllResponses', JSON.stringify(allResponses)); }, [allResponses]);
     useEffect(() => { localStorage.setItem('echoScript_History', JSON.stringify(history)); }, [history]);
     useEffect(() => { localStorage.setItem('echoScript_Recents', JSON.stringify(recentIndices)); }, [recentIndices]);
+    useEffect(() => { localStorage.setItem('echoScript_FutureRecents', JSON.stringify(futureIndices)); }, [futureIndices]);
     // [新增] 儲存洗牌狀態
     useEffect(() => { localStorage.setItem('echoScript_ShuffleDeck', JSON.stringify(shuffleDeck)); }, [shuffleDeck]);
     useEffect(() => { localStorage.setItem('echoScript_DeckPointer', deckPointer.toString()); }, [deckPointer]);
@@ -1732,6 +1736,28 @@ function EchoScriptApp() {
         
         setIsAnimating(true);
         setTimeout(() => {
+            // === [新增邏輯] 優先檢查「未來堆疊」 (History Redo) ===
+            // 如果我們之前按了「上一張」，futureIndices 會有紀錄。
+            // 這時候按「下一張」，應該要依照順序走回原本的路，而不是隨機抽新牌。
+            if (futureIndices.length > 0) {
+                const nextIndex = futureIndices[0]; // 取出最近被放入「未來」的那張
+                
+                // 1. 將這張牌從「未來」移除
+                setFutureIndices(prev => prev.slice(1));
+                
+                // 2. 將這張牌加回「最近」歷史
+                setRecentIndices(prev => [nextIndex, ...prev]);
+                
+                // 3. 顯示這張牌
+                setCurrentIndex(nextIndex);
+                addToHistory(notes[nextIndex]);
+                
+                setIsAnimating(false);
+                window.scrollTo(0,0);
+                return; // [關鍵] 直接結束，不消耗洗牌堆的額度 (DeckPointer 不動)
+            }
+            
+            // === 原本的隨機抽卡邏輯 (當沒有未來路徑時才執行) ===
             let currentDeck = [...shuffleDeck];
             let currentPointer = deckPointer;
 
@@ -1819,8 +1845,13 @@ function EchoScriptApp() {
 
         setIsAnimating(true);
         setTimeout(() => {
-            const prevIndex = recentIndices[1]; // 取得上一張的索引
+            const currentIndexInHistory = recentIndices[0]; // 當前正在看的那張
+            const prevIndex = recentIndices[1]; // 準備要退回的那張
             
+            // [關鍵修改] 記錄未來路徑：把當前這張卡片推入「未來堆疊」的最上方
+            // 這樣下次按「下一張」時，就可以拿回來顯示
+            setFutureIndices(prev => [currentIndexInHistory, ...prev]);
+
             // 更新狀態：移除最上層的「當前」紀錄，退回到上一層
             setRecentIndices(prev => prev.slice(1));
             setCurrentIndex(prevIndex);
@@ -2524,6 +2555,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -135,7 +135,7 @@ const MarkdownRenderer = ({ content }) => {
 };
 
 // === Combobox 合體輸入元件 ===
-const Combobox = ({ value, onChange, options, placeholder }) => {
+const Combobox = ({ value, onChange, options, placeholder, theme }) => {
     const [isOpen, setIsOpen] = useState(false);
     const wrapperRef = useRef(null);
 
@@ -153,7 +153,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
         <div className="relative" ref={wrapperRef}>
             <div className="relative">
                 <input 
-                    className="w-full bg-stone-50 border border-stone-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 pr-8"
+                    className={`w-full border ${theme.border} ${theme.card} ${theme.text} rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 pr-8`}
                     placeholder={placeholder}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
@@ -190,7 +190,7 @@ const Combobox = ({ value, onChange, options, placeholder }) => {
 
 // === 新增：HighlightingEditor (支援編輯時高亮的編輯器) ===
 // === 修改後：HighlightingEditor (修復游標錯位版) ===
-const HighlightingEditor = ({ value, onChange, textareaRef }) => {
+const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
     // 這個函式負責把 markdown 語法轉成有顏色的 HTML (僅供顯示用)
     const renderHighlights = (text) => {
         // 防止最後一行換行失效，強制補一個空白
@@ -240,7 +240,7 @@ const HighlightingEditor = ({ value, onChange, textareaRef }) => {
     };
 
     return (
-        <div className="relative flex-1 w-full border border-stone-200 rounded-lg overflow-hidden bg-white h-full">
+        <div className={`relative flex-1 w-full border ${theme.border} rounded-lg overflow-hidden ${theme.card} h-full`}>
             {/* 底層：負責顯示樣式 (Backdrop) */}
             <div 
                 className="absolute inset-0 p-3 pointer-events-none whitespace-pre-wrap break-words overflow-hidden"
@@ -266,7 +266,7 @@ const HighlightingEditor = ({ value, onChange, textareaRef }) => {
 
 // === 4. Markdown 編輯器組件 (整合高亮編輯器) ===
 // 修改：加入 setHasUnsavedChanges 參數，並監聽內容變更
-const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges }) => {
+const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges, theme }) => {
     const [formData, setFormData] = useState({
         category: note?.category || "",
         subcategory: note?.subcategory || "",
@@ -400,11 +400,11 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
 
     return (
         <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) handleClose(); }}>
-            <div className="absolute top-6 bottom-6 left-4 right-4 mx-auto max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-                <nav className="flex justify-between items-center p-4 border-b border-gray-100">
+            <div className={`absolute top-6 bottom-6 left-4 right-4 mx-auto max-w-lg ${theme.bg} rounded-2xl shadow-2xl flex flex-col overflow-hidden`}>
+                <nav className={`flex justify-between items-center p-4 border-b ${theme.border} ${theme.card}`}>
                     <button onClick={handleClose} className="text-gray-500 hover:text-gray-800 px-2">取消</button>
-                    <h3 className="font-bold text-gray-800">{isNew ? "新增筆記" : "修改筆記"}</h3>
-                    <button onClick={handleSave} className="bg-[#2c3e50] text-white px-4 py-1.5 rounded-full text-sm font-bold">儲存</button>
+                    <h3 className={`font-bold ${theme.text}`}>{isNew ? "新增筆記" : "修改筆記"}</h3>
+                    <button onClick={handleSave} className={`${theme.accent} ${theme.accentText} px-4 py-1.5 rounded-full text-sm font-bold`}>儲存</button>
                 </nav>
                 
                 {/* 主內容區：鎖定捲動 (Overflow Hidden) */}
@@ -418,25 +418,27 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                                 value={formData.category}
                                 onChange={(val) => setFormData(prev => ({...prev, category: val}))}
                                 options={existingCategories}
+                                theme={theme}
                             />
                             <Combobox 
                                 placeholder="次分類 (如:三幕劇)"
                                 value={formData.subcategory}
                                 onChange={(val) => setFormData(prev => ({...prev, subcategory: val}))}
                                 options={existingSubcategories}
+                                theme={theme}
                             />
                         </div>
 
                         <input 
                             placeholder="主旨語 (必填，如：先讓英雄救貓咪)"
-                            className="bg-stone-50 border border-stone-200 rounded-lg p-3 font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-stone-400"
+                            className={`${theme.card} border ${theme.border} rounded-lg p-3 font-bold ${theme.text} focus:outline-none focus:ring-2 focus:ring-stone-400`}
                             value={formData.title}
                             onChange={(e) => setFormData({...formData, title: e.target.value})}
                         />
                     </div>
 
                     {/* 中間區塊：工具列 (固定不捲動) */}
-                    <div className="px-4 py-2 shrink-0 border-b border-stone-100 flex justify-between items-center bg-white">
+                    <div className={`px-4 py-2 shrink-0 border-b ${theme.border} flex justify-between items-center ${theme.card}`}>
                         <div className="flex gap-1 overflow-x-auto no-scrollbar">
                             <button onClick={() => insertMarkdown('normal')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="內文"><Type className="w-4 h-4"/> 內文</button>
                             <button onClick={() => insertMarkdown('h1')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="大標"><Heading1 className="w-5 h-5"/> 大標</button>
@@ -460,9 +462,10 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                                 value={formData.content} 
                                 onChange={(val) => setFormData({...formData, content: val})} 
                                 textareaRef={contentRef}
+                                theme={theme}
                             />
                         ) : (
-                            <div className="flex-1 w-full bg-stone-50 p-4 rounded-lg border border-stone-200 overflow-y-auto">
+                            <div className={`flex-1 w-full ${theme.card} p-4 rounded-lg border ${theme.border} overflow-y-auto`}>
                                 <MarkdownRenderer content={formData.content || "（尚未輸入內容）"} />
                             </div>
                         )}
@@ -471,7 +474,7 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
 
                 {/* 底部刪除按鈕區 (僅在修改模式顯示) */}
                 {!isNew && (
-                    <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50 rounded-b-2xl">
+                    <div className={`p-4 border-t ${theme.border} flex justify-end ${theme.bg} rounded-b-2xl`}>
                         <button onClick={onDelete} className="text-stone-400 hover:text-stone-600 flex items-center gap-2 text-xs font-bold transition-colors">
                             <Trash2 className="w-4 h-4" /> 刪除筆記
                         </button>
@@ -484,7 +487,7 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
 
 // === 5. 回應編輯視窗 ===
 // 修改：接收 viewMode 與 setHasUnsavedChanges
-const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMode, setViewMode, setHasUnsavedChanges }) => {
+const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMode, setViewMode, setHasUnsavedChanges, theme }) => {
     const [editingId, setEditingId] = useState(null);
     const [editText, setEditText] = useState("");
     const [originalText, setOriginalText] = useState("");
@@ -530,19 +533,19 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 
     return (
         <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) handleCheckUnsaved(onClose); }}>
-            <div className="bg-white w-full max-w-lg h-[70%] sm:h-auto rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-                <nav className="flex justify-between items-center p-4 border-b border-gray-100 shrink-0">
+            <div className={`${theme.bg} w-full max-w-lg h-[70%] sm:h-auto rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden`}>
+                <nav className={`flex justify-between items-center p-4 border-b ${theme.border} ${theme.card} shrink-0`}>
                     {viewMode === 'list' ? (
                         <>
                             <button onClick={() => handleCheckUnsaved(onClose)} className="text-gray-500 hover:text-gray-800 px-2">關閉</button>
-                            <h3 className="font-bold text-gray-800">回應列表 ({responses.length})</h3>
+                            <h3 className={`font-bold ${theme.text}`}>回應列表 ({responses.length})</h3>
                             <div className="w-8"></div>
                         </>
                     ) : (
                         <>
                             <button onClick={() => handleCheckUnsaved(() => setViewMode('list'))} className="text-gray-500 hover:text-gray-800 px-2">返回</button>
-                            <h3 className="font-bold text-gray-800">{editingId ? "修改回應" : "新增回應"}</h3>
-                            <button onClick={handleSaveCurrent} className="bg-[#2c3e50] text-white px-4 py-1.5 rounded-full text-sm font-bold">儲存</button>
+                            <h3 className={`font-bold ${theme.text}`}>{editingId ? "修改回應" : "新增回應"}</h3>
+                            <button onClick={handleSaveCurrent} className={`${theme.accent} ${theme.accentText} px-4 py-1.5 rounded-full text-sm font-bold`}>儲存</button>
                         </>
                     )}
                 </nav>
@@ -550,16 +553,16 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
                 <div className="p-4 flex flex-col flex-1 overflow-y-auto custom-scrollbar">
                     {viewMode === 'list' ? (
                         <>
-                            <div className="mb-4 p-3 bg-stone-50 rounded-lg border border-stone-100">
-                                <p className="text-xs text-stone-500 mb-1">關於：{note.title}</p>
-                                <p className="text-sm text-gray-600 line-clamp-2">{note.content}</p>
+                            <div className={`mb-4 p-3 ${theme.card} rounded-lg border ${theme.border}`}>
+                                <p className={`text-xs ${theme.subtext} mb-1`}>關於：{note.title}</p>
+                                <p className={`text-sm ${theme.text} line-clamp-2`}>{note.content}</p>
                             </div>
                             
                             <div className="space-y-3 mb-4">
                                 {responses.length > 0 ? responses.map(r => (
                                     <div key={r.id} className="relative group">
-                                        <div onClick={() => handleEdit(r)} className="bg-white p-3 rounded-lg border border-gray-200 hover:border-stone-400 cursor-pointer active:scale-[0.99] transition-all shadow-sm">
-                                            <div className="text-gray-700 whitespace-pre-wrap leading-relaxed break-words pr-6" style={{ whiteSpace: 'pre-wrap' }}>{r.text}</div>
+                                        <div onClick={() => handleEdit(r)} className={`${theme.card} p-3 rounded-lg border ${theme.border} hover:border-stone-400 cursor-pointer active:scale-[0.99] transition-all shadow-sm`}>
+                                            <div className={`${theme.text} whitespace-pre-wrap leading-relaxed break-words pr-6`} style={{ whiteSpace: 'pre-wrap' }}>{r.text}</div>
                                             <div className="mt-2 flex justify-between items-center">
                                                 <span className="text-[10px] text-gray-400">{new Date(r.timestamp).toLocaleString()}</span>
                                                 <span className="text-[10px] text-stone-500 opacity-0 group-hover:opacity-100 transition-opacity">點擊修改</span>
@@ -578,13 +581,13 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
                                 )}
                             </div>
 
-                            <button onClick={handleNew} className="mt-auto w-full py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors sticky bottom-0 shadow-sm border border-stone-200">
+                            <button onClick={handleNew} className={`mt-auto w-full py-3 ${theme.card} hover:bg-stone-200 ${theme.text} rounded-xl font-bold flex items-center justify-center gap-2 transition-colors sticky bottom-0 shadow-sm border ${theme.border}`}>
                                 <Plus className="w-5 h-5"/> 新增回應
                             </button>
                         </>
                     ) : (
                         <textarea 
-                            className="flex-1 w-full bg-stone-50 p-4 text-gray-800 text-lg leading-relaxed outline-none resize-none placeholder-gray-400 rounded-xl border border-stone-200 focus:border-stone-400 focus:bg-white transition-colors"
+                            className={`flex-1 w-full ${theme.card} p-4 ${theme.text} text-lg leading-relaxed outline-none resize-none placeholder-gray-400 rounded-xl border ${theme.border} focus:border-stone-400 transition-colors`}
                             placeholder="在這裡寫下你的想法..."
                             value={editText}
                             onChange={(e) => setEditText(e.target.value)}
@@ -599,7 +602,7 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 
 // === 6. 所有筆記列表 Modal (支援分類顯示) ===
 // [修改] 接收 setNotes 以支援排序
-const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLevel, setViewLevel, categoryMap, setCategoryMap, setHasDataChangedInSession }) => {
+const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLevel, setViewLevel, categoryMap, setCategoryMap, setHasDataChangedInSession, theme }) => {
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [selectedSubcategory, setSelectedSubcategory] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
@@ -969,9 +972,9 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
     };
 
     return (
-        <div className="fixed inset-0 z-40 bg-stone-50 flex flex-col animate-in slide-in-from-right duration-300">
+        <div className={`fixed inset-0 z-40 ${theme.bg} flex flex-col animate-in slide-in-from-right duration-300`}>
             {/* 頂部導航列 (修復版) */}
-            <div className="p-4 border-b border-stone-200 bg-white flex justify-between items-center sticky top-0 z-10">
+            <div className={`p-4 border-b ${theme.border} ${theme.card} flex justify-between items-center sticky top-0 z-10`}>
                 <div className="flex items-center gap-2">
                     {/* 智慧返回/關閉按鈕：在非搜尋模式下 */}
                     {(!searchTerm) ? (
@@ -989,7 +992,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                         </button>
                     )}
                     {/* 標題隨層級變化 */}
-                    <h2 className="font-bold text-lg flex items-center gap-2">
+                    <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text}`}>
                         {searchTerm ? "搜尋結果" : 
                          viewLevel === 'categories' ? "筆記分類" : 
                          viewLevel === 'subcategories' ? selectedCategory : 
@@ -1000,11 +1003,11 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             </div>
             
             {/* 搜尋框 */}
-            <div className="p-4 bg-stone-50 sticky top-[69px] z-10">
+            <div className={`p-4 ${theme.bg} sticky top-[69px] z-10`}>
                 <input 
                     type="text" 
                     placeholder="搜尋筆記關鍵字..." 
-                    className="w-full bg-white border border-stone-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+                    className={`w-full ${theme.card} border ${theme.border} rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 ${theme.text}`}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -1016,10 +1019,10 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                 {/* 情況 A: 正在搜尋 (顯示扁平列表) */}
                 {searchTerm && (
                     searchResults.length > 0 ? searchResults.map(item => (
-                        <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3" 
+                        <div key={item.id} className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} 
                              onClick={() => onItemClick(item)}>
                             <div className="text-xs text-stone-400 mb-1">{item.category} / {item.subcategory}</div>
-                            <h4 className="font-bold text-gray-800">{item.title}</h4>
+                            <h4 className={`font-bold ${theme.text}`}>{item.title}</h4>
                         </div>
                     )) : <div className="text-center text-gray-400 mt-10">沒有找到相關筆記</div>
                 )}
@@ -1044,13 +1047,13 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                                          }
                                      )}
                                      className={`
-                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : 'bg-white border-gray-100'} 
+                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : `${theme.card} ${theme.border}`} 
                                         ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2 transition-all duration-200' : ''} 
                                         p-4 rounded-xl shadow-sm border mb-3 flex items-center cursor-pointer hover:border-stone-300 select-none transition-all
                                      `}>
                                     
                                     <div className="flex-1 flex items-baseline gap-2">
-                                        <span className="font-bold text-lg text-stone-800">{cat}</span>
+                                        <span className={`font-bold text-lg ${theme.text}`}>{cat}</span>
                                         {count === 0 && <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">空</span>}
                                     </div>
 
@@ -1092,13 +1095,13 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                                          }
                                      )}
                                      className={`
-                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : 'bg-white border-gray-100'} 
+                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : `${theme.card} ${theme.border}`} 
                                         ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2 transition-all duration-200' : ''}
                                         p-4 rounded-xl shadow-sm border mb-3 flex items-center cursor-pointer hover:border-stone-300 select-none transition-all
                                      `}>
                                     
                                     <div className="flex-1 flex items-baseline gap-2">
-                                        <span className="font-medium text-lg text-stone-700">{sub}</span>
+                                        <span className={`font-medium text-lg ${theme.text}`}>{sub}</span>
                                         {count === 0 && <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">空</span>}
                                     </div>
                                     
@@ -1130,7 +1133,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                                 <div key={item.id} 
                                      data-index={index}
                                      className={`
-                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : 'bg-white border-gray-100'} 
+                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : `${theme.card} ${theme.border}`} 
                                         ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2 transition-all duration-200' : ''}
                                         p-4 rounded-xl shadow-sm border mb-3 transition-all select-none
                                      `}
@@ -1138,8 +1141,8 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                                     
                                     <div className="flex justify-between items-start">
                                         <div className="flex-1">
-                                            <h4 className="font-bold text-gray-800 text-lg">{item.title}</h4>
-                                            <p className="text-sm text-gray-500 line-clamp-2 mt-2">{item.content}</p>
+                                            <h4 className={`font-bold ${theme.text} text-lg`}>{item.title}</h4>
+                                            <p className={`text-sm ${theme.subtext} line-clamp-2 mt-2`}>{item.content}</p>
                                         </div>
                                         
                                         <div className="flex flex-col items-end gap-2 ml-2">
@@ -1177,14 +1180,14 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                     
                     {/* 選單本體：根據滑鼠/手指座標定位 */}
                     <div 
-                        className="fixed z-[70] bg-white rounded-xl shadow-xl border border-stone-200 overflow-hidden min-w-[140px] animate-in fade-in zoom-in-95 duration-100 flex flex-col"
+                        className={`fixed z-[70] ${theme.card} rounded-xl shadow-xl border ${theme.border} overflow-hidden min-w-[140px] animate-in fade-in zoom-in-95 duration-100 flex flex-col`}
                         style={{ 
                             // 智慧定位：防止選單超出螢幕邊界
                             top: Math.min(contextMenu.y, window.innerHeight - 100), 
                             left: Math.min(contextMenu.x, window.innerWidth - 140) 
                         }}
                     >
-                        <button onClick={handleRename} className="w-full text-left px-4 py-3 hover:bg-stone-50 text-stone-700 font-bold text-sm border-b border-stone-100 flex items-center gap-2">
+                        <button onClick={handleRename} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border} flex items-center gap-2`}>
                             <Edit className="w-4 h-4"/> 重新命名
                         </button>
                         <button onClick={handleDeleteFromMenu} className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 font-bold text-sm flex items-center gap-2">
@@ -1198,7 +1201,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
 };
 
 // === 8. 列表項目 (給收藏與歷史使用) ===
-const NoteListItem = ({ item, isHistory, allResponses }) => {
+const NoteListItem = ({ item, isHistory, allResponses, theme }) => {
     // 取得該筆記的所有新回應
     const newResponses = allResponses ? (allResponses[item.id] || []) : [];
     // 決定要顯示哪一個回應：如果有新回應，顯示最新的一則 (index 0)；如果沒有，顯示舊的 journalEntry
@@ -1207,7 +1210,7 @@ const NoteListItem = ({ item, isHistory, allResponses }) => {
     const responseCount = newResponses.length;
 
     return (
-        <div className="bg-stone-50 p-4 rounded-xl shadow-sm border border-stone-200 mb-3" onClick={() => {
+        <div className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} onClick={() => {
             const event = new CustomEvent('noteSelected', { detail: item.id });
             window.dispatchEvent(event);
         }}>
@@ -1217,11 +1220,11 @@ const NoteListItem = ({ item, isHistory, allResponses }) => {
                     <span className="text-[10px] text-stone-400 ml-2">{item.subcategory}</span>
                 </div>
             </div>
-            <h4 className="font-bold text-stone-800 mb-1">{item.title}</h4>
-            <p className="text-xs text-stone-500 line-clamp-2">{item.content}</p>
+            <h4 className={`font-bold ${theme.text} mb-1`}>{item.title}</h4>
+            <p className={`text-xs ${theme.subtext} line-clamp-2`}>{item.content}</p>
             
             {displayResponse && (
-                <div className="mt-3 pt-2 border-t border-stone-200">
+                <div className={`mt-3 pt-2 border-t ${theme.border}`}>
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] text-stone-400 font-bold flex items-center gap-1">
                             <PenLine className="w-3 h-3"/> 
@@ -2382,18 +2385,18 @@ function EchoScriptApp() {
                 )}
             </main>
             
-            <button onClick={() => setShowMenuModal(true)} className="fixed bottom-6 right-6 bg-white border border-stone-200 text-stone-600 p-3 rounded-full shadow-lg active:scale-95 z-20">
+            <button onClick={() => setShowMenuModal(true)} className={`fixed bottom-6 right-6 ${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 z-20`}>
                 <BookOpen className="w-6 h-6" />
             </button>
 
             {showMenuModal && (
                 <div className="fixed inset-0 z-40 bg-stone-900/40 backdrop-blur-sm flex justify-end" onClick={(e) => { if(e.target === e.currentTarget) setShowMenuModal(false); }}>
-                    <div className="w-full max-w-sm bg-stone-50 h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-                        <div className="p-5 border-b border-stone-200 bg-white flex justify-between items-center">
-                            <h2 className="font-bold text-lg">我的資料庫</h2>
+                    <div className={`w-full max-w-sm ${theme.bg} h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300`}>
+                        <div className={`p-5 border-b ${theme.border} ${theme.card} flex justify-between items-center`}>
+                            <h2 className={`font-bold text-lg ${theme.text}`}>我的資料庫</h2>
                             <button onClick={() => setShowMenuModal(false)}><X className="w-6 h-6 text-gray-400" /></button>
                         </div>
-                       <div className="flex p-2 gap-2 bg-white border-b border-stone-100">
+                       <div className={`flex p-2 gap-2 ${theme.card} border-b ${theme.border}`}>
                             {['favorites', 'history', 'appearance', 'settings'].map(tab => (
                                 <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === tab ? theme.activeTab : 'text-stone-400 hover:bg-stone-100'}`}>
                                     {tab === 'favorites' ? '收藏' : tab === 'history' ? '歷史' : tab === 'appearance' ? '外觀' : '備份'}
@@ -2418,9 +2421,10 @@ function EchoScriptApp() {
                                                 <NoteListItem 
                                                     item={pinnedNote} 
                                                     allResponses={allResponses} 
+                                                    theme={theme}
                                                 />
                                             </div>
-                                            <div className="my-4 border-b border-stone-100"></div>
+                                            <div className={`my-4 border-b ${theme.border}`}></div>
                                         </div>
                                     );
                                 })()
@@ -2434,6 +2438,7 @@ function EchoScriptApp() {
                                         key={item.id} 
                                         item={item} 
                                         allResponses={allResponses} 
+                                        theme={theme}
                                     />
                                 );
                             })}
@@ -2445,13 +2450,14 @@ function EchoScriptApp() {
                                     item={item} 
                                     isHistory 
                                     allResponses={allResponses} 
+                                    theme={theme}
                                 />
                             ))}
 
                             {/* [新增] 外觀主題選擇面板 */}
                             {activeTab === 'appearance' && (
                                 <div className="space-y-4">
-                                    <h3 className="font-bold text-gray-700 mb-2">選擇主題</h3>
+                                    <h3 className={`font-bold ${theme.subtext} mb-2`}>選擇主題</h3>
                                     <div className="grid grid-cols-1 gap-3">
                                         {Object.values(THEMES).map(t => (
                                             <button 
@@ -2486,13 +2492,13 @@ function EchoScriptApp() {
                             
                             {activeTab === 'settings' && (
                                 <div className="space-y-4">
-                                    <div className="bg-white p-4 rounded-xl border border-stone-200">
-                                        <h3 className="font-bold mb-2 flex items-center gap-2"><Download className="w-4 h-4"/> 匯出資料</h3>
-                                        <p className="text-xs text-gray-500 mb-3">包含所有新增的筆記與回應。</p>
+                                    <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
+                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><Download className="w-4 h-4"/> 匯出資料</h3>
+                                        <p className={`text-xs ${theme.subtext} mb-3`}>包含所有新增的筆記與回應。</p>
                                         <button onClick={handleBackup} className="w-full bg-stone-100 text-stone-800 text-sm font-bold py-2 rounded-lg border border-stone-200">下載 JSON</button>
                                     </div>
-                                    <div className="bg-white p-4 rounded-xl border border-stone-200">
-                                        <h3 className="font-bold mb-2 flex items-center gap-2"><Upload className="w-4 h-4"/> 匯入資料</h3>
+                                    <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
+                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><Upload className="w-4 h-4"/> 匯入資料</h3>
                                         <label className="block w-full bg-[#2c3e50] text-white text-center text-sm font-bold py-2 rounded-lg cursor-pointer">
                                             選擇檔案
                                             <input type="file" accept=".json" className="hidden" onChange={handleRestore} />
@@ -2514,6 +2520,7 @@ function EchoScriptApp() {
                     onSave={(data) => { handleSaveNote(data); setHasUnsavedChanges(false); }} 
                     onDelete={() => { handleDeleteNote(currentNote?.id); setHasUnsavedChanges(false); }}
                     setHasUnsavedChanges={setHasUnsavedChanges}
+                    theme={theme}
                 />
             )}
 
@@ -2542,6 +2549,7 @@ function EchoScriptApp() {
                     // 傳遞狀態與設定器
                     viewLevel={allNotesViewLevel}
                     setViewLevel={setAllNotesViewLevel}
+                    theme={theme}
                 />
             )}
 
@@ -2555,6 +2563,7 @@ function EchoScriptApp() {
                     viewMode={responseViewMode}
                     setViewMode={setResponseViewMode}
                     setHasUnsavedChanges={setHasUnsavedChanges}
+                    theme={theme}
                 />
             )}
 
@@ -2610,6 +2619,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

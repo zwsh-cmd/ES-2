@@ -1352,9 +1352,10 @@ function EchoScriptApp() {
 
     // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
     useEffect(() => {
+        // 1. 設定 Body Class (Tailwind)
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
         
-        // 設定 meta theme-color 讓手機瀏覽器狀態列變色
+        // 2. 設定 meta theme-color (上方狀態列 & Android 導航列)
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
             metaTheme = document.createElement('meta');
@@ -1362,15 +1363,16 @@ function EchoScriptApp() {
             document.head.appendChild(metaTheme);
         }
 
-        // [新增] 設定 viewport-fit=cover 以確保內容延伸到安全區域 (解決下方白條問題)
+        // 3. 設定 viewport-fit=cover (iOS 底部安全區域)
         let metaViewport = document.querySelector('meta[name="viewport"]');
         if (metaViewport) {
+            // 避免重複添加，並確保格式正確 (加上逗號與空白)
             if (!metaViewport.content.includes('viewport-fit=cover')) {
-                metaViewport.content = metaViewport.content + ', viewport-fit=cover';
+                metaViewport.content = `${metaViewport.content}, viewport-fit=cover`;
             }
         }
 
-        // 定義各主題對應的 Hex 色碼 (對應 THEMES 中的 bg 設定)
+        // 4. 解析當前主題 HEX 色碼
         const themeColors = {
             light: '#fafaf9',       // bg-stone-50
             dark: '#020617',        // bg-slate-950
@@ -1390,16 +1392,17 @@ function EchoScriptApp() {
             if (hexMatch) hexColor = hexMatch[1];
         }
 
-        // 1. 設定瀏覽器主題色
+        // 5. 應用顏色
         metaTheme.content = hexColor;
 
-        // 2. 強制設定 HTML 與 Body 的 inline style 背景色
+        // [關鍵] 強制設定 HTML 與 Body 背景色
         document.documentElement.style.backgroundColor = hexColor;
         document.body.style.backgroundColor = hexColor;
         
-        // [新增] 確保高度填滿，避免底部露白
-        document.documentElement.style.minHeight = '100%';
-        document.body.style.minHeight = '100%';
+        // [關鍵修正] 使用 100dvh (Dynamic Viewport Height) 確保填滿手機瀏覽器的動態區域
+        // html 設為 100% 作為基準，body 設為 min-height: 100dvh
+        document.documentElement.style.height = '100%';
+        document.body.style.minHeight = '100dvh';
 
     }, [theme, currentThemeId]);
 
@@ -2701,6 +2704,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

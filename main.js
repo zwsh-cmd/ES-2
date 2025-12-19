@@ -2398,11 +2398,10 @@ function EchoScriptApp() {
                      <button onClick={() => { setIsCreatingNew(true); setShowEditModal(true); }} className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} title="新增筆記">
                         <Plus className="w-5 h-5" />
                     </button>
-                    <button onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} title="所有筆記">
-                        <List className="w-5 h-5" />
-                    </button>
-                    <button onClick={handleGoHome} disabled={isAnimating || notes.length === 0} className={`${theme.accent} ${theme.accentText} px-4 py-2 rounded-full text-xs font-bold shadow-lg active:scale-95 transition-transform flex items-center gap-2`}>
-                        <Home className="w-3 h-3"/> 首頁
+                    {/* [修正] 分類按鈕已移除，移至右下角 */}
+                    {/* [修正] 首頁按鈕：移除文字，只保留 icon，並調整樣式為圓形 */}
+                    <button onClick={handleGoHome} disabled={isAnimating || notes.length === 0} className={`${theme.accent} ${theme.accentText} p-2 rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center`} title="回到首頁">
+                        <Home className="w-5 h-5"/>
                     </button>
                 </div>
             </nav>
@@ -2514,6 +2513,15 @@ function EchoScriptApp() {
                 )}
             </main>
             
+            {/* [新增] 筆記分類懸浮按鈕 (移到右下角，位於資料庫按鈕上方) */}
+            <button 
+                onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} 
+                className={`fixed bottom-20 right-6 ${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95 z-20`}
+                title="筆記分類"
+            >
+                <List className="w-6 h-6" />
+            </button>
+
             <button onClick={() => setShowMenuModal(true)} className={`fixed bottom-6 right-6 ${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 z-20`}>
                 <BookOpen className="w-6 h-6" />
             </button>
@@ -2747,6 +2755,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

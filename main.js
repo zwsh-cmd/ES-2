@@ -1381,62 +1381,89 @@ function EchoScriptApp() {
 
     // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
     useEffect(() => {
-        // 1. 設定 Body Class (Tailwind) 用於一般內容背景
+        // 1. 設定 Body Class (Tailwind)
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
         
         // 2. 取得精確的 Hex 色碼
         const hexColor = theme.hex || '#fafaf9';
+        const isDark = currentThemeId === 'dark';
 
-        // 3. 設定 meta theme-color (控制瀏覽器上方狀態列顏色)
+        // 3. [強制更新] 設定 meta theme-color (Android 導航列與狀態列的關鍵)
+        // 移除舊的，重新建立，確保瀏覽器重新抓取值
         let metaTheme = document.querySelector('meta[name="theme-color"]');
-        if (!metaTheme) {
-            metaTheme = document.createElement('meta');
-            metaTheme.name = "theme-color";
-            document.head.appendChild(metaTheme);
-        }
+        if (metaTheme) metaTheme.remove();
+        
+        metaTheme = document.createElement('meta');
+        metaTheme.name = "theme-color";
         metaTheme.content = hexColor;
+        document.head.appendChild(metaTheme);
 
-        // 4. [修正] 設定 viewport-fit=cover (確保內容能延伸到 Home Indicator 區域)
-        // 自動檢查是否存在 viewport meta，若無則建立，確保樣式生效
+        // 4. [新增] 設定 color-scheme (告訴瀏覽器我們的主題模式，避免系統強制蓋色)
+        let metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+        if (!metaColorScheme) {
+            metaColorScheme = document.createElement('meta');
+            metaColorScheme.name = "color-scheme";
+            document.head.appendChild(metaColorScheme);
+        }
+        metaColorScheme.content = isDark ? "dark" : "light";
+
+        // 5. 設定 viewport (加入 viewport-fit=cover)
         let metaViewport = document.querySelector('meta[name="viewport"]');
         if (!metaViewport) {
             metaViewport = document.createElement('meta');
             metaViewport.name = "viewport";
-            metaViewport.content = "width=device-width, initial-scale=1, viewport-fit=cover";
             document.head.appendChild(metaViewport);
-        } else {
-            if (!metaViewport.content.includes('viewport-fit=cover')) {
-                metaViewport.content = `${metaViewport.content}, viewport-fit=cover`;
+        }
+        // 確保設定完整，防止縮放導致的白邊
+        metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
+
+        // 6. [終極方案] 注入全域 CSS Style 標籤
+        // 使用 CSS 變數與 !important 強制鎖定 html/body 的背景色
+        let styleTag = document.getElementById('echo-theme-style');
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = 'echo-theme-style';
+            document.head.appendChild(styleTag);
+        }
+
+        styleTag.innerHTML = `
+            :root {
+                --app-bg: ${hexColor};
             }
-        }
+            html {
+                background-color: var(--app-bg) !important;
+                min-height: 100%;
+                width: 100%;
+                overscroll-behavior-y: none;
+                -webkit-tap-highlight-color: transparent;
+            }
+            body {
+                background-color: var(--app-bg) !important;
+                min-height: 100vh;
+                min-height: 100dvh;
+                width: 100%;
+                overscroll-behavior-y: none;
+                position: relative;
+            }
+            /* 針對 iOS/Android 底部安全區域的填補層 */
+            /* 放在 body::after 確保它蓋在最底層但填滿空隙 */
+            body::after {
+                content: "";
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 100px; /* 足夠覆蓋導航列的高度 */
+                background-color: var(--app-bg) !important;
+                z-index: -9999; 
+                pointer-events: none;
+                transform: translateY(50%); /* 往下推，只覆蓋底部邊緣 */
+            }
+        `;
 
-        // 5. [終極修正] 建立/更新「超大尺寸」固定背景層
-        let backdrop = document.getElementById('theme-backdrop');
-        if (!backdrop) {
-            backdrop = document.createElement('div');
-            backdrop.id = 'theme-backdrop';
-            document.body.appendChild(backdrop);
-        }
-        
-        // 強制更新樣式
-        Object.assign(backdrop.style, {
-            position: 'fixed',
-            top: '-50vh',      
-            left: '-50vw',     
-            width: '200vw',    
-            height: '200vh',   
-            zIndex: '-9999',   
-            pointerEvents: 'none',
-            backgroundColor: hexColor 
-        });
-
-        // 6. 同步設定 html/body 背景 (使用 important 強制覆蓋)
-        document.documentElement.style.setProperty('background-color', hexColor, 'important');
-        document.body.style.setProperty('background-color', hexColor, 'important');
-        
-        document.documentElement.style.minHeight = '100%';
-        document.body.style.minHeight = '100dvh';
-        document.body.style.overscrollBehaviorY = 'none';
+        // 清理舊的 backdrop 元素 (如果還有殘留)
+        const oldBackdrop = document.getElementById('theme-backdrop');
+        if (oldBackdrop) oldBackdrop.remove();
 
     }, [theme, currentThemeId]);
 
@@ -2812,6 +2839,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

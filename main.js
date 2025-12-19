@@ -1356,7 +1356,14 @@ function EchoScriptApp() {
         // 設定 meta theme-color 讓手機瀏覽器狀態列變色
         const metaTheme = document.querySelector('meta[name="theme-color"]');
         if (metaTheme) {
-            metaTheme.content = currentThemeId === 'dark' ? '#020617' : (currentThemeId === 'morandi' ? '#F2E6D8' : '#fafaf9');
+            // 嘗試從 bg-[#XXXXXX] 格式中提取 HEX 色碼 (適用於所有莫蘭迪自定義色)
+            const hexMatch = theme.bg.match(/bg-\[(#[0-9a-fA-F]+)\]/);
+            if (hexMatch) {
+                metaTheme.content = hexMatch[1];
+            } else {
+                // 處理標準 Tailwind 顏色 (light=stone-50, dark=slate-950)
+                metaTheme.content = currentThemeId === 'dark' ? '#020617' : '#fafaf9';
+            }
         }
     }, [theme, currentThemeId]);
 
@@ -2658,6 +2665,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

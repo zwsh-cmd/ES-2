@@ -1881,9 +1881,7 @@ function EchoScriptApp() {
 
     const handleNextNote = () => {
         if (notes.length <= 1) return;
-        // [新增] 使用者主動切換卡片，代表已離開編輯情境，清除恢復標記
-        localStorage.removeItem('echoScript_ResumeNoteId');
-        if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: null }, { merge: true });
+        // [修正] 移除清除 ResumeNoteId 的邏輯，確保首頁按鈕永遠能回到最後編輯/關注的卡片
         
         setIsAnimating(true);
         setTimeout(() => {
@@ -1901,7 +1899,7 @@ function EchoScriptApp() {
                 
                 // 3. 顯示這張牌
                 setCurrentIndex(nextIndex);
-                addToHistory(notes[nextIndex]);
+                // [修正] 移除 addToHistory，避免單純的瀏覽/重播被誤認為編輯紀錄
                 
                 setIsAnimating(false);
                 window.scrollTo(0,0);
@@ -2014,9 +2012,7 @@ function EchoScriptApp() {
 
     // [新增] 回到上一張筆記
     const handlePreviousNote = () => {
-        // [新增] 使用者主動切換卡片，清除恢復標記
-        localStorage.removeItem('echoScript_ResumeNoteId');
-        if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: null }, { merge: true });
+        // [修正] 移除清除 ResumeNoteId 的邏輯，確保首頁按鈕永遠能回到最後編輯/關注的卡片
 
         // 檢查是否有上一張紀錄 (recentIndices[0] 是當前，recentIndices[1] 是上一張)
         if (recentIndices.length < 2) {
@@ -2311,6 +2307,9 @@ function EchoScriptApp() {
             console.error("雲端回應儲存失敗", e);
             // 這裡不跳出 Alert，避免干擾使用者體驗，但會在 Console 留紀錄
         }
+
+        // [新增] 將「修改回應」視為編輯行為，加入編輯歷史
+        if (currentNote) addToHistory(currentNote);
 
         setHasDataChangedInSession(true); // [新增] 標記資料已變更
         showNotification("回應已儲存");
@@ -2828,6 +2827,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

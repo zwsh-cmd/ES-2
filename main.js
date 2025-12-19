@@ -1375,13 +1375,24 @@ function EchoScriptApp() {
             morandiYellow: '#F5F2E6'// 莫蘭迪暖黃
         };
 
-        // 優先使用對照表，若無則嘗試 Regex 解析，最後回退到淺色
+        let hexColor = '#fafaf9';
+        // 優先使用對照表，若無則嘗試 Regex 解析
         if (themeColors[currentThemeId]) {
-            metaTheme.content = themeColors[currentThemeId];
+            hexColor = themeColors[currentThemeId];
         } else {
             const hexMatch = theme.bg.match(/bg-\[(#[0-9a-fA-F]+)\]/);
-            metaTheme.content = hexMatch ? hexMatch[1] : '#fafaf9';
+            if (hexMatch) hexColor = hexMatch[1];
         }
+
+        // 1. 設定瀏覽器主題色 (影響上方狀態列 & 部分瀏覽器的下方導航列)
+        metaTheme.content = hexColor;
+
+        // 2. [新增] 強制設定 HTML 與 Body 的 inline style 背景色
+        // 這能解決部分手機瀏覽器 (尤其是 iOS Safari 或 Android Chrome 某些版本) 
+        // 在最底部的系統導航列或 Over-scroll 區域顯示白邊的問題
+        document.documentElement.style.backgroundColor = hexColor;
+        document.body.style.backgroundColor = hexColor;
+
     }, [theme, currentThemeId]);
 
     // [新增] 切換主題並儲存

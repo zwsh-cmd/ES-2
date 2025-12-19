@@ -83,6 +83,7 @@ const History = (props) => <IconBase d={["M12 22c5.523 0 10-4.477 10-10S17.523 2
 const Clock = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 const PenLine = (props) => <IconBase d={["M12 20h9", "M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"]} {...props} />;
 const Save = (props) => <IconBase d={["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z", "M17 21v-8H7v8", "M7 3v5h8"]} {...props} />;
+const Home = (props) => <IconBase d={["M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M9 22V12h6v10"]} {...props} />;
 const RefreshCw = (props) => <IconBase d={["M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8", "M21 3v5h-5", "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16", "M8 16H3v5"]} {...props} />;
 const Edit = (props) => <IconBase d={["M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7", "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"]} {...props} />;
 const Download = (props) => <IconBase d={["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5", "M12 15V3"]} {...props} />;
@@ -1941,6 +1942,28 @@ function EchoScriptApp() {
         }, 300);
     };
 
+    // [新增] 回到首頁 (跳轉至釘選筆記)
+    const handleGoHome = () => {
+        if (notes.length === 0) return;
+        
+        setIsAnimating(true);
+        setTimeout(() => {
+            // 找出釘選筆記的索引
+            const pinnedIndex = pinnedNoteId ? notes.findIndex(n => String(n.id) === String(pinnedNoteId)) : -1;
+            
+            // 如果有釘選，跳轉到釘選；如果沒釘選，跳轉到列表第一張 (Index 0)
+            const targetIndex = pinnedIndex !== -1 ? pinnedIndex : 0;
+            
+            setCurrentIndex(targetIndex);
+            
+            // 清除「恢復閱讀」的標記，代表使用者主動重置
+            localStorage.removeItem('echoScript_ResumeNoteId');
+
+            setIsAnimating(false);
+            window.scrollTo(0,0);
+        }, 300);
+    };
+
     // [新增] 回到上一張筆記
     const handlePreviousNote = () => {
         // [新增] 使用者主動切換卡片，清除恢復標記
@@ -2378,8 +2401,8 @@ function EchoScriptApp() {
                     <button onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} title="所有筆記">
                         <List className="w-5 h-5" />
                     </button>
-                    <button onClick={handleNextNote} disabled={isAnimating || notes.length <= 1} className={`${theme.accent} ${theme.accentText} px-4 py-2 rounded-full text-xs font-bold shadow-lg active:scale-95 transition-transform flex items-center gap-2`}>
-                        <RefreshCw className={`w-3 h-3 ${isAnimating ? 'animate-spin' : ''}`}/> 下一張
+                    <button onClick={handleGoHome} disabled={isAnimating || notes.length === 0} className={`${theme.accent} ${theme.accentText} px-4 py-2 rounded-full text-xs font-bold shadow-lg active:scale-95 transition-transform flex items-center gap-2`}>
+                        <Home className="w-3 h-3"/> 首頁
                     </button>
                 </div>
             </nav>
@@ -2724,6 +2747,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

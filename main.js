@@ -1353,17 +1353,34 @@ function EchoScriptApp() {
     // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
     useEffect(() => {
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
+        
         // 設定 meta theme-color 讓手機瀏覽器狀態列變色
-        const metaTheme = document.querySelector('meta[name="theme-color"]');
-        if (metaTheme) {
-            // 嘗試從 bg-[#XXXXXX] 格式中提取 HEX 色碼 (適用於所有莫蘭迪自定義色)
+        // [修正] 自動建立 meta tag (若不存在)，並建立明確的顏色對照表，確保所有主題都能正確變色
+        let metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (!metaTheme) {
+            metaTheme = document.createElement('meta');
+            metaTheme.name = "theme-color";
+            document.head.appendChild(metaTheme);
+        }
+
+        // 定義各主題對應的 Hex 色碼 (對應 THEMES 中的 bg 設定)
+        const themeColors = {
+            light: '#fafaf9',       // bg-stone-50
+            dark: '#020617',        // bg-slate-950
+            morandi: '#F2E6D8',     // 莫蘭迪花園
+            morandiGreen: '#D9E0D6',// 莫蘭迪綠
+            morandiPurple: '#E2D6E2',// 莫蘭迪紫
+            morandiBlue: '#D3DFE6', // 莫蘭迪藍
+            morandiOrange: '#EBD4CC',// 莫蘭迪橘
+            morandiYellow: '#F5F2E6'// 莫蘭迪暖黃
+        };
+
+        // 優先使用對照表，若無則嘗試 Regex 解析，最後回退到淺色
+        if (themeColors[currentThemeId]) {
+            metaTheme.content = themeColors[currentThemeId];
+        } else {
             const hexMatch = theme.bg.match(/bg-\[(#[0-9a-fA-F]+)\]/);
-            if (hexMatch) {
-                metaTheme.content = hexMatch[1];
-            } else {
-                // 處理標準 Tailwind 顏色 (light=stone-50, dark=slate-950)
-                metaTheme.content = currentThemeId === 'dark' ? '#020617' : '#fafaf9';
-            }
+            metaTheme.content = hexMatch ? hexMatch[1] : '#fafaf9';
         }
     }, [theme, currentThemeId]);
 
@@ -2665,6 +2682,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

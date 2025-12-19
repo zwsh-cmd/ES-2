@@ -1355,12 +1355,19 @@ function EchoScriptApp() {
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
         
         // 設定 meta theme-color 讓手機瀏覽器狀態列變色
-        // [修正] 自動建立 meta tag (若不存在)，並建立明確的顏色對照表，確保所有主題都能正確變色
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
             metaTheme = document.createElement('meta');
             metaTheme.name = "theme-color";
             document.head.appendChild(metaTheme);
+        }
+
+        // [新增] 設定 viewport-fit=cover 以確保內容延伸到安全區域 (解決下方白條問題)
+        let metaViewport = document.querySelector('meta[name="viewport"]');
+        if (metaViewport) {
+            if (!metaViewport.content.includes('viewport-fit=cover')) {
+                metaViewport.content = metaViewport.content + ', viewport-fit=cover';
+            }
         }
 
         // 定義各主題對應的 Hex 色碼 (對應 THEMES 中的 bg 設定)
@@ -1376,7 +1383,6 @@ function EchoScriptApp() {
         };
 
         let hexColor = '#fafaf9';
-        // 優先使用對照表，若無則嘗試 Regex 解析
         if (themeColors[currentThemeId]) {
             hexColor = themeColors[currentThemeId];
         } else {
@@ -1384,14 +1390,16 @@ function EchoScriptApp() {
             if (hexMatch) hexColor = hexMatch[1];
         }
 
-        // 1. 設定瀏覽器主題色 (影響上方狀態列 & 部分瀏覽器的下方導航列)
+        // 1. 設定瀏覽器主題色
         metaTheme.content = hexColor;
 
-        // 2. [新增] 強制設定 HTML 與 Body 的 inline style 背景色
-        // 這能解決部分手機瀏覽器 (尤其是 iOS Safari 或 Android Chrome 某些版本) 
-        // 在最底部的系統導航列或 Over-scroll 區域顯示白邊的問題
+        // 2. 強制設定 HTML 與 Body 的 inline style 背景色
         document.documentElement.style.backgroundColor = hexColor;
         document.body.style.backgroundColor = hexColor;
+        
+        // [新增] 確保高度填滿，避免底部露白
+        document.documentElement.style.minHeight = '100%';
+        document.body.style.minHeight = '100%';
 
     }, [theme, currentThemeId]);
 
@@ -2693,6 +2701,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

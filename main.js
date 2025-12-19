@@ -1366,7 +1366,7 @@ function EchoScriptApp() {
         // 3. 設定 viewport-fit=cover (iOS 底部安全區域)
         let metaViewport = document.querySelector('meta[name="viewport"]');
         if (metaViewport) {
-            // 避免重複添加，並確保格式正確 (加上逗號與空白)
+            // 避免重複添加
             if (!metaViewport.content.includes('viewport-fit=cover')) {
                 metaViewport.content = `${metaViewport.content}, viewport-fit=cover`;
             }
@@ -1392,17 +1392,18 @@ function EchoScriptApp() {
             if (hexMatch) hexColor = hexMatch[1];
         }
 
-        // 5. 應用顏色
+        // 5. 應用顏色到 meta theme-color
         metaTheme.content = hexColor;
 
-        // [關鍵] 強制設定 HTML 與 Body 背景色
+        // 6. [關鍵] 強制設定 HTML 與 Body 背景色與高度
+        // 移除 height: 100% 限制，改用 min-height 防止背景裁切
         document.documentElement.style.backgroundColor = hexColor;
         document.body.style.backgroundColor = hexColor;
         
-        // [關鍵修正] 使用 100dvh (Dynamic Viewport Height) 確保填滿手機瀏覽器的動態區域
-        // html 設為 100% 作為基準，body 設為 min-height: 100dvh
-        document.documentElement.style.height = '100%';
-        document.body.style.minHeight = '100dvh';
+        // 修正：取消 html 的固定高度，允許隨內容延伸，防止底部露白
+        document.documentElement.style.minHeight = '100%';
+        document.body.style.minHeight = '100%';
+        document.body.style.overscrollBehaviorY = 'none'; // 防止過度捲動露出白底
 
     }, [theme, currentThemeId]);
 
@@ -2704,6 +2705,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

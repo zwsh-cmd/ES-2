@@ -1366,7 +1366,6 @@ function EchoScriptApp() {
         // 3. 設定 viewport-fit=cover (iOS 底部安全區域)
         let metaViewport = document.querySelector('meta[name="viewport"]');
         if (metaViewport) {
-            // 避免重複添加
             if (!metaViewport.content.includes('viewport-fit=cover')) {
                 metaViewport.content = `${metaViewport.content}, viewport-fit=cover`;
             }
@@ -1395,15 +1394,33 @@ function EchoScriptApp() {
         // 5. 應用顏色到 meta theme-color
         metaTheme.content = hexColor;
 
-        // 6. [關鍵] 強制設定 HTML 與 Body 背景色與高度
-        // 移除 height: 100% 限制，改用 min-height 防止背景裁切
+        // 6. [核彈級修正] 建立一個固定定位的背景層 (Backdrop Layer)
+        // 這能無視捲動與安全區域高度計算問題，強制填滿整個手機螢幕背景
+        let backdrop = document.getElementById('theme-backdrop');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.id = 'theme-backdrop';
+            // 固定定位，填滿視窗
+            backdrop.style.position = 'fixed';
+            backdrop.style.top = '0';
+            backdrop.style.left = '0';
+            backdrop.style.width = '100%';
+            backdrop.style.height = '100%';
+            // 放到最底層，不影響操作
+            backdrop.style.zIndex = '-9999';
+            backdrop.style.pointerEvents = 'none';
+            document.body.appendChild(backdrop);
+        }
+        backdrop.style.backgroundColor = hexColor;
+
+        // 7. 同步設定 html/body 背景 (雙重保險)
         document.documentElement.style.backgroundColor = hexColor;
         document.body.style.backgroundColor = hexColor;
         
-        // 修正：取消 html 的固定高度，允許隨內容延伸，防止底部露白
-        document.documentElement.style.minHeight = '100%';
+        // 恢復一般高度設定
+        document.documentElement.style.height = '100%';
         document.body.style.minHeight = '100%';
-        document.body.style.overscrollBehaviorY = 'none'; // 防止過度捲動露出白底
+        document.body.style.overscrollBehaviorY = 'none';
 
     }, [theme, currentThemeId]);
 
@@ -2705,6 +2722,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

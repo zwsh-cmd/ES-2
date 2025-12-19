@@ -1935,7 +1935,7 @@ function EchoScriptApp() {
             });
 
             setCurrentIndex(newIndex);
-            addToHistory(notes[newIndex]);
+            // [修改] 移除瀏覽歷史紀錄，改為僅記錄編輯歷史
             
             setIsAnimating(false);
             window.scrollTo(0,0);
@@ -2021,8 +2021,7 @@ function EchoScriptApp() {
             setRecentIndices(prev => prev.slice(1));
             setCurrentIndex(prevIndex);
             
-            // 為了讓歷史紀錄完整，這邊也可以選擇是否要再次加入 History Tab (視需求而定，這邊選擇加入以保持軌跡)
-            addToHistory(notes[prevIndex]);
+            // [修改] 移除瀏覽歷史紀錄，改為僅記錄編輯歷史
 
             setIsAnimating(false);
             window.scrollTo(0,0);
@@ -2097,6 +2096,10 @@ function EchoScriptApp() {
         localStorage.setItem('echoScript_DeckPointer', nextPointer.toString());
         localStorage.setItem('echoScript_ResumeNoteId', String(targetId));
         
+        // [新增] 記錄編輯歷史 (Edit History) - 至少保留 30 筆 (原設定為 50 筆)
+        const savedNote = nextNotes.find(n => String(n.id) === String(targetId));
+        if (savedNote) addToHistory(savedNote);
+
         setHasDataChangedInSession(true); 
         setShowEditModal(false);
     };
@@ -2413,6 +2416,14 @@ function EchoScriptApp() {
                     >
                         <List className="w-5 h-5" />
                     </button>
+                    {/* [UI調整] 我的資料庫按鈕移至右上角 */}
+                    <button 
+                        onClick={() => setShowMenuModal(true)} 
+                        className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} 
+                        title="我的資料庫"
+                    >
+                        <BookOpen className="w-5 h-5" />
+                    </button>
                 </div>
             </nav>
 
@@ -2526,14 +2537,7 @@ function EchoScriptApp() {
             {/* [UI調整] 左下角導航操作區：由下而上分別是 首頁 -> 釘選 -> 資料庫 */}
             <div className="fixed bottom-6 left-6 z-20 flex flex-col gap-3 items-start">
                 
-                {/* 3. 我的資料庫 (最上方，配色改為與首頁相同) */}
-                <button 
-                    onClick={() => setShowMenuModal(true)} 
-                    className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
-                    title="我的資料庫"
-                >
-                    <BookOpen className="w-6 h-6" />
-                </button>
+                {/* [已移除] 我的資料庫按鈕已移至右上角 */}
 
                 {/* 2. 釘選按鈕 (中間) */}
                 {/* 注意：這裡保留原本指向 handleGoHome 的邏輯，但因為 handleGoHome 改成了「回到最後編輯」，
@@ -2584,7 +2588,7 @@ function EchoScriptApp() {
                        <div className={`flex p-2 gap-2 ${theme.card} border-b ${theme.border}`}>
                             {['favorites', 'history', 'appearance', 'settings'].map(tab => (
                                 <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${activeTab === tab ? theme.activeTab : 'text-stone-400 hover:bg-stone-100'}`}>
-                                    {tab === 'favorites' ? '收藏' : tab === 'history' ? '歷史' : tab === 'appearance' ? '外觀' : '備份'}
+                                    {tab === 'favorites' ? '收藏' : tab === 'history' ? '編輯歷史' : tab === 'appearance' ? '外觀' : '備份'}
                                 </button>
                             ))}
                         </div>
@@ -2803,6 +2807,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

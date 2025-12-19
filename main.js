@@ -5,21 +5,21 @@ const { createRoot } = ReactDOM;
 // [新增] 主題配色定義
 const THEMES = {
     light: { 
-        id: 'light', name: '簡約淺色', 
+        id: 'light', name: '簡約淺色', hex: '#fafaf9', // bg-stone-50
         bg: 'bg-stone-50', text: 'text-stone-800', 
         card: 'bg-white', border: 'border-stone-200', 
         accent: 'bg-[#2c3e50]', accentText: 'text-stone-50',
         subtext: 'text-stone-400', activeTab: 'bg-[#2c3e50] text-white'
     },
     dark: { 
-        id: 'dark', name: '深邃夜空', 
+        id: 'dark', name: '深邃夜空', hex: '#020617', // bg-slate-950
         bg: 'bg-slate-950', text: 'text-slate-200', 
         card: 'bg-slate-900', border: 'border-slate-800', 
         accent: 'bg-sky-600', accentText: 'text-white',
         subtext: 'text-slate-500', activeTab: 'bg-sky-600 text-white'
     },
     morandi: { 
-        id: 'morandi', name: '莫蘭迪花園', 
+        id: 'morandi', name: '莫蘭迪花園', hex: '#F2E6D8',
         bg: 'bg-[#F2E6D8]', text: 'text-[#5E503F]', 
         card: 'bg-[#FFFBF0]', border: 'border-[#E6DCC8]', 
         accent: 'bg-[#B5838D]', accentText: 'text-white', // 乾燥玫瑰粉
@@ -27,7 +27,7 @@ const THEMES = {
     },
     // 修改主題 1: 綠色 (按鈕顏色調深，增強對比)
     morandiGreen: {
-        id: 'morandiGreen', name: '莫蘭迪綠',
+        id: 'morandiGreen', name: '莫蘭迪綠', hex: '#D9E0D6',
         bg: 'bg-[#D9E0D6]', text: 'text-[#4A5D4F]',
         card: 'bg-[#F7FAF7]', border: 'border-[#C8D6CA]',
         accent: 'bg-[#6A8D73]', accentText: 'text-white', // 深鼠尾草綠
@@ -35,7 +35,7 @@ const THEMES = {
     },
     // 修改主題 2: 紫色 (按鈕顏色調深，增強對比)
     morandiPurple: {
-        id: 'morandiPurple', name: '莫蘭迪紫',
+        id: 'morandiPurple', name: '莫蘭迪紫', hex: '#E2D6E2',
         bg: 'bg-[#E2D6E2]', text: 'text-[#5D4F5D]',
         card: 'bg-[#FCF8FC]', border: 'border-[#DBC8DB]',
         accent: 'bg-[#8E6F8E]', accentText: 'text-white', // 深煙燻紫
@@ -43,7 +43,7 @@ const THEMES = {
     },
     // 修改主題 3: 藍色 (按鈕顏色調深，增強對比)
     morandiBlue: {
-        id: 'morandiBlue', name: '莫蘭迪藍',
+        id: 'morandiBlue', name: '莫蘭迪藍', hex: '#D3DFE6',
         bg: 'bg-[#D3DFE6]', text: 'text-[#4A5D6B]',
         card: 'bg-[#F6FAFC]', border: 'border-[#C8D9E3]',
         accent: 'bg-[#64818D]', accentText: 'text-white', // 深岩石藍
@@ -51,7 +51,7 @@ const THEMES = {
     },
     // 修改主題 4: 橘色 (按鈕顏色調深，增強對比)
     morandiOrange: {
-        id: 'morandiOrange', name: '莫蘭迪橘',
+        id: 'morandiOrange', name: '莫蘭迪橘', hex: '#EBD4CC',
         bg: 'bg-[#EBD4CC]', text: 'text-[#6B4F45]',
         card: 'bg-[#FDF6F4]', border: 'border-[#E3C8C0]',
         accent: 'bg-[#B08474]', accentText: 'text-white', // 深陶土色
@@ -59,7 +59,7 @@ const THEMES = {
     },
     // 維持主題 5: 溫暖黃 (保持不變)
     morandiYellow: {
-        id: 'morandiYellow', name: '莫蘭迪暖黃',
+        id: 'morandiYellow', name: '莫蘭迪暖黃', hex: '#F5F2E6',
         bg: 'bg-[#F5F2E6]', text: 'text-[#6B6345]',
         card: 'bg-[#FAF9F0]', border: 'border-[#E6E1CC]',
         accent: 'bg-[#CFC599]', accentText: 'text-white',
@@ -1381,18 +1381,23 @@ function EchoScriptApp() {
 
     // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
     useEffect(() => {
-        // 1. 設定 Body Class (Tailwind)
+        // 1. 設定 Body Class (Tailwind) 用於一般內容背景
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
         
-        // 2. 設定 meta theme-color (上方狀態列 & Android 導航列)
+        // 2. 取得精確的 Hex 色碼 (直接讀取設定，不再猜測)
+        // 如果是舊版緩存導致沒有 hex，則回退到淺色
+        const hexColor = theme.hex || '#fafaf9';
+
+        // 3. 設定 meta theme-color (控制瀏覽器上方狀態列顏色)
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
             metaTheme = document.createElement('meta');
             metaTheme.name = "theme-color";
             document.head.appendChild(metaTheme);
         }
+        metaTheme.content = hexColor;
 
-        // 3. 設定 viewport-fit=cover (iOS 底部安全區域)
+        // 4. 設定 viewport-fit=cover (確保內容能延伸到 Home Indicator 區域)
         let metaViewport = document.querySelector('meta[name="viewport"]');
         if (metaViewport) {
             if (!metaViewport.content.includes('viewport-fit=cover')) {
@@ -1400,31 +1405,8 @@ function EchoScriptApp() {
             }
         }
 
-        // 4. 解析當前主題 HEX 色碼
-        const themeColors = {
-            light: '#fafaf9',       // bg-stone-50
-            dark: '#020617',        // bg-slate-950
-            morandi: '#F2E6D8',     // 莫蘭迪花園
-            morandiGreen: '#D9E0D6',// 莫蘭迪綠
-            morandiPurple: '#E2D6E2',// 莫蘭迪紫
-            morandiBlue: '#D3DFE6', // 莫蘭迪藍
-            morandiOrange: '#EBD4CC',// 莫蘭迪橘
-            morandiYellow: '#F5F2E6'// 莫蘭迪暖黃
-        };
-
-        let hexColor = '#fafaf9';
-        if (themeColors[currentThemeId]) {
-            hexColor = themeColors[currentThemeId];
-        } else {
-            const hexMatch = theme.bg.match(/bg-\[(#[0-9a-fA-F]+)\]/);
-            if (hexMatch) hexColor = hexMatch[1];
-        }
-
-        // 5. 應用顏色到 meta theme-color
-        metaTheme.content = hexColor;
-
-        // 6. [終極修正] 建立一個「超大尺寸」的固定背景層 (Backdrop Layer)
-        // 改用 200vh/200vw 並向外延伸，確保無視任何安全區域或導航列高度，絕對填滿背景
+        // 5. [終極修正] 建立/更新「超大尺寸」固定背景層
+        // 這層背景會強制填滿螢幕最底層，解決 iOS 底部白條問題
         let backdrop = document.getElementById('theme-backdrop');
         if (!backdrop) {
             backdrop = document.createElement('div');
@@ -1432,23 +1414,23 @@ function EchoScriptApp() {
             document.body.appendChild(backdrop);
         }
         
-        // 強制更新樣式 (確保即便元素已存在也能套用新尺寸)
+        // 強制更新樣式
         Object.assign(backdrop.style, {
             position: 'fixed',
             top: '-50vh',      // 向上延伸
             left: '-50vw',     // 向左延伸
             width: '200vw',    // 兩倍寬度
-            height: '200vh',   // 兩倍高度 (重點：這一定能蓋住底部的白條)
+            height: '200vh',   // 兩倍高度 (確保絕對覆蓋)
             zIndex: '-9999',   // 最底層
             pointerEvents: 'none',
-            backgroundColor: hexColor
+            backgroundColor: hexColor // 套用正確的 Hex 色碼
         });
 
-        // 7. 同步設定 html/body 背景 (雙重保險)
+        // 6. 同步設定 html/body 背景 (雙重保險)
         document.documentElement.style.backgroundColor = hexColor;
         document.body.style.backgroundColor = hexColor;
         
-        // 設定 body 高度為動態視窗高度 100dvh
+        // 確保高度設定正確
         document.documentElement.style.minHeight = '100%';
         document.body.style.minHeight = '100dvh';
         document.body.style.overscrollBehaviorY = 'none';
@@ -2827,6 +2809,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

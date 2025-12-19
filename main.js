@@ -1292,6 +1292,7 @@ function EchoScriptApp() {
     const [allResponses, setAllResponses] = useState({}); 
     
     const [history, setHistory] = useState([]);
+    const [isHistoryLoaded, setIsHistoryLoaded] = useState(false); // [新增] 標記歷史紀錄是否已從雲端同步
     const [recentIndices, setRecentIndices] = useState([]);
     // [新增] 未來堆疊：用於記錄「返回上一張」後，原本的「下一張」是誰 (實現重播機制)
     const [futureIndices, setFutureIndices] = useState([]);
@@ -1345,7 +1346,34 @@ function EchoScriptApp() {
                         if (data.pinnedNoteId) localStorage.setItem('echoScript_PinnedId', data.pinnedNoteId);
                         else localStorage.removeItem('echoScript_PinnedId');
                     }
+                    
+                    // [新增] 同步「最後編輯/查看」的筆記 ID (Resume ID)
+                    if (data.resumeNoteId !== undefined) {
+                        if (data.resumeNoteId) localStorage.setItem('echoScript_ResumeNoteId', data.resumeNoteId);
+                        else localStorage.removeItem('echoScript_ResumeNoteId');
+                    }
                 }
+            }
+        );
+        return () => unsubscribe();
+    }, []);
+
+    // [新增] 監聽雲端編輯歷史 (settings/history)
+    useEffect(() => {
+        if (!window.fs || !window.db) return;
+        const unsubscribe = window.fs.onSnapshot(
+            window.fs.doc(window.db, "settings", "history"),
+            (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+                    if (data.historyJSON) {
+                        console.log("📥 同步雲端歷史紀錄");
+                        const cloudHistory = JSON.parse(data.historyJSON);
+                        setHistory(cloudHistory);
+                        localStorage.setItem('echoScript_History', data.historyJSON);
+                    }
+                }
+                setIsHistoryLoaded(true); // 標記載入完成，允許後續寫入
             }
         );
         return () => unsubscribe();
@@ -1820,7 +1848,19 @@ function EchoScriptApp() {
     useEffect(() => { localStorage.setItem('echoScript_AllNotes', JSON.stringify(notes)); }, [notes]);
     useEffect(() => { localStorage.setItem('echoScript_Favorites', JSON.stringify(favorites)); }, [favorites]);
     useEffect(() => { localStorage.setItem('echoScript_AllResponses', JSON.stringify(allResponses)); }, [allResponses]);
-    useEffect(() => { localStorage.setItem('echoScript_History', JSON.stringify(history)); }, [history]);
+    useEffect(() => { 
+        const json = JSON.stringify(history);
+        localStorage.setItem('echoScript_History', json); 
+        
+        // [新增] 同步寫入雲端 (僅當已完成首次載入後)
+        if (window.fs && window.db && isHistoryLoaded) {
+            window.fs.setDoc(
+                window.fs.doc(window.db, "settings", "history"), 
+                { historyJSON: json }, 
+                { merge: true }
+            ).catch(e => console.error("歷史紀錄同步失敗", e));
+        }
+    }, [history, isHistoryLoaded]);
     useEffect(() => { localStorage.setItem('echoScript_Recents', JSON.stringify(recentIndices)); }, [recentIndices]);
     useEffect(() => { localStorage.setItem('echoScript_FutureRecents', JSON.stringify(futureIndices)); }, [futureIndices]);
     // [新增] 儲存洗牌狀態
@@ -1843,6 +1883,7 @@ function EchoScriptApp() {
         if (notes.length <= 1) return;
         // [新增] 使用者主動切換卡片，代表已離開編輯情境，清除恢復標記
         localStorage.removeItem('echoScript_ResumeNoteId');
+        if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: null }, { merge: true });
         
         setIsAnimating(true);
         setTimeout(() => {
@@ -1975,6 +2016,7 @@ function EchoScriptApp() {
     const handlePreviousNote = () => {
         // [新增] 使用者主動切換卡片，清除恢復標記
         localStorage.removeItem('echoScript_ResumeNoteId');
+        if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: null }, { merge: true });
 
         // 檢查是否有上一張紀錄 (recentIndices[0] 是當前，recentIndices[1] 是上一張)
         if (recentIndices.length < 2) {
@@ -2095,6 +2137,7 @@ function EchoScriptApp() {
         localStorage.setItem('echoScript_ShuffleDeck', JSON.stringify(nextDeck));
         localStorage.setItem('echoScript_DeckPointer', nextPointer.toString());
         localStorage.setItem('echoScript_ResumeNoteId', String(targetId));
+        if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: String(targetId) }, { merge: true });
         
         // [新增] 記錄編輯歷史 (Edit History) - 至少保留 30 筆 (原設定為 50 筆)
         const savedNote = nextNotes.find(n => String(n.id) === String(targetId));
@@ -2205,6 +2248,7 @@ function EchoScriptApp() {
         // [關鍵修正] 鎖定當前筆記 ID，避免雲端同步(onSnapshot)觸發時，App 誤以為要跳到下一張卡片
         if (currentNote) {
             localStorage.setItem('echoScript_ResumeNoteId', String(currentNote.id));
+            if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: String(currentNote.id) }, { merge: true });
         }
 
         // 2. [新增] 同步更新雲端 Firestore
@@ -2250,6 +2294,7 @@ function EchoScriptApp() {
         localStorage.setItem('echoScript_AllResponses', JSON.stringify(nextAllResponses));
         // [新增] 只要有編輯或新增回應，就表示使用者正在關注此筆記，鎖定它！
         localStorage.setItem('echoScript_ResumeNoteId', currentNote.id);
+        if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: String(currentNote.id) }, { merge: true });
 
         // [新增] 同步寫入雲端 (更新該筆記的 responses 欄位)
         try {
@@ -2419,7 +2464,7 @@ function EchoScriptApp() {
                     {/* [UI調整] 我的資料庫按鈕移至右上角 */}
                     <button 
                         onClick={() => setShowMenuModal(true)} 
-                        className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} 
+                        className={`${theme.accent} ${theme.accentText} p-2 rounded-full shadow-sm active:opacity-80`} 
                         title="我的資料庫"
                     >
                         <BookOpen className="w-5 h-5" />
@@ -2593,31 +2638,7 @@ function EchoScriptApp() {
                             ))}
                         </div>
                         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                            {/* [新增] 釘選筆記置頂區塊 */}
-                            {activeTab === 'favorites' && pinnedNoteId && (
-                                (() => {
-                                    const pinnedNote = notes.find(n => String(n.id) === String(pinnedNoteId));
-                                    if (!pinnedNote) return null;
-                                    return (
-                                        <div className="mb-4">
-                                            <div className="flex items-center gap-2 mb-2 px-1">
-                                                <Pin className="w-3 h-3 text-stone-400" />
-                                                <span className="text-[10px] font-bold text-stone-400 tracking-wider">首頁釘選</span>
-                                            </div>
-                                            <div className="border-2 border-[#2c3e50]/10 rounded-xl overflow-hidden relative">
-                                                {/* 這裡加一個淡色背景區別 */}
-                                                <div className="absolute inset-0 bg-[#2c3e50]/[0.02] pointer-events-none"></div>
-                                                <NoteListItem 
-                                                    item={pinnedNote} 
-                                                    allResponses={allResponses} 
-                                                    theme={theme}
-                                                />
-                                            </div>
-                                            <div className={`my-4 border-b ${theme.border}`}></div>
-                                        </div>
-                                    );
-                                })()
-                            )}
+                            
 
                             {activeTab === 'favorites' && favorites.map(item => {
                                 // 選擇性：如果不想讓釘選筆記重複出現在下方列表，可以過濾掉
@@ -2807,6 +2828,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

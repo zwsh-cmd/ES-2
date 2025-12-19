@@ -1394,32 +1394,34 @@ function EchoScriptApp() {
         // 5. 應用顏色到 meta theme-color
         metaTheme.content = hexColor;
 
-        // 6. [核彈級修正] 建立一個固定定位的背景層 (Backdrop Layer)
-        // 這能無視捲動與安全區域高度計算問題，強制填滿整個手機螢幕背景
+        // 6. [終極修正] 建立一個「超大尺寸」的固定背景層 (Backdrop Layer)
+        // 改用 200vh/200vw 並向外延伸，確保無視任何安全區域或導航列高度，絕對填滿背景
         let backdrop = document.getElementById('theme-backdrop');
         if (!backdrop) {
             backdrop = document.createElement('div');
             backdrop.id = 'theme-backdrop';
-            // 固定定位，填滿視窗
-            backdrop.style.position = 'fixed';
-            backdrop.style.top = '0';
-            backdrop.style.left = '0';
-            backdrop.style.width = '100%';
-            backdrop.style.height = '100%';
-            // 放到最底層，不影響操作
-            backdrop.style.zIndex = '-9999';
-            backdrop.style.pointerEvents = 'none';
             document.body.appendChild(backdrop);
         }
-        backdrop.style.backgroundColor = hexColor;
+        
+        // 強制更新樣式 (確保即便元素已存在也能套用新尺寸)
+        Object.assign(backdrop.style, {
+            position: 'fixed',
+            top: '-50vh',      // 向上延伸
+            left: '-50vw',     // 向左延伸
+            width: '200vw',    // 兩倍寬度
+            height: '200vh',   // 兩倍高度 (重點：這一定能蓋住底部的白條)
+            zIndex: '-9999',   // 最底層
+            pointerEvents: 'none',
+            backgroundColor: hexColor
+        });
 
         // 7. 同步設定 html/body 背景 (雙重保險)
         document.documentElement.style.backgroundColor = hexColor;
         document.body.style.backgroundColor = hexColor;
         
-        // 恢復一般高度設定
-        document.documentElement.style.height = '100%';
-        document.body.style.minHeight = '100%';
+        // 設定 body 高度為動態視窗高度 100dvh
+        document.documentElement.style.minHeight = '100%';
+        document.body.style.minHeight = '100dvh';
         document.body.style.overscrollBehaviorY = 'none';
 
     }, [theme, currentThemeId]);
@@ -2722,6 +2724,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

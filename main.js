@@ -1384,8 +1384,7 @@ function EchoScriptApp() {
         // 1. 設定 Body Class (Tailwind) 用於一般內容背景
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
         
-        // 2. 取得精確的 Hex 色碼 (直接讀取設定，不再猜測)
-        // 如果是舊版緩存導致沒有 hex，則回退到淺色
+        // 2. 取得精確的 Hex 色碼
         const hexColor = theme.hex || '#fafaf9';
 
         // 3. 設定 meta theme-color (控制瀏覽器上方狀態列顏色)
@@ -1397,16 +1396,21 @@ function EchoScriptApp() {
         }
         metaTheme.content = hexColor;
 
-        // 4. 設定 viewport-fit=cover (確保內容能延伸到 Home Indicator 區域)
+        // 4. [修正] 設定 viewport-fit=cover (確保內容能延伸到 Home Indicator 區域)
+        // 自動檢查是否存在 viewport meta，若無則建立，確保樣式生效
         let metaViewport = document.querySelector('meta[name="viewport"]');
-        if (metaViewport) {
+        if (!metaViewport) {
+            metaViewport = document.createElement('meta');
+            metaViewport.name = "viewport";
+            metaViewport.content = "width=device-width, initial-scale=1, viewport-fit=cover";
+            document.head.appendChild(metaViewport);
+        } else {
             if (!metaViewport.content.includes('viewport-fit=cover')) {
                 metaViewport.content = `${metaViewport.content}, viewport-fit=cover`;
             }
         }
 
         // 5. [終極修正] 建立/更新「超大尺寸」固定背景層
-        // 這層背景會強制填滿螢幕最底層，解決 iOS 底部白條問題
         let backdrop = document.getElementById('theme-backdrop');
         if (!backdrop) {
             backdrop = document.createElement('div');
@@ -1417,20 +1421,19 @@ function EchoScriptApp() {
         // 強制更新樣式
         Object.assign(backdrop.style, {
             position: 'fixed',
-            top: '-50vh',      // 向上延伸
-            left: '-50vw',     // 向左延伸
-            width: '200vw',    // 兩倍寬度
-            height: '200vh',   // 兩倍高度 (確保絕對覆蓋)
-            zIndex: '-9999',   // 最底層
+            top: '-50vh',      
+            left: '-50vw',     
+            width: '200vw',    
+            height: '200vh',   
+            zIndex: '-9999',   
             pointerEvents: 'none',
-            backgroundColor: hexColor // 套用正確的 Hex 色碼
+            backgroundColor: hexColor 
         });
 
-        // 6. 同步設定 html/body 背景 (雙重保險)
-        document.documentElement.style.backgroundColor = hexColor;
-        document.body.style.backgroundColor = hexColor;
+        // 6. 同步設定 html/body 背景 (使用 important 強制覆蓋)
+        document.documentElement.style.setProperty('background-color', hexColor, 'important');
+        document.body.style.setProperty('background-color', hexColor, 'important');
         
-        // 確保高度設定正確
         document.documentElement.style.minHeight = '100%';
         document.body.style.minHeight = '100dvh';
         document.body.style.overscrollBehaviorY = 'none';
@@ -2809,6 +2812,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

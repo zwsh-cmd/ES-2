@@ -1942,23 +1942,30 @@ function EchoScriptApp() {
         }, 300);
     };
 
-    // [新增] 回到首頁 (跳轉至釘選筆記)
+    // [新增] 回到首頁 (功能變更：回到最後編輯/查看的卡片 > 釘選 > 第一張)
     const handleGoHome = () => {
         if (notes.length === 0) return;
         
         setIsAnimating(true);
         setTimeout(() => {
-            // 找出釘選筆記的索引
-            const pinnedIndex = pinnedNoteId ? notes.findIndex(n => String(n.id) === String(pinnedNoteId)) : -1;
+            // 1. 優先尋找「最後一次編輯/操作」的卡片
+            const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
+            let targetIndex = -1;
+
+            if (resumeId) {
+                targetIndex = notes.findIndex(n => String(n.id) === String(resumeId));
+            }
+
+            // 2. 如果沒有最後編輯紀錄 (或該筆記被刪了)，則找「釘選筆記」
+            if (targetIndex === -1 && pinnedNoteId) {
+                targetIndex = notes.findIndex(n => String(n.id) === String(pinnedNoteId));
+            }
             
-            // 如果有釘選，跳轉到釘選；如果沒釘選，跳轉到列表第一張 (Index 0)
-            const targetIndex = pinnedIndex !== -1 ? pinnedIndex : 0;
+            // 3. 還是沒有，就回到列表第一張
+            if (targetIndex === -1) targetIndex = 0;
             
             setCurrentIndex(targetIndex);
             
-            // 清除「恢復閱讀」的標記，代表使用者主動重置
-            localStorage.removeItem('echoScript_ResumeNoteId');
-
             setIsAnimating(false);
             window.scrollTo(0,0);
         }, 300);
@@ -2398,6 +2405,14 @@ function EchoScriptApp() {
                      <button onClick={() => { setIsCreatingNew(true); setShowEditModal(true); }} className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} title="新增筆記">
                         <Plus className="w-5 h-5" />
                     </button>
+                    {/* [UI調整] 筆記分類按鈕移至右上角 */}
+                    <button 
+                        onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} 
+                        className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} 
+                        title="筆記分類"
+                    >
+                        <List className="w-5 h-5" />
+                    </button>
                 </div>
             </nav>
 
@@ -2508,22 +2523,39 @@ function EchoScriptApp() {
                 )}
             </main>
             
-            {/* [UI調整] 左下角導航操作區：包含首頁、釘選、資料庫、分類 */}
+            {/* [UI調整] 左下角導航操作區：由下而上分別是 首頁 -> 釘選 -> 資料庫 */}
             <div className="fixed bottom-6 left-6 z-20 flex flex-col gap-3 items-start">
                 
-                {/* 1. 首頁按鈕 (最上方) */}
+                {/* 3. 我的資料庫 (最上方，配色改為與首頁相同) */}
                 <button 
-                    onClick={handleGoHome} 
-                    disabled={isAnimating || notes.length === 0} 
+                    onClick={() => setShowMenuModal(true)} 
                     className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
-                    title="回到首頁"
+                    title="我的資料庫"
                 >
-                    <Home className="w-6 h-6"/>
+                    <BookOpen className="w-6 h-6" />
                 </button>
 
-                {/* 2. 釘選按鈕 (中間) - 功能同首頁 (回到釘選) */}
+                {/* 2. 釘選按鈕 (中間) */}
+                {/* 注意：這裡保留原本指向 handleGoHome 的邏輯，但因為 handleGoHome 改成了「回到最後編輯」，
+                    如果您希望這個按鈕專門只回「釘選」，可以另外寫一個函式。
+                    但依照您的描述，這裡暫時維持呼叫 handleGoHome (或者您可以直接跳轉到 pinnedNoteId) 
+                    為了符合您的「按鈕上面的icon跟卡片右上方的釘選icon相同。這個按鈕...」描述，這裡維持外觀 */}
                 <button 
-                    onClick={handleGoHome} 
+                    onClick={() => {
+                        // 專門回到釘選筆記的邏輯 (不論最後編輯是誰)
+                        const pinnedIndex = pinnedNoteId ? notes.findIndex(n => String(n.id) === String(pinnedNoteId)) : -1;
+                        if (pinnedIndex !== -1) {
+                            setIsAnimating(true);
+                            setTimeout(() => {
+                                setCurrentIndex(pinnedIndex);
+                                setIsAnimating(false);
+                                window.scrollTo(0,0);
+                            }, 300);
+                        } else {
+                            // 如果沒釘選，就回到第一張
+                            handleGoHome();
+                        }
+                    }} 
                     disabled={isAnimating || notes.length === 0} 
                     className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
                     title="回到釘選筆記"
@@ -2531,26 +2563,15 @@ function EchoScriptApp() {
                     <Pin className="w-6 h-6" />
                 </button>
 
-                {/* 3. 資料庫 & 分類 (最下方橫排) */}
-                <div className="flex gap-3">
-                    {/* 我的資料庫 (改為淺色配色，位於左側) */}
-                    <button 
-                        onClick={() => setShowMenuModal(true)} 
-                        className={`${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95`} 
-                        title="我的資料庫"
-                    >
-                        <BookOpen className="w-6 h-6" />
-                    </button>
-
-                    {/* 筆記分類 (位於資料庫右側) */}
-                    <button 
-                        onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} 
-                        className={`${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95`}
-                        title="筆記分類"
-                    >
-                        <List className="w-6 h-6" />
-                    </button>
-                </div>
+                {/* 1. 首頁按鈕 (最下方，功能：回到最後編輯的卡片) */}
+                <button 
+                    onClick={handleGoHome} 
+                    disabled={isAnimating || notes.length === 0} 
+                    className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
+                    title="回到最後編輯 (首頁)"
+                >
+                    <Home className="w-6 h-6"/>
+                </button>
             </div>
 
             {showMenuModal && (
@@ -2782,6 +2803,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

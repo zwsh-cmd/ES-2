@@ -2235,43 +2235,46 @@ function EchoScriptApp() {
             }
             
             // 3. [再次修正] 處理畫面顯示與導航邏輯
-            // 需求1：刪除首頁(非釘選) -> 顯示前一個被修改的卡片
-            // 需求2：刪除釘選 -> 顯示無內容卡片按鈕
+            // 需求：刪除「首頁(最後編輯)」筆記後 -> 自動跳轉到「下一個最新的最後修改筆記」並設為新首頁
+            // 例如編輯順序 ABCDE，刪除 E 後，新首頁應為 D
             let nextIdx = -1;
             const isDeletingPinned = String(id) === String(pinnedNoteId);
 
-            // [邏輯重構] 優先判斷是否刪除釘選筆記 (無論剩餘張數為何)
+            // [邏輯重構] 優先判斷是否刪除釘選筆記
             if (isDeletingPinned) {
                 // === 情況 A: 刪除的是釘選筆記 ===
-                // 1. 清除釘選狀態 (本地 + 雲端)
                 setPinnedNoteId(null);
                 localStorage.removeItem('echoScript_PinnedId');
                 if (window.fs && window.db) {
                     window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { pinnedNoteId: null }, { merge: true });
                 }
 
-                // 2. 顯示「無內容卡片」並設 index 為 -1 (暫停顯示筆記)
                 setShowPinnedPlaceholder(true);
-                showPinnedPlaceholderRef.current = true; // [手動同步] 確保 onSnapshot 立即知道要暫停導航
+                showPinnedPlaceholderRef.current = true;
                 nextIdx = -1;
                 
-                // 清除 ResumeID
                 localStorage.removeItem('echoScript_ResumeNoteId');
             
             } else if (newNotes.length > 0) {
                 // === 情況 B: 刪除的是一般筆記 (且還有剩餘筆記) ===
-                // 邏輯：刪除後，跳轉到剩餘筆記中「修改時間最新」的那一張
+                // 1. 找出剩餘筆記中「修改時間 (modifiedDate)」最新的一張
+                // 這能確保回到編輯順序中的上一張 (例如刪除 E，會找到 D)
                 const latestNote = [...newNotes].sort((a, b) => {
-                    const dateA = new Date(a.modifiedDate || a.createdDate || 0);
-                    const dateB = new Date(b.modifiedDate || b.createdDate || 0);
-                    return dateB - dateA; 
+                    // 優先使用 modifiedDate，若無則使用 createdDate
+                    const timeA = new Date(a.modifiedDate || a.createdDate || 0).getTime();
+                    const timeB = new Date(b.modifiedDate || b.createdDate || 0).getTime();
+                    return timeB - timeA; // 降序排列 (最新的在前)
                 })[0];
                 
                 if (latestNote) {
+                    // 2. 設定畫面跳轉目標
                     nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
                     
+                    // 3. [關鍵] 將這張最新的筆記設為新的「首頁 (ResumeNoteId)」
+                    // 這樣 onSnapshot 雲端同步後，畫面會穩定停留在這張，不會亂跳
                     const targetId = String(latestNote.id);
                     localStorage.setItem('echoScript_ResumeNoteId', targetId);
+                    
                     if (window.fs && window.db) {
                         window.fs.setDoc(
                             window.fs.doc(window.db, "settings", "preferences"), 
@@ -2962,6 +2965,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

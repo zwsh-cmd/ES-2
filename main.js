@@ -2178,53 +2178,51 @@ function EchoScriptApp() {
             let nextIdx = -1;
             const isDeletingPinned = String(id) === String(pinnedNoteId);
 
-            if (newNotes.length > 0) {
-                if (isDeletingPinned) {
-                    // === 情況 A: 刪除的是釘選筆記 ===
-                    // 1. 清除釘選狀態 (本地 + 雲端)
-                    setPinnedNoteId(null);
-                    localStorage.removeItem('echoScript_PinnedId');
-                    if (window.fs && window.db) {
-                        window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { pinnedNoteId: null }, { merge: true });
-                    }
-
-                    // 2. 顯示「無內容卡片」並設 index 為 -1 (暫停顯示筆記)
-                    setShowPinnedPlaceholder(true);
-                    nextIdx = -1;
-                    
-                    // 清除 ResumeID，避免雲端同步時亂跳
-                    localStorage.removeItem('echoScript_ResumeNoteId');
-                } else {
-                    // === 情況 B: 刪除的是一般筆記 ===
-                    // 邏輯：刪除後，跳轉到剩餘筆記中「修改時間最新」的那一張
-                    const latestNote = [...newNotes].sort((a, b) => {
-                        const dateA = new Date(a.modifiedDate || a.createdDate || 0);
-                        const dateB = new Date(b.modifiedDate || b.createdDate || 0);
-                        return dateB - dateA; // 降序排列，第一張即為最新
-                    })[0];
-                    
-                    if (latestNote) {
-                        nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
-                        
-                        // [關鍵修正] 立即更新 ResumeNoteId 為即將跳轉的卡片
-                        // 這樣當雲端監聽器 (onSnapshot) 因為刪除動作被觸發時，
-                        // 它會讀到這個新的 ID，而不是舊的(已刪除的) ID，從而正確停留在這張卡片，不會跳回釘選筆記
-                        const targetId = String(latestNote.id);
-                        localStorage.setItem('echoScript_ResumeNoteId', targetId);
-                        if (window.fs && window.db) {
-                            window.fs.setDoc(
-                                window.fs.doc(window.db, "settings", "preferences"), 
-                                { resumeNoteId: targetId }, 
-                                { merge: true }
-                            );
-                        }
-                    } else {
-                        nextIdx = 0; 
-                    }
-                    setShowPinnedPlaceholder(false);
+            // [邏輯重構] 優先判斷是否刪除釘選筆記 (無論剩餘張數為何)
+            if (isDeletingPinned) {
+                // === 情況 A: 刪除的是釘選筆記 ===
+                // 1. 清除釘選狀態 (本地 + 雲端)
+                setPinnedNoteId(null);
+                localStorage.removeItem('echoScript_PinnedId');
+                if (window.fs && window.db) {
+                    window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { pinnedNoteId: null }, { merge: true });
                 }
+
+                // 2. 顯示「無內容卡片」並設 index 為 -1 (暫停顯示筆記)
+                setShowPinnedPlaceholder(true);
+                nextIdx = -1;
+                
+                // 清除 ResumeID
+                localStorage.removeItem('echoScript_ResumeNoteId');
+            
+            } else if (newNotes.length > 0) {
+                // === 情況 B: 刪除的是一般筆記 (且還有剩餘筆記) ===
+                // 邏輯：刪除後，跳轉到剩餘筆記中「修改時間最新」的那一張
+                const latestNote = [...newNotes].sort((a, b) => {
+                    const dateA = new Date(a.modifiedDate || a.createdDate || 0);
+                    const dateB = new Date(b.modifiedDate || b.createdDate || 0);
+                    return dateB - dateA; 
+                })[0];
+                
+                if (latestNote) {
+                    nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
+                    
+                    const targetId = String(latestNote.id);
+                    localStorage.setItem('echoScript_ResumeNoteId', targetId);
+                    if (window.fs && window.db) {
+                        window.fs.setDoc(
+                            window.fs.doc(window.db, "settings", "preferences"), 
+                            { resumeNoteId: targetId }, 
+                            { merge: true }
+                        );
+                    }
+                } else {
+                    nextIdx = 0; 
+                }
+                setShowPinnedPlaceholder(false);
+            
             } else {
-                // 全部刪光了
+                // === 情況 C: 一般筆記刪光了 ===
                 setShowPinnedPlaceholder(false);
                 nextIdx = -1;
                 localStorage.removeItem('echoScript_ResumeNoteId');
@@ -2540,20 +2538,24 @@ function EchoScriptApp() {
 
             <main className="px-6 py-6 max-w-lg mx-auto" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
                 {showPinnedPlaceholder ? (
-                    // [新增] 釘選卡片被刪除後的空狀態 (無內容卡片)
+                    // [修正] 釘選卡片被刪除後的空狀態 (點擊跳轉分類)
                     <div className={`transition-all duration-500 opacity-100 translate-y-0`}>
-                        <div className={`${theme.card} rounded-xl shadow-xl border ${theme.border} min-h-[400px] flex flex-col items-center justify-center text-center p-8`}>
+                        <div 
+                            className={`${theme.card} rounded-xl shadow-xl border ${theme.border} min-h-[400px] flex flex-col items-center justify-center text-center p-8 cursor-pointer hover:bg-stone-50 transition-colors`}
+                            onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }}
+                        >
                             <Pin className={`w-12 h-12 mb-4 ${theme.subtext} opacity-50`} />
-                            <h2 className={`text-xl font-bold ${theme.text} mb-2`}>目前無釘選卡片</h2>
-                            <p className={`text-sm ${theme.subtext} mb-6`}>您原本釘選的筆記已被刪除。</p>
+                            
+                            {/* 模擬一般筆記的標題樣式 */}
+                            <h2 className={`text-xl font-bold ${theme.text} mb-4`}>目前無釘選卡片</h2>
                             
                             <button 
-                                onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} 
                                 className={`${theme.accent} ${theme.accentText} px-6 py-3 rounded-full font-bold shadow-lg active:scale-95 transition-transform flex items-center gap-2`}
                             >
                                 <List className="w-5 h-5" />
                                 請選擇釘選卡片
                             </button>
+                            
                             <p className="mt-8 text-xs text-stone-400 animate-pulse">← 左滑隨機探索其他筆記</p>
                         </div>
                     </div>
@@ -2912,6 +2914,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

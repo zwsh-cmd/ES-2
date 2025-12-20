@@ -1320,6 +1320,9 @@ function EchoScriptApp() {
     const [pinnedNoteId, setPinnedNoteId] = useState(null);
     // [新增] 釘選卡片空狀態 (當刪除釘選筆記時顯示)
     const [showPinnedPlaceholder, setShowPinnedPlaceholder] = useState(false);
+    // [關鍵修正] 使用 Ref 即時追蹤空狀態，防止 onSnapshot 閉包讀取舊值導致自動跳轉
+    const showPinnedPlaceholderRef = useRef(false);
+    useEffect(() => { showPinnedPlaceholderRef.current = showPinnedPlaceholder; }, [showPinnedPlaceholder]);
     
     // [新增] 當切換到有效筆記 (Swipe 或跳轉) 時，自動關閉空狀態
     useEffect(() => { 
@@ -1786,7 +1789,9 @@ function EchoScriptApp() {
                 setDeckPointer(loadedPointer);
 
                 // 5. [狀態恢復] 決定當前要顯示哪一張卡片 (優先權：上次瀏覽/剛操作 > 釘選 > 洗牌)
-                if (cloudNotes.length > 0) {
+                // [關鍵修正] 如果目前正處於「顯示無釘選卡片」模式 (由 handleDeleteNote 設定)，
+                // 則忽略自動導航，避免雲端資料一更新就強制跳到隨機卡片。
+                if (cloudNotes.length > 0 && !showPinnedPlaceholderRef.current) {
                     // 這裡優先使用 localStorage 的快取值，因為 State 更新可能有延遲，確保啟動即時性
                     const cachedPinnedId = localStorage.getItem('echoScript_PinnedId');
                     const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
@@ -2190,6 +2195,7 @@ function EchoScriptApp() {
 
                 // 2. 顯示「無內容卡片」並設 index 為 -1 (暫停顯示筆記)
                 setShowPinnedPlaceholder(true);
+                showPinnedPlaceholderRef.current = true; // [手動同步] 確保 onSnapshot 立即知道要暫停導航
                 nextIdx = -1;
                 
                 // 清除 ResumeID
@@ -2914,6 +2920,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

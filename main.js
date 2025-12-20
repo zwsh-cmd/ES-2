@@ -1913,27 +1913,37 @@ function EchoScriptApp() {
         // 防呆：確保筆記物件與 ID 存在
         if (!note || note.id === undefined || note.id === null) return;
 
-        // 確保 ID 為字串格式，避免比對錯誤
-        const targetId = String(note.id);
-
-        // 建立新的歷史紀錄物件 (加上時間戳記)
+        // 建立新的歷史紀錄物件
         const entry = { ...note, timestamp: new Date().toISOString(), displayId: Date.now() };
 
         setHistory(prev => {
             const safePrev = Array.isArray(prev) ? prev : [];
+            
+            // 1. 先將「新筆記」與「所有舊筆記」合併成一個暫存陣列 (新筆記在最前面)
+            const rawList = [entry, ...safePrev];
+            
+            // 2. 準備一個 Set 來記錄已經看過的 ID
+            const seenIds = new Set();
+            const cleanList = [];
 
-            // [最終修正] Filter 強制過濾法
-            // 邏輯：先將舊歷史中「所有 ID 等於目前這筆」的項目全部過濾掉 (刪除)
-            // 這樣保證陣列中絕對沒有重複的 ID
-            const filteredHistory = safePrev.filter(item => {
-                return item && item.id !== undefined && String(item.id) !== targetId;
-            });
+            // 3. 遍歷整個清單，進行「全域清洗」
+            // 因為是從最前面(最新的)開始跑，所以每個 ID 我們只會保留第一次出現的那筆
+            for (const item of rawList) {
+                // 安全檢查：確保項目有效且有 ID
+                if (item && item.id !== undefined && item.id !== null) {
+                    const idStr = String(item.id); // 強制轉字串，避免 ID 1 和 "1" 被當成不同
+                    
+                    // 如果這個 ID 還沒出現過，就加入結果清單
+                    if (!seenIds.has(idStr)) {
+                        seenIds.add(idStr);
+                        cleanList.push(item);
+                    }
+                    // 如果 seenIds 已經有了，代表這是舊的重複資料，直接丟棄
+                }
+            }
 
-            // 接著將新的這筆 (entry) 插入到最前面 (Unshift)
-            const newHistory = [entry, ...filteredHistory];
-
-            // 限制最大筆數為 50
-            return newHistory.slice(0, 50);
+            // 4. 限制最大筆數為 50
+            return cleanList.slice(0, 50);
         });
     };
 
@@ -3097,6 +3107,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

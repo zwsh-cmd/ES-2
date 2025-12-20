@@ -1911,10 +1911,14 @@ function EchoScriptApp() {
 
     const addToHistory = (note) => {
         if(!note) return;
+        
+        // 建立歷史紀錄項目 (包含時間戳記與顯示ID)
         const entry = { ...note, timestamp: new Date().toISOString(), displayId: Date.now() };
         
         setHistory(prev => {
-            // [修正] 移除舊的相同筆記紀錄，確保歷史列表中每則筆記只出現一次 (最新的排前面)
+            // [修改] 確保歷史紀錄是「卡片」而非「編輯行為」
+            // 邏輯：同一張卡片 ID 在歷史列表中只能出現一次 (最新的版本)
+            // 作法：先過濾掉舊的該卡片紀錄，再將最新的這筆加入最前面
             const filtered = prev.filter(h => String(h.id) !== String(note.id));
             return [entry, ...filtered].slice(0, 50);
         });
@@ -3080,6 +3084,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1918,31 +1918,23 @@ function EchoScriptApp() {
 
         setHistory(prev => {
             const safePrev = Array.isArray(prev) ? prev : [];
+            const targetId = String(note.id);
 
-            // [強制修正] 改用 Map 資料結構進行去重
-            // 原理：Map 的 Key 是唯一的。我們依序放入資料，如果 ID 已經存在，Map 就不會重複計算 (或我們控制只留第一筆)。
-            // 這裡採用「優先保留最新」的策略：
-            
-            const uniqueMap = new Map();
-            
-            // 1. 將「最新這筆」與「舊歷史」合併成一個暫時陣列，新筆記排在最前面
-            const combinedList = [entry, ...safePrev];
-
-            // 2. 遍歷陣列，將 ID 存入 Map
-            combinedList.forEach(item => {
-                if (item && item.id !== undefined && item.id !== null) {
-                    const idStr = String(item.id); // 強制轉字串當 Key，避免型別不一致
-                    
-                    // 只有當 Map 裡還沒有這個 ID 時才加入
-                    // 因為我們是從最新的開始遍歷 (index 0)，所以 Map 裡永遠只會保留該 ID 最新的那個版本
-                    if (!uniqueMap.has(idStr)) {
-                        uniqueMap.set(idStr, item);
-                    }
-                }
+            // [邏輯重寫] 強制過濾法 (Filter & Unshift)
+            // 這是最穩定的去重方式：
+            // 1. 先遍歷舊的歷史紀錄，把「所有」ID 跟現在這筆一樣的舊資料全部剔除。
+            const cleanPrev = safePrev.filter(item => {
+                return item && item.id !== undefined && String(item.id) !== targetId;
             });
 
-            // 3. 將 Map 的 Values 轉回陣列，並限制數量
-            return Array.from(uniqueMap.values()).slice(0, 50);
+            // 2. 將新的這筆 (entry) 直接放在陣列最前面 (Index 0)
+            // 這樣保證：
+            // A. 最新的筆記在最上面
+            // B. 陣列中絕對不會有重複的 ID (因為舊的都在步驟 1 被刪光了)
+            const result = [entry, ...cleanPrev];
+
+            // 3. 限制最大筆數為 50
+            return result.slice(0, 50);
         });
     };
 
@@ -3106,6 +3098,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

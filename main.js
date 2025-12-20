@@ -1245,10 +1245,12 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
 const NoteListItem = ({ item, isHistory, allResponses, theme }) => {
     // 取得該筆記的所有新回應
     const newResponses = allResponses ? (allResponses[item.id] || []) : [];
-    // 決定要顯示哪一個回應：如果有新回應，顯示最新的一則 (index 0)；如果沒有，顯示舊的 journalEntry
-    const displayResponse = newResponses.length > 0 ? newResponses[0].text : item.journalEntry;
-    // 計算總回應數
-    const responseCount = newResponses.length;
+    
+    // [修正] 取得最新回應：因為回應現在是依時間正序排列 (舊->新)，所以最新的是最後一個 (length - 1)
+    const latestResponse = newResponses.length > 0 ? newResponses[newResponses.length - 1] : null;
+    
+    // 決定要顯示哪一個回應
+    const displayResponse = latestResponse ? latestResponse.text : item.journalEntry;
 
     return (
         <div className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} onClick={() => {
@@ -1271,7 +1273,7 @@ const NoteListItem = ({ item, isHistory, allResponses, theme }) => {
                             <PenLine className="w-3 h-3"/> 
                             {newResponses.length > 0 ? `最新回應 (${newResponses.length})` : "我的回應"}
                         </p>
-                        {newResponses.length > 0 && <span className="text-[9px] text-stone-300">{new Date(newResponses[0].timestamp).toLocaleDateString()}</span>}
+                        {latestResponse && <span className="text-[9px] text-stone-300">{new Date(latestResponse.timestamp).toLocaleDateString()}</span>}
                     </div>
                     <p className="text-xs text-stone-600 italic line-clamp-2">{displayResponse}</p>
                 </div>
@@ -1792,7 +1794,8 @@ function EchoScriptApp() {
             const cloudResponses = {};
             cloudNotes.forEach(note => {
                 if (note.responses && Array.isArray(note.responses)) {
-                    cloudResponses[note.id] = note.responses;
+                    // [修正] 確保載入時也依時間正序排序 (舊 -> 新)，修正既有資料順序不一的問題
+                    cloudResponses[note.id] = note.responses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
                 }
             });
             // 只有當雲端有回應資料時才更新，確保 UI 能顯示出來，並同步寫入 LocalStorage
@@ -2472,8 +2475,12 @@ function EchoScriptApp() {
             newNoteResponses = noteResponses.map(r => r.id === responseId ? { ...r, text, timestamp: new Date().toISOString() } : r);
         } else {
             const newResponse = { id: Date.now(), text, timestamp: new Date().toISOString() };
-            newNoteResponses = [newResponse, ...noteResponses];
+            // [修正] 改為新增在最後面 (符合先來後到的時間序)
+            newNoteResponses = [...noteResponses, newResponse];
         }
+
+        // [關鍵修正] 強制依時間正序排列：先修改(早)在上面，晚修改(晚)在下面
+        newNoteResponses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         const nextAllResponses = { ...prevResponses, [currentNote.id]: newNoteResponses };
         
@@ -3068,6 +3075,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

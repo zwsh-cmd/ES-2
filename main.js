@@ -1381,24 +1381,29 @@ function EchoScriptApp() {
 
     // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
     useEffect(() => {
-        // 1. 設定 Body Class (Tailwind)
-        document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
-        
-        // 2. 取得精確的 Hex 色碼
+        // 1. 取得精確的 Hex 色碼
         const hexColor = theme.hex || '#fafaf9';
         const isDark = currentThemeId === 'dark';
 
-        // 3. [強制更新] 設定 meta theme-color (Android 導航列與狀態列的關鍵)
-        // 移除舊的，重新建立，確保瀏覽器重新抓取值
-        let metaTheme = document.querySelector('meta[name="theme-color"]');
-        if (metaTheme) metaTheme.remove();
+        // 2. [Direct DOM] 強制設定 html/body 背景色
+        // 將 html 高度設為 100% (非 min-height)，這在某些 Android 瀏覽器上更能確保填滿
+        document.documentElement.style.backgroundColor = hexColor;
+        document.documentElement.style.height = '100%';
         
-        metaTheme = document.createElement('meta');
+        document.body.style.backgroundColor = hexColor;
+        document.body.style.minHeight = '100%';
+        document.body.style.overscrollBehaviorY = 'none';
+
+        // 3. [Meta 清理與重建] 徹底移除所有舊的 theme-color 標籤，防止衝突
+        // 這是解決「顏色改不掉」的關鍵，確保瀏覽器讀到的是最新且唯一的值
+        document.querySelectorAll('meta[name="theme-color"]').forEach(el => el.remove());
+
+        const metaTheme = document.createElement('meta');
         metaTheme.name = "theme-color";
         metaTheme.content = hexColor;
         document.head.appendChild(metaTheme);
 
-        // 4. [新增] 設定 color-scheme (告訴瀏覽器我們的主題模式，避免系統強制蓋色)
+        // 4. 設定 color-scheme
         let metaColorScheme = document.querySelector('meta[name="color-scheme"]');
         if (!metaColorScheme) {
             metaColorScheme = document.createElement('meta');
@@ -1407,63 +1412,43 @@ function EchoScriptApp() {
         }
         metaColorScheme.content = isDark ? "dark" : "light";
 
-        // 5. 設定 viewport (加入 viewport-fit=cover)
+        // 5. 設定 viewport (強制 viewport-fit=cover)
         let metaViewport = document.querySelector('meta[name="viewport"]');
         if (!metaViewport) {
             metaViewport = document.createElement('meta');
             metaViewport.name = "viewport";
             document.head.appendChild(metaViewport);
         }
-        // 確保設定完整，防止縮放導致的白邊
-        metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
-
-        // 6. [終極方案] 注入全域 CSS Style 標籤
-        // 使用 CSS 變數與 !important 強制鎖定 html/body 的背景色
-        let styleTag = document.getElementById('echo-theme-style');
-        if (!styleTag) {
-            styleTag = document.createElement('style');
-            styleTag.id = 'echo-theme-style';
-            document.head.appendChild(styleTag);
+        // 確保 viewport-fit=cover 存在，這是讓背景色延伸到導航列下方的必要條件
+        if (!metaViewport.content.includes('viewport-fit=cover')) {
+            metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
         }
 
-        styleTag.innerHTML = `
-            :root {
-                --app-bg: ${hexColor};
-            }
-            html {
-                background-color: var(--app-bg) !important;
-                min-height: 100%;
-                width: 100%;
-                overscroll-behavior-y: none;
-                -webkit-tap-highlight-color: transparent;
-            }
-            body {
-                background-color: var(--app-bg) !important;
-                min-height: 100vh;
-                min-height: 100dvh;
-                width: 100%;
-                overscroll-behavior-y: none;
-                position: relative;
-            }
-            /* 針對 iOS/Android 底部安全區域的填補層 */
-            /* 放在 body::after 確保它蓋在最底層但填滿空隙 */
-            body::after {
-                content: "";
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                height: 100px; /* 足夠覆蓋導航列的高度 */
-                background-color: var(--app-bg) !important;
-                z-index: -9999; 
-                pointer-events: none;
-                transform: translateY(50%); /* 往下推，只覆蓋底部邊緣 */
-            }
-        `;
+        // 6. [核彈級修正] 插入固定定位的背景布幕 (Backdrop)
+        // 如果 body 高度計算有誤，這個全螢幕的 div 會強制填滿所有空間，包含 Android 導航列下方
+        let backdrop = document.getElementById('theme-backdrop');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.id = 'theme-backdrop';
+            document.body.appendChild(backdrop);
+        }
+        Object.assign(backdrop.style, {
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh', // 強制填滿視窗高度
+            zIndex: '-9999', // 放在最底層
+            backgroundColor: hexColor,
+            pointerEvents: 'none'
+        });
 
-        // 清理舊的 backdrop 元素 (如果還有殘留)
-        const oldBackdrop = document.getElementById('theme-backdrop');
-        if (oldBackdrop) oldBackdrop.remove();
+        // 7. 更新 Tailwind Class
+        document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
+
+        // 清理可能殘留的舊修正 (CSS注入)
+        const oldStyle = document.getElementById('echo-theme-style');
+        if (oldStyle) oldStyle.remove();
 
     }, [theme, currentThemeId]);
 
@@ -2839,6 +2824,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

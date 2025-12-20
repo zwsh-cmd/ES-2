@@ -2448,7 +2448,7 @@ function EchoScriptApp() {
                     </button>
                     {/* [UI調整] 筆記分類按鈕移至右上角 */}
                     <button 
-                        onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }} 
+                        onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('superCategories'); }} 
                         className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} 
                         title="筆記分類"
                     >
@@ -2471,7 +2471,7 @@ function EchoScriptApp() {
                     <div className={`transition-all duration-500 opacity-100 translate-y-0`}>
                         <div 
                             className={`${theme.card} rounded-xl shadow-xl border ${theme.border} min-h-[400px] flex flex-col items-center justify-center text-center p-8 cursor-pointer hover:bg-stone-50 transition-colors`}
-                            onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('categories'); }}
+                            onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('superCategories'); }}
                         >
                             <Pin className={`w-12 h-12 mb-4 ${theme.subtext} opacity-50`} />
                             
@@ -2865,6 +2865,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

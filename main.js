@@ -309,6 +309,7 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
 // 修改：加入 setHasUnsavedChanges 參數，並監聽內容變更
 const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges, theme }) => {
     const [formData, setFormData] = useState({
+        superCategory: note?.superCategory || "其他", // [新增] 總分類 (預設為其他)
         category: note?.category || "",
         subcategory: note?.subcategory || "",
         title: note?.title || "",
@@ -319,12 +320,14 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
 
     // 新增：監聽內容變更，同步狀態給主程式 (給手機返回鍵使用)
     useEffect(() => {
+        const initialSuper = note?.superCategory || "其他";
         const initialCategory = note?.category || "";
         const initialSubcategory = note?.subcategory || "";
         const initialTitle = note?.title || "";
         const initialContent = note?.content || "";
 
         const hasChanges = 
+            formData.superCategory !== initialSuper ||
             formData.category !== initialCategory ||
             formData.subcategory !== initialSubcategory ||
             formData.title !== initialTitle ||
@@ -337,9 +340,22 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         return () => { if (setHasUnsavedChanges) setHasUnsavedChanges(false); };
     }, [formData, note, setHasUnsavedChanges]);
 
-    const existingCategories = useMemo(() => {
-        return [...new Set(existingNotes.map(n => n.category).filter(Boolean))];
+    // [新增] 總分類列表 (從現有筆記中提取，並加入預設值)
+    const existingSuperCategories = useMemo(() => {
+        const defaults = ["敘事技巧", "智慧", "其他"];
+        const fromNotes = existingNotes.map(n => n.superCategory).filter(Boolean);
+        return [...new Set([...defaults, ...fromNotes])];
     }, [existingNotes]);
+
+    const existingCategories = useMemo(() => {
+        // [修改] 根據目前選的總分類，篩選出對應的大分類
+        // (如果筆記沒設定總分類，歸類為 "其他")
+        if (!formData.superCategory) return [];
+        return [...new Set(existingNotes
+            .filter(n => (n.superCategory || "其他") === formData.superCategory)
+            .map(n => n.category)
+            .filter(Boolean))];
+    }, [existingNotes, formData.superCategory]);
 
     const existingSubcategories = useMemo(() => {
         if (!formData.category) return []; 
@@ -453,16 +469,24 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                     
                     {/* 上方區塊：分類與標題 (固定不捲動) */}
                     <div className="p-4 pb-2 shrink-0 flex flex-col gap-3">
-                        <div className="grid grid-cols-2 gap-3">
+                        {/* [修改] 改為三欄式佈局，加入總分類選單 */}
+                        <div className="grid grid-cols-3 gap-2">
                             <Combobox 
-                                placeholder="大分類 (如:故事結構)"
+                                placeholder="總分類"
+                                value={formData.superCategory}
+                                onChange={(val) => setFormData(prev => ({...prev, superCategory: val}))}
+                                options={existingSuperCategories}
+                                theme={theme}
+                            />
+                            <Combobox 
+                                placeholder="大分類"
                                 value={formData.category}
                                 onChange={(val) => setFormData(prev => ({...prev, category: val}))}
                                 options={existingCategories}
                                 theme={theme}
                             />
                             <Combobox 
-                                placeholder="次分類 (如:三幕劇)"
+                                placeholder="次分類"
                                 value={formData.subcategory}
                                 onChange={(val) => setFormData(prev => ({...prev, subcategory: val}))}
                                 options={existingSubcategories}
@@ -3142,6 +3166,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

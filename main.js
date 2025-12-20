@@ -1911,7 +1911,7 @@ function EchoScriptApp() {
 
     const addToHistory = (note) => {
         // 防呆：確保筆記物件與 ID 存在
-        if (!note || !note.id) return;
+        if (!note || note.id === undefined || note.id === null) return;
         
         // 建立新的歷史紀錄物件 (加上時間戳記)
         const entry = { ...note, timestamp: new Date().toISOString(), displayId: Date.now() };
@@ -1919,28 +1919,33 @@ function EchoScriptApp() {
         setHistory(prev => {
             const safePrev = Array.isArray(prev) ? prev : [];
             
-            // [重構] 使用 Set 與迴圈進行嚴格去重
+            // [終極修正] 使用 Set 進行全域去重，確保同一 ID 絕對只出現一次
             // 邏輯：
-            // 1. 先放入最新的這筆紀錄 (entry)
-            // 2. 遍歷舊紀錄，只有「ID 尚未出現過」的才放進來
-            // 這樣能保證同一張卡片 ID 絕對只出現一次，且最新的在最上面
+            // 1. 建立一個 result 陣列，先放入最新的這筆 (entry)
+            // 2. 建立一個 seenIds 集合，記錄已經放入 result 的 ID
+            // 3. 遍歷舊的歷史紀錄 (safePrev)，如果該 ID 還沒出現過，才放入 result
+            // 這樣可以保證：
+            //    A. 最新的 entry 一定在最上面 (index 0)
+            //    B. 舊的同 ID 紀錄會被忽略 (因為 seenIds 已經有了)
+            //    C. 即使舊資料裡原本就有重複的 ID，也會在這次操作中被一併清洗掉
             
-            const uniqueHistory = [entry];
-            const seenIds = new Set([String(note.id)]); // 記錄已存在的 ID
+            const result = [entry];
+            const seenIds = new Set([String(note.id)]); // 先記錄新筆記的 ID
             
             for (const h of safePrev) {
-                // 過濾無效資料 (沒有 ID 的舊紀錄不保留)
-                if (h && h.id) {
+                // 過濾無效資料 (確保有 ID)
+                if (h && (h.id !== undefined && h.id !== null)) {
                     const hId = String(h.id);
+                    // 只有當這個 ID 還沒被加入過時，才保留 (舊的就被丟棄了)
                     if (!seenIds.has(hId)) {
-                        uniqueHistory.push(h);
+                        result.push(h);
                         seenIds.add(hId);
                     }
                 }
             }
             
-            // 限制最大筆數
-            return uniqueHistory.slice(0, 50);
+            // 限制最大筆數為 50
+            return result.slice(0, 50);
         });
     };
 
@@ -3104,6 +3109,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

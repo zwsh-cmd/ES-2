@@ -1419,9 +1419,29 @@ function EchoScriptApp() {
                     const data = doc.data();
                     if (data.historyJSON) {
                         console.log("📥 同步雲端歷史紀錄");
-                        const cloudHistory = JSON.parse(data.historyJSON);
-                        setHistory(cloudHistory);
-                        localStorage.setItem('echoScript_History', data.historyJSON);
+                        const rawHistory = JSON.parse(data.historyJSON);
+                        
+                        // [關鍵修正] 在讀取時立刻清洗重複資料 (Load-time Deduplication)
+                        // 這樣即使雲端存有以前留下的重複髒資料，讀進來時也會被強制修復
+                        const uniqueHistory = [];
+                        const seenIds = new Set();
+                        
+                        if (Array.isArray(rawHistory)) {
+                            for (const item of rawHistory) {
+                                if (item && item.id !== undefined && item.id !== null) {
+                                    const idStr = String(item.id);
+                                    // 確保 ID 唯一，若重複則只保留排在前面的(通常是最新的)
+                                    if (!seenIds.has(idStr)) {
+                                        seenIds.add(idStr);
+                                        uniqueHistory.push(item);
+                                    }
+                                }
+                            }
+                        }
+
+                        setHistory(uniqueHistory);
+                        // 更新本地快取為乾淨版本
+                        localStorage.setItem('echoScript_History', JSON.stringify(uniqueHistory));
                     }
                 }
                 setIsHistoryLoaded(true); // 標記載入完成，允許後續寫入
@@ -3107,6 +3127,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2161,11 +2161,39 @@ function EchoScriptApp() {
                 showNotification("⚠️ 雲端同步失敗，請檢查網路");
             }
             
-            // 3. 處理畫面顯示
-            if (currentNote && currentNote.id === id) {
-                const nextIdx = newNotes.length > 0 ? 0 : -1;
-                setCurrentIndex(nextIdx);
+            // 3. [修正] 處理畫面顯示與導航邏輯
+            // 需求：刪除後關閉編輯視窗，並回到釘選筆記；若刪除的是釘選筆記，則回到最後修改的筆記
+            let nextIdx = -1;
+
+            if (newNotes.length > 0) {
+                const isDeletingPinned = String(id) === String(pinnedNoteId);
+
+                // 情況 A: 刪除的不是釘選筆記，且釘選筆記存在 -> 回到釘選筆記
+                if (!isDeletingPinned && pinnedNoteId) {
+                    nextIdx = newNotes.findIndex(n => String(n.id) === String(pinnedNoteId));
+                }
+
+                // 情況 B: 刪除的是釘選筆記，或沒找到釘選筆記 -> 回到最後修改的筆記
+                if (nextIdx === -1) {
+                    // 找出修改時間 (modifiedDate) 最新的筆記
+                    // 這裡先複製一份陣列來排序，避免更動到原 newNotes 順序
+                    const latestNote = [...newNotes].sort((a, b) => {
+                        const dateA = new Date(a.modifiedDate || a.createdDate || 0);
+                        const dateB = new Date(b.modifiedDate || b.createdDate || 0);
+                        return dateB - dateA; // 降序，最新的在前面
+                    })[0];
+                    
+                    if (latestNote) {
+                        nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
+                    }
+                }
+                
+                // 保底：如果還是 -1，就回第 0 張
+                if (nextIdx === -1) nextIdx = 0;
             }
+            
+            setCurrentIndex(nextIdx);
+            setShowEditModal(false); // [關鍵] 強制關閉編輯視窗，回到首頁卡片
 
             // 4. [智慧校正] 
             if (deletedIndex !== -1) {
@@ -2824,6 +2852,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2190,21 +2190,27 @@ function EchoScriptApp() {
             setNotes(newNotes);
 
             // [修正] 同步從編輯歷史中移除該筆記
-            // 強制過濾並立即同步到所有儲存層 (State, LocalStorage, Cloud)，防止資料回朔
-            const newHistory = history.filter(h => h && String(h.id) !== String(id));
-            setHistory(newHistory);
-            
-            // 1. 強制更新 LocalStorage (防止重整後舊資料跑出來)
-            localStorage.setItem('echoScript_History', JSON.stringify(newHistory));
-            
-            // 2. 強制更新雲端 (覆蓋 settings/history)
-            if (window.fs && window.db) {
-                 window.fs.setDoc(
-                    window.fs.doc(window.db, "settings", "history"), 
-                    { historyJSON: JSON.stringify(newHistory) }, 
-                    { merge: true }
-                ).catch(e => console.error("歷史紀錄強制同步失敗", e));
-            }
+            // 使用 functional update 確保取得最新的 history state，徹底解決閉包舊資料問題
+            setHistory(prevHistory => {
+                // 確保 prevHistory 是陣列 (防呆)
+                const validHistory = Array.isArray(prevHistory) ? prevHistory : [];
+                const newHistory = validHistory.filter(h => h && String(h.id) !== String(id));
+                
+                // 1. 立即同步 LocalStorage (確保本地與 State 一致)
+                localStorage.setItem('echoScript_History', JSON.stringify(newHistory));
+                
+                // 2. 立即同步 Cloud (確保原子性)
+                // 在這裡執行寫入能確保我們拿到的是 React 內部最新的 State，不會被舊閉包影響
+                if (window.fs && window.db) {
+                    window.fs.setDoc(
+                        window.fs.doc(window.db, "settings", "history"), 
+                        { historyJSON: JSON.stringify(newHistory) }, 
+                        { merge: true }
+                    ).catch(e => console.error("歷史紀錄強制同步失敗", e));
+                }
+                
+                return newHistory;
+            });
 
             // [新增] 同步刪除雲端資料 (Firestore)
             // 必須執行這一步，否則 onSnapshot 會把刪除的筆記又抓回來
@@ -2943,6 +2949,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

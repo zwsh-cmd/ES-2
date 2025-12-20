@@ -2143,6 +2143,10 @@ function EchoScriptApp() {
         const savedNote = nextNotes.find(n => String(n.id) === String(targetId));
         if (savedNote) addToHistory(savedNote);
 
+        // [修正] 編輯完後，強制跳轉到該筆記的卡片位置
+        const savedIndex = nextNotes.findIndex(n => String(n.id) === String(targetId));
+        if (savedIndex !== -1) setCurrentIndex(savedIndex);
+
         setHasDataChangedInSession(true); 
         setShowEditModal(false);
     };
@@ -2189,17 +2193,18 @@ function EchoScriptApp() {
                     nextIdx = -1;
                 } else {
                     // === 情況 B: 刪除的是一般筆記 ===
-                    // 找出修改時間 (modifiedDate) 最新的筆記 (即「前一個被修改的卡片」)
+                    // 邏輯：刪除後，跳轉到剩餘筆記中「修改時間最新」的那一張
+                    // 這代表「除了剛刪除這張以外，前一個被修改/編輯過的卡片」
                     const latestNote = [...newNotes].sort((a, b) => {
                         const dateA = new Date(a.modifiedDate || a.createdDate || 0);
                         const dateB = new Date(b.modifiedDate || b.createdDate || 0);
-                        return dateB - dateA; // 降序
+                        return dateB - dateA; // 降序排列，第一張即為最新
                     })[0];
                     
                     if (latestNote) {
                         nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
                     } else {
-                        nextIdx = 0; // 保底
+                        nextIdx = 0; // 若無其他筆記，回第一張
                     }
                     setShowPinnedPlaceholder(false);
                 }
@@ -2355,6 +2360,10 @@ function EchoScriptApp() {
 
         setHasDataChangedInSession(true); // [新增] 標記資料已變更
         showNotification("回應已儲存");
+        
+        // [修正] 編輯/新增回應後，關閉視窗並回到卡片
+        setShowResponseModal(false);
+        setResponseViewMode('list'); 
     };
 
     const handleDeleteResponse = (responseId) => {
@@ -2887,6 +2896,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

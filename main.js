@@ -2189,8 +2189,18 @@ function EchoScriptApp() {
             const newNotes = notes.filter(n => n.id !== id);
             setNotes(newNotes);
 
-            // [修正] 同步從編輯歷史中移除該筆記，確保歷史紀錄不顯示已刪除的項目
-            setHistory(prev => prev.filter(h => String(h.id) !== String(id)));
+            // [修正] 同步從編輯歷史中移除該筆記
+            // 改為立即計算並強制寫入雲端，避免依賴 useEffect 的延遲更新導致資料回朔
+            const newHistory = history.filter(h => String(h.id) !== String(id));
+            setHistory(newHistory);
+            
+            if (window.fs && window.db) {
+                 window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", "history"), 
+                    { historyJSON: JSON.stringify(newHistory) }, 
+                    { merge: true }
+                ).catch(e => console.error("歷史紀錄強制同步失敗", e));
+            }
 
             // [新增] 同步刪除雲端資料 (Firestore)
             // 必須執行這一步，否則 onSnapshot 會把刪除的筆記又抓回來
@@ -2929,6 +2939,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

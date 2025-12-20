@@ -2189,18 +2189,26 @@ function EchoScriptApp() {
             const newNotes = notes.filter(n => n.id !== id);
             setNotes(newNotes);
 
-            // [修正] 同步從編輯歷史中移除該筆記
-            // 使用 functional update 確保取得最新的 history state，徹底解決閉包舊資料問題
+            // [修正] 同步從編輯歷史中移除該筆記 (加入自我修復機制)
             setHistory(prevHistory => {
-                // 確保 prevHistory 是陣列 (防呆)
                 const validHistory = Array.isArray(prevHistory) ? prevHistory : [];
-                const newHistory = validHistory.filter(h => h && String(h.id) !== String(id));
                 
-                // 1. 立即同步 LocalStorage (確保本地與 State 一致)
+                // 1. 建立「合法 ID 白名單」：只有還在 newNotes 裡的筆記才是合法的
+                const validNoteIds = new Set(newNotes.map(n => String(n.id)));
+                
+                // 2. 過濾歷史紀錄：
+                //    (a) 移除剛被刪除的 ID (h.id !== id)
+                //    (b) 順便移除所有不在白名單內的「幽靈資料」(validNoteIds.has(h.id))
+                const newHistory = validHistory.filter(h => 
+                    h && 
+                    String(h.id) !== String(id) && 
+                    validNoteIds.has(String(h.id))
+                );
+                
+                // 3. 立即同步 LocalStorage
                 localStorage.setItem('echoScript_History', JSON.stringify(newHistory));
                 
-                // 2. 立即同步 Cloud (確保原子性)
-                // 在這裡執行寫入能確保我們拿到的是 React 內部最新的 State，不會被舊閉包影響
+                // 4. 立即同步 Cloud (確保原子性)
                 if (window.fs && window.db) {
                     window.fs.setDoc(
                         window.fs.doc(window.db, "settings", "history"), 
@@ -2949,6 +2957,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

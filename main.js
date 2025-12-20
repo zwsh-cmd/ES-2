@@ -2785,14 +2785,17 @@ function EchoScriptApp() {
                             })}
                             {activeTab === 'favorites' && favorites.length === 0 && !pinnedNoteId && <div className="text-center text-stone-400 mt-10 text-xs">暫無收藏</div>}
                             
-                            {activeTab === 'history' && history.map((item, i) => (
-                                <NoteListItem 
-                                    key={i} 
-                                    item={item} 
-                                    isHistory 
-                                    allResponses={allResponses} 
-                                    theme={theme}
-                                />
+                            {/* [修正] 強制過濾：顯示前先比對 notes 列表，只有 ID 還存在的筆記才顯示，徹底解決刪除後殘留問題 */}
+                            {activeTab === 'history' && history
+                                .filter(h => h && notes.some(n => String(n.id) === String(h.id)))
+                                .map((item, i) => (
+                                    <NoteListItem 
+                                        key={i} 
+                                        item={item} 
+                                        isHistory 
+                                        allResponses={allResponses} 
+                                        theme={theme}
+                                    />
                             ))}
 
                             {/* [新增] 外觀主題選擇面板 */}
@@ -2959,6 +2962,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

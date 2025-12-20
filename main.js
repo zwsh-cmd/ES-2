@@ -1827,31 +1827,20 @@ function EchoScriptApp() {
                 setShuffleDeck(loadedDeck);
                 setDeckPointer(loadedPointer);
 
-                // 5. [狀態恢復] 決定當前要顯示哪一張卡片 (優先權：上次瀏覽/剛操作 > 釘選 > 洗牌)
-                // [關鍵修正] 如果目前正處於「顯示無釘選卡片」模式 (由 handleDeleteNote 設定)，
-                // 則忽略自動導航，避免雲端資料一更新就強制跳到隨機卡片。
+                // 5. [狀態恢復] 決定當前要顯示哪一張卡片
+                // [邏輯修正] 嚴格定義：App 啟動只回到「首頁」(最後編輯/查看的卡片)，不再自動跳轉釘選
                 if (cloudNotes.length > 0 && !showPinnedPlaceholderRef.current) {
-                    // 這裡優先使用 localStorage 的快取值，因為 State 更新可能有延遲，確保啟動即時性
-                    const cachedPinnedId = localStorage.getItem('echoScript_PinnedId');
                     const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
-                    
                     let idx = -1;
 
-                    // [修改] 交換 A 與 B 的順序：
-                    // 當我們按下收藏或編輯時，會設定 resumeId。這時資料庫更新觸發此處，
-                    // 我們希望它停留在 resumeId (當前卡片)，而不是因為有釘選就跳走。
-
-                    // A. 優先檢查是否有上次離開或剛操作的筆記 (Resume)
+                    // A. 優先檢查是否有上次離開或剛操作的筆記 (Resume = 首頁)
                     if (resumeId) {
                         idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
                     }
 
-                    // B. 如果沒有 Resume (例如使用者按了下一張，Resume 被清空)，且有釘選，才回到釘選首頁
-                    if (idx === -1 && cachedPinnedId) {
-                         idx = cloudNotes.findIndex(n => String(n.id) === String(cachedPinnedId));
-                    }
-
-                    // C. 如果都找不到，就從洗牌堆拿一張新的
+                    // [已移除] 移除釘選筆記 fallback，確保邏輯不混淆
+                    
+                    // B. 如果找不到 Resume，就從洗牌堆拿一張新的
                     if (idx === -1) {
                         const deckIndex = loadedDeck[loadedPointer] || 0;
                         idx = deckIndex;
@@ -2059,7 +2048,7 @@ function EchoScriptApp() {
         
         setIsAnimating(true);
         setTimeout(() => {
-            // 1. 優先尋找「最後一次編輯/操作」的卡片
+            // 1. 優先尋找「最後一次編輯/操作」的卡片 (即 App 定義的「首頁」)
             const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
             let targetIndex = -1;
 
@@ -2067,12 +2056,9 @@ function EchoScriptApp() {
                 targetIndex = notes.findIndex(n => String(n.id) === String(resumeId));
             }
 
-            // 2. 如果沒有最後編輯紀錄 (或該筆記被刪了)，則找「釘選筆記」
-            if (targetIndex === -1 && pinnedNoteId) {
-                targetIndex = notes.findIndex(n => String(n.id) === String(pinnedNoteId));
-            }
+            // [修正] 移除釘選筆記 fallback，按首頁鍵只會回到最後編輯的筆記
             
-            // 3. 還是沒有，就回到列表第一張
+            // 2. 如果沒有紀錄，就回到列表第一張
             if (targetIndex === -1) targetIndex = 0;
             
             setCurrentIndex(targetIndex);
@@ -2423,7 +2409,8 @@ function EchoScriptApp() {
         if (newPinnedId) localStorage.setItem('echoScript_PinnedId', newPinnedId);
         else localStorage.removeItem('echoScript_PinnedId');
 
-        showNotification(isCurrentlyPinned ? "已取消首頁釘選" : "已釘選至首頁 (下次開啟時顯示)");
+        // [修正] 簡化提示詞，避免混淆「首頁」概念
+        showNotification(isCurrentlyPinned ? "已取消釘選" : "已釘選");
 
         // 2. 雲端同步 (寫入 settings/preferences)
         if (window.fs && window.db) {
@@ -3070,7 +3057,8 @@ function EchoScriptApp() {
             )}
 
             {notification && (
-                <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-[#2c3e50] text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 z-50">
+                // [修正] 顏色改為 theme.accent 與 theme.accentText，隨主題變色 (與「我的資料庫」按鈕一致)
+                <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 ${theme.accent} ${theme.accentText} text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 z-50`}>
                     {notification}
                 </div>
             )}
@@ -3080,6 +3068,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

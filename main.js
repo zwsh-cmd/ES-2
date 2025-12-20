@@ -1990,6 +1990,30 @@ function EchoScriptApp() {
         }, 300);
     };
 
+    // [新增] 獨立的「回到釘選」邏輯 (完全與首頁脫鉤)
+    const handleGoToPin = () => {
+        // 嘗試在現有筆記中尋找釘選的筆記
+        const pinnedIndex = pinnedNoteId ? notes.findIndex(n => String(n.id) === String(pinnedNoteId)) : -1;
+        
+        if (pinnedIndex !== -1) {
+            // 情境 A: 找到釘選筆記 -> 正常跳轉
+            setIsAnimating(true);
+            setTimeout(() => {
+                setCurrentIndex(pinnedIndex);
+                setShowPinnedPlaceholder(false); // 確保關閉空狀態
+                setIsAnimating(false);
+                window.scrollTo(0,0);
+            }, 300);
+        } else {
+            // 情境 B: 無釘選筆記 (或釘選筆記已被刪除) -> 顯示「無釘選卡片」空狀態
+            // 這裡不再呼叫 handleGoHome，而是明確告知使用者「沒有釘選」
+            setShowPinnedPlaceholder(true);
+            showPinnedPlaceholderRef.current = true; // 同步 Ref 防止雲端自動導航干擾
+            setCurrentIndex(-1); // 隱藏底下的卡片
+            window.scrollTo(0,0);
+        }
+    };
+
     // [新增] 回到首頁 (功能變更：回到最後編輯/查看的卡片 > 釘選 > 第一張)
     const handleGoHome = () => {
         if (notes.length === 0) return;
@@ -2676,27 +2700,9 @@ function EchoScriptApp() {
                 
                 {/* [已移除] 我的資料庫按鈕已移至右上角 */}
 
-                {/* 2. 釘選按鈕 (中間) */}
-                {/* 注意：這裡保留原本指向 handleGoHome 的邏輯，但因為 handleGoHome 改成了「回到最後編輯」，
-                    如果您希望這個按鈕專門只回「釘選」，可以另外寫一個函式。
-                    但依照您的描述，這裡暫時維持呼叫 handleGoHome (或者您可以直接跳轉到 pinnedNoteId) 
-                    為了符合您的「按鈕上面的icon跟卡片右上方的釘選icon相同。這個按鈕...」描述，這裡維持外觀 */}
+                {/* 2. 釘選按鈕 (中間) - 專門負責「釘選筆記」 */}
                 <button 
-                    onClick={() => {
-                        // 專門回到釘選筆記的邏輯 (不論最後編輯是誰)
-                        const pinnedIndex = pinnedNoteId ? notes.findIndex(n => String(n.id) === String(pinnedNoteId)) : -1;
-                        if (pinnedIndex !== -1) {
-                            setIsAnimating(true);
-                            setTimeout(() => {
-                                setCurrentIndex(pinnedIndex);
-                                setIsAnimating(false);
-                                window.scrollTo(0,0);
-                            }, 300);
-                        } else {
-                            // 如果沒釘選，就回到第一張
-                            handleGoHome();
-                        }
-                    }} 
+                    onClick={handleGoToPin} 
                     disabled={isAnimating || notes.length === 0} 
                     className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
                     title="回到釘選筆記"
@@ -2920,6 +2926,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

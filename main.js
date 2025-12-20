@@ -1913,28 +1913,27 @@ function EchoScriptApp() {
         // 防呆：確保筆記物件與 ID 存在
         if (!note || note.id === undefined || note.id === null) return;
 
+        // 確保 ID 為字串格式，避免比對錯誤
+        const targetId = String(note.id);
+
         // 建立新的歷史紀錄物件 (加上時間戳記)
         const entry = { ...note, timestamp: new Date().toISOString(), displayId: Date.now() };
 
         setHistory(prev => {
             const safePrev = Array.isArray(prev) ? prev : [];
-            const targetId = String(note.id);
 
-            // [邏輯重寫] 強制過濾法 (Filter & Unshift)
-            // 這是最穩定的去重方式：
-            // 1. 先遍歷舊的歷史紀錄，把「所有」ID 跟現在這筆一樣的舊資料全部剔除。
-            const cleanPrev = safePrev.filter(item => {
+            // [最終修正] Filter 強制過濾法
+            // 邏輯：先將舊歷史中「所有 ID 等於目前這筆」的項目全部過濾掉 (刪除)
+            // 這樣保證陣列中絕對沒有重複的 ID
+            const filteredHistory = safePrev.filter(item => {
                 return item && item.id !== undefined && String(item.id) !== targetId;
             });
 
-            // 2. 將新的這筆 (entry) 直接放在陣列最前面 (Index 0)
-            // 這樣保證：
-            // A. 最新的筆記在最上面
-            // B. 陣列中絕對不會有重複的 ID (因為舊的都在步驟 1 被刪光了)
-            const result = [entry, ...cleanPrev];
+            // 接著將新的這筆 (entry) 插入到最前面 (Unshift)
+            const newHistory = [entry, ...filteredHistory];
 
-            // 3. 限制最大筆數為 50
-            return result.slice(0, 50);
+            // 限制最大筆數為 50
+            return newHistory.slice(0, 50);
         });
     };
 
@@ -3098,6 +3097,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

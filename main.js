@@ -106,16 +106,16 @@ const Pin = (props) => <IconBase d={["M2 12h10", "M9 4v16", "M3 7l3 3", "M3 17l3
 
 // === 2. 初始筆記資料庫 (確保有完整分類) ===
 const INITIAL_NOTES = [
-    { id: 1, superCategory: "敘事技巧", category: "故事結構", subcategory: "三幕劇", title: "第一幕：鋪陳", content: "在第一幕中，必須建立主角的現狀（Normal World），並引入『引發事件』（Inciting Incident），這通常發生在故事的前10-15%。這個事件打破了主角的平衡，迫使他們做出選擇。" },
-    { id: 2, superCategory: "敘事技巧", category: "人物塑造", subcategory: "角色弧光", title: "內在需求 vs 外在慾望", content: "一個立體的角色通常擁有一個明確的『外在慾望』（Want），例如贏得比賽或復仇；但他們同時有一個隱藏的『內在需求』（Need），通常是他們自己沒意識到的性格缺陷。故事的終點，往往是角色犧牲了慾望，滿足了需求。" },
-    { id: 3, superCategory: "敘事技巧", category: "對白技巧", subcategory: "潛台詞", title: "不要說出心裡話", content: "優秀的對白是『言不由衷』的。角色很少直接說出他們真正的感受。如果一對情侶在吵架，他們爭論的可能是誰沒洗碗，但潛台詞其實是『我覺得你不夠重視這個家』。" },
-    { id: 4, superCategory: "敘事技巧", category: "場景設計", subcategory: "進出原則", title: "晚進早出", content: "盡可能晚地進入場景（Late In），在衝突發生前的一刻切入；並盡可能早地離開場景（Early Out），在懸念或衝突最高點結束，不要拖泥帶水地交代結尾。" },
-    { id: 5, superCategory: "敘事技巧", category: "故事結構", subcategory: "救貓咪", title: "定場畫面", content: "故事的第一個畫面應該暗示整部電影的主題、氛圍和風格。它是一個視覺隱喻，告訴觀眾這是一個什麼樣的故事。" },
-    { id: 6, superCategory: "敘事技巧", category: "人物塑造", subcategory: "反派", title: "反派是自己故事裡的英雄", content: "不要把反派寫成只會作惡的壞人。在反派的眼裡，他們所做的一切都是合理、必要，甚至是正義的。給他們一個強大的動機，主角的對抗才會有力。" },
-    { id: 7, superCategory: "敘事技巧", category: "情節推動", subcategory: "轉折點", title: "無路可退", content: "第一幕結束進入第二幕的轉折點（Plot Point 1），主角必須主動做出決定跨越門檻。這個決定必須是不可逆的，他們不能再回頭過原本的生活。" },
-    { id: 8, superCategory: "智慧", category: "寫作心法", subcategory: "初稿", title: "容許垃圾", content: "海明威說：『初稿都是狗屎。』寫作的重點是『寫完』，而不是寫好。不要邊寫邊修，先把故事從頭到尾寫出來，讓它存在，然後再像雕刻一樣慢慢修正。" },
-    { id: 9, superCategory: "敘事技巧", category: "對白技巧", subcategory: "展現而非告知", title: "Show, Don't Tell", content: "與其讓角色說『我很生氣』，不如讓他用力摔門，或是手顫抖著點不著煙。用動作和視覺細節來傳達情緒，永遠比對白更有力。" },
-    { id: 10, superCategory: "敘事技巧", category: "故事結構", subcategory: "英雄旅程", title: "拒絕召喚", content: "當冒險的召喚來臨時，英雄通常會先拒絕。這展現了他們對未知的恐懼，也讓他們隨後的接受變得更加勇敢且有意義。" },
+    { id: 1, category: "故事結構", subcategory: "三幕劇", title: "第一幕：鋪陳", content: "在第一幕中，必須建立主角的現狀（Normal World），並引入『引發事件』（Inciting Incident），這通常發生在故事的前10-15%。這個事件打破了主角的平衡，迫使他們做出選擇。" },
+    { id: 2, category: "人物塑造", subcategory: "角色弧光", title: "內在需求 vs 外在慾望", content: "一個立體的角色通常擁有一個明確的『外在慾望』（Want），例如贏得比賽或復仇；但他們同時有一個隱藏的『內在需求』（Need），通常是他們自己沒意識到的性格缺陷。故事的終點，往往是角色犧牲了慾望，滿足了需求。" },
+    { id: 3, category: "對白技巧", subcategory: "潛台詞", title: "不要說出心裡話", content: "優秀的對白是『言不由衷』的。角色很少直接說出他們真正的感受。如果一對情侶在吵架，他們爭論的可能是誰沒洗碗，但潛台詞其實是『我覺得你不夠重視這個家』。" },
+    { id: 4, category: "場景設計", subcategory: "進出原則", title: "晚進早出", content: "盡可能晚地進入場景（Late In），在衝突發生前的一刻切入；並盡可能早地離開場景（Early Out），在懸念或衝突最高點結束，不要拖泥帶水地交代結尾。" },
+    { id: 5, category: "故事結構", subcategory: "救貓咪", title: "定場畫面", content: "故事的第一個畫面應該暗示整部電影的主題、氛圍和風格。它是一個視覺隱喻，告訴觀眾這是一個什麼樣的故事。" },
+    { id: 6, category: "人物塑造", subcategory: "反派", title: "反派是自己故事裡的英雄", content: "不要把反派寫成只會作惡的壞人。在反派的眼裡，他們所做的一切都是合理、必要，甚至是正義的。給他們一個強大的動機，主角的對抗才會有力。" },
+    { id: 7, category: "情節推動", subcategory: "轉折點", title: "無路可退", content: "第一幕結束進入第二幕的轉折點（Plot Point 1），主角必須主動做出決定跨越門檻。這個決定必須是不可逆的，他們不能再回頭過原本的生活。" },
+    { id: 8, category: "寫作心法", subcategory: "初稿", title: "容許垃圾", content: "海明威說：『初稿都是狗屎。』寫作的重點是『寫完』，而不是寫好。不要邊寫邊修，先把故事從頭到尾寫出來，讓它存在，然後再像雕刻一樣慢慢修正。" },
+    { id: 9, category: "對白技巧", subcategory: "展現而非告知", title: "Show, Don't Tell", content: "與其讓角色說『我很生氣』，不如讓他用力摔門，或是手顫抖著點不著煙。用動作和視覺細節來傳達情緒，永遠比對白更有力。" },
+    { id: 10, category: "故事結構", subcategory: "英雄旅程", title: "拒絕召喚", content: "當冒險的召喚來臨時，英雄通常會先拒絕。這展現了他們對未知的恐懼，也讓他們隨後的接受變得更加勇敢且有意義。" },
 ];
 
 // === 3. 錯誤邊界組件 ===
@@ -309,7 +309,6 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
 // 修改：加入 setHasUnsavedChanges 參數，並監聽內容變更
 const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges, theme }) => {
     const [formData, setFormData] = useState({
-        superCategory: note?.superCategory || "其他", // [新增] 總分類
         category: note?.category || "",
         subcategory: note?.subcategory || "",
         title: note?.title || "",
@@ -320,14 +319,12 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
 
     // 新增：監聽內容變更，同步狀態給主程式 (給手機返回鍵使用)
     useEffect(() => {
-        const initialSuper = note?.superCategory || "其他";
         const initialCategory = note?.category || "";
         const initialSubcategory = note?.subcategory || "";
         const initialTitle = note?.title || "";
         const initialContent = note?.content || "";
 
         const hasChanges = 
-            formData.superCategory !== initialSuper ||
             formData.category !== initialCategory ||
             formData.subcategory !== initialSubcategory ||
             formData.title !== initialTitle ||
@@ -340,20 +337,9 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         return () => { if (setHasUnsavedChanges) setHasUnsavedChanges(false); };
     }, [formData, note, setHasUnsavedChanges]);
 
-    // [新增] 總分類列表
-    const existingSuperCategories = useMemo(() => {
-        const defaults = ["敘事技巧", "智慧", "其他"];
-        const fromNotes = existingNotes.map(n => n.superCategory).filter(Boolean);
-        return [...new Set([...defaults, ...fromNotes])];
-    }, [existingNotes]);
-
     const existingCategories = useMemo(() => {
-        if (!formData.superCategory) return [];
-        return [...new Set(existingNotes
-            .filter(n => (n.superCategory || "其他") === formData.superCategory)
-            .map(n => n.category)
-            .filter(Boolean))];
-    }, [existingNotes, formData.superCategory]);
+        return [...new Set(existingNotes.map(n => n.category).filter(Boolean))];
+    }, [existingNotes]);
 
     const existingSubcategories = useMemo(() => {
         if (!formData.category) return []; 
@@ -467,24 +453,16 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                     
                     {/* 上方區塊：分類與標題 (固定不捲動) */}
                     <div className="p-4 pb-2 shrink-0 flex flex-col gap-3">
-                        {/* [修改] 改為三欄式佈局，加入總分類 */}
-                        <div className="grid grid-cols-3 gap-2">
-                             <Combobox 
-                                placeholder="總分類"
-                                value={formData.superCategory}
-                                onChange={(val) => setFormData(prev => ({...prev, superCategory: val}))}
-                                options={existingSuperCategories}
-                                theme={theme}
-                            />
+                        <div className="grid grid-cols-2 gap-3">
                             <Combobox 
-                                placeholder="大分類"
+                                placeholder="大分類 (如:故事結構)"
                                 value={formData.category}
                                 onChange={(val) => setFormData(prev => ({...prev, category: val}))}
                                 options={existingCategories}
                                 theme={theme}
                             />
                             <Combobox 
-                                placeholder="次分類"
+                                placeholder="次分類 (如:三幕劇)"
                                 value={formData.subcategory}
                                 onChange={(val) => setFormData(prev => ({...prev, subcategory: val}))}
                                 options={existingSubcategories}
@@ -663,345 +641,597 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
     );
 };
 
-// === 6. 所有筆記列表 Modal (支援四層分類與移動) ===
-// [修改] 接收 superCategoryMap 以支援總分類
-const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLevel, setViewLevel, categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, setHasDataChangedInSession, theme }) => {
-    // 狀態管理：目前選中的層級
-    const [selectedSuper, setSelectedSuper] = useState(null);
+// === 6. 所有筆記列表 Modal (支援分類顯示) ===
+// [修改] 接收 setNotes 以支援排序
+const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLevel, setViewLevel, categoryMap, setCategoryMap, setHasDataChangedInSession, theme }) => {
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [selectedSubcategory, setSelectedSubcategory] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     
-    // 拖曳相關狀態
+    // [新增] 視覺回饋狀態：記錄目前正在拖曳的項目索引
     const [draggingIndex, setDraggingIndex] = useState(null);
+    // [新增] 動畫回饋狀態：記錄目前手指/滑鼠經過的目標索引 (用於顯示插入線)
     const [dragOverIndex, setDragOverIndex] = useState(null);
-    const dragItem = useRef(null);
-    const dragOverItem = useRef(null);
     
-    // 選單狀態
+    // [新增] 懸浮選單狀態：{ visible, x, y, type, item }
     const [contextMenu, setContextMenu] = useState(null);
 
-    // 取得目前的資料列表 (根據不同層級)
-    const currentList = useMemo(() => {
-        if (viewLevel === 'superCategories') {
-            return Object.keys(superCategoryMap || {});
+    // [新增] 拖曳排序用的 Refs
+    const dragItem = useRef(null);
+    const dragOverItem = useRef(null);
+
+    // [新增] 執行排序資料更新 (已修正：同步寫入雲端)
+    const handleSort = () => {
+        if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
+            dragItem.current = null;
+            dragOverItem.current = null;
+            return;
         }
+
+        let newMap = null; // [新增] 用來暫存並上傳雲端的分類地圖
+
         if (viewLevel === 'categories') {
-            return superCategoryMap[selectedSuper] || [];
+             let _categories = Object.keys(categoryMap);
+             const draggedItemContent = _categories[dragItem.current];
+             _categories.splice(dragItem.current, 1);
+             _categories.splice(dragOverItem.current, 0, draggedItemContent);
+             
+             // 確實依序重建物件，確保順序被保存
+             newMap = {};
+             _categories.forEach(cat => { newMap[cat] = categoryMap[cat]; });
+             setCategoryMap(newMap);
         }
-        if (viewLevel === 'subcategories') {
-            return categoryMap[selectedCategory] || [];
+        else if (viewLevel === 'subcategories') {
+            let _subs = [...(categoryMap[selectedCategory] || [])];
+            const draggedItemContent = _subs[dragItem.current];
+            _subs.splice(dragItem.current, 1);
+            _subs.splice(dragOverItem.current, 0, draggedItemContent);
+            
+            newMap = { ...categoryMap };
+            newMap[selectedCategory] = _subs;
+            setCategoryMap(newMap);
         }
-        if (viewLevel === 'notes') {
-            return notes.filter(n => 
-                (n.superCategory || "其他") === selectedSuper &&
+        else if (viewLevel === 'notes') {
+            const currentList = notes.filter(n => 
                 (n.category || "未分類") === selectedCategory && 
                 (n.subcategory || "一般") === selectedSubcategory
             );
-        }
-        return [];
-    }, [viewLevel, superCategoryMap, categoryMap, notes, selectedSuper, selectedCategory, selectedSubcategory]);
-
-    // [核心功能] 排序與移動邏輯
-    const handleSort = () => {
-        if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
-            resetDrag(); return;
-        }
-
-        const list = [...currentList];
-        const draggedContent = list[dragItem.current];
-        
-        // 1. 執行陣列重排
-        if (viewLevel === 'notes') {
-            // 筆記重排：邏輯較特殊，需要操作原始 notes 陣列
-            // 先不實作筆記間的複雜排序，避免與時間排序衝突，此處僅處理分類層級的重排
-        } else {
-            // 分類重排 (Super / Category / Subcategory)
-            list.splice(dragItem.current, 1);
-            list.splice(dragOverItem.current, 0, draggedContent);
             
-            // 2. 更新對應的 Map 結構
-            if (viewLevel === 'superCategories') {
-                const newMap = {};
-                list.forEach(key => { newMap[key] = superCategoryMap[key]; });
-                setSuperCategoryMap(newMap);
-                syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
-            } 
-            else if (viewLevel === 'categories') {
-                const newMap = { ...superCategoryMap };
-                newMap[selectedSuper] = list;
-                setSuperCategoryMap(newMap);
-                syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
-            }
-            else if (viewLevel === 'subcategories') {
-                const newMap = { ...categoryMap };
-                newMap[selectedCategory] = list;
-                setCategoryMap(newMap);
-                syncToCloud('layout', { categoryMapJSON: JSON.stringify(newMap) });
-            }
+            const draggedNote = currentList[dragItem.current];
+            const overNote = currentList[dragOverItem.current];
+            
+            let _notes = [...notes];
+            const realDragIndex = _notes.findIndex(n => n.id === draggedNote.id);
+            const noteContent = _notes[realDragIndex];
+
+            _notes.splice(realDragIndex, 1);
+            const realOverIndex = _notes.findIndex(n => n.id === overNote.id);
+            _notes.splice(realOverIndex, 0, noteContent);
+            
+            setNotes(_notes);
         }
         
-        resetDrag();
+        dragItem.current = null;
+        dragOverItem.current = null;
+        setDraggingIndex(null); 
+        setDragOverIndex(null);
+
+        // [新增] 同步分類排序到雲端 (settings/layout)
+        // [修正] 改用 JSON 字串儲存，避開 Firestore 自動重排 Key 的問題
+        if (newMap && window.fs && window.db) {
+            window.fs.setDoc(
+                window.fs.doc(window.db, "settings", "layout"), 
+                { categoryMapJSON: JSON.stringify(newMap) }, 
+                { merge: true }
+            ).then(() => console.log("✅ 分類排序已同步雲端 (JSON格式)"));
+        }
+
+        // [關鍵修正] 只要有排序，就標記資料已變更，確保退出時提醒備份
         if (setHasDataChangedInSession) setHasDataChangedInSession(true);
     };
 
-    const resetDrag = () => {
-        dragItem.current = null;
-        dragOverItem.current = null;
-        setDraggingIndex(null);
-        setDragOverIndex(null);
+    // [新增] 手機觸控拖曳邏輯
+    const handleTouchStart = (e, index) => {
+        e.stopPropagation(); // [關鍵] 阻止事件傳遞給父層，避免觸發長按刪除
+        dragItem.current = index;
+        setDraggingIndex(index); // 設定視覺回饋
     };
-
-    const syncToCloud = (docName, data) => {
-        if (window.fs && window.db) {
-            window.fs.setDoc(
-                window.fs.doc(window.db, "settings", docName), 
-                data, 
-                { merge: true }
-            ).then(() => console.log(`✅ ${docName} 同步成功`));
+    
+    const handleTouchMove = (e) => {
+        // 防止手機畫面跟著捲動 (僅當按住手把時)
+        if (e.cancelable) e.preventDefault();
+        
+        // 取得手指目前位置的元素
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        // 找到該元素所屬的列表項目 (透過 data-index)
+        const row = target?.closest('[data-index]');
+        if (row) {
+             const idx = parseInt(row.dataset.index, 10);
+             if (!isNaN(idx)) {
+                 dragOverItem.current = idx;
+                 setDragOverIndex(idx); // [關鍵] 觸發畫面更新，顯示插入位置
+             }
         }
     };
 
-    // [核心功能] 移動分類 (變更父層級)
-    const handleMoveCategory = () => {
+    const handleTouchEnd = () => {
+        handleSort();
+    };
+
+    // 長按偵測 Ref
+    const pressTimer = useRef(null);
+    const isLongPress = useRef(false);
+
+    // 1. 使用 categoryMap 取得大分類 (包含空的)
+    const categories = useMemo(() => Object.keys(categoryMap || {}), [categoryMap]);
+
+    // 2. 使用 categoryMap 取得次分類 (包含空的)
+    const subcategories = useMemo(() => {
+        if (!selectedCategory || !categoryMap) return [];
+        return categoryMap[selectedCategory] || [];
+    }, [categoryMap, selectedCategory]);
+
+    // 刪除大分類邏輯 (已修正：同步刪除雲端)
+    const handleDeleteCategory = (cat) => {
+        const hasNotes = notes.some(n => (n.category || "未分類") === cat);
+        if (hasNotes) {
+            alert(`「${cat}」下還有筆記，無法刪除！`);
+            return;
+        }
+        if (confirm(`確定要刪除空分類「${cat}」嗎？`)) {
+            const newMap = { ...categoryMap };
+            delete newMap[cat];
+            setCategoryMap(newMap);
+
+            // [新增] 同步刪除雲端分類 (settings/layout)
+            if (window.fs && window.db) {
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", "layout"), 
+                    { categoryMapJSON: JSON.stringify(newMap) }, 
+                    { merge: true }
+                ).then(() => console.log("✅ 雲端分類已刪除"));
+            }
+
+            // [關鍵] 觸發備份提醒
+            if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+        }
+    };
+
+    // 刪除次分類邏輯 (已修正：同步刪除雲端)
+    const handleDeleteSubcategory = (sub) => {
+        const hasNotes = notes.some(n => (n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === sub);
+        if (hasNotes) {
+            alert(`「${sub}」下還有筆記，無法刪除！`);
+            return;
+        }
+        if (confirm(`確定要刪除空次分類「${sub}」嗎？`)) {
+            const newMap = { ...categoryMap };
+            newMap[selectedCategory] = newMap[selectedCategory].filter(s => s !== sub);
+            setCategoryMap(newMap);
+
+            // [新增] 同步刪除雲端次分類 (settings/layout)
+            if (window.fs && window.db) {
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", "layout"), 
+                    { categoryMapJSON: JSON.stringify(newMap) }, 
+                    { merge: true }
+                ).then(() => console.log("✅ 雲端次分類已刪除"));
+            }
+
+            // [關鍵] 觸發備份提醒
+            if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+        }
+    };
+
+    // 長按事件綁定器 (改良版：支援回傳座標)
+    const bindLongPress = (onLongPress, onClick) => {
+        const start = (e) => {
+            // 抓取觸控或滑鼠座標
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            isLongPress.current = false;
+            pressTimer.current = setTimeout(() => {
+                isLongPress.current = true;
+                if (navigator.vibrate) navigator.vibrate(50);
+                onLongPress(clientX, clientY); // 回傳座標給回呼函式
+            }, 600);
+        };
+        const end = () => { if (pressTimer.current) clearTimeout(pressTimer.current); };
+        
+        return {
+            onMouseDown: start, onTouchStart: start,
+            onMouseUp: end, onMouseLeave: end, onTouchEnd: end,
+            onClick: (e) => {
+                if (isLongPress.current) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    isLongPress.current = false; // 重置
+                } else {
+                    onClick(e);
+                }
+            }
+        };
+    };
+
+    // [新增] 處理重新命名 (已修正：同步更新雲端與分類結構)
+    const handleRename = async () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
+        const newName = prompt(`請輸入新的${type === 'category' ? '分類' : '次分類'}名稱`, item);
         
-        // 只有大分類可以移動到不同的總分類 (次分類移動邏輯類似，依此類推)
+        if (!newName || newName === item) {
+            setContextMenu(null);
+            return;
+        }
+
+        if (type === 'category' && categoryMap[newName]) { alert("該分類名稱已存在"); return; }
+        if (type === 'subcategory' && categoryMap[selectedCategory].includes(newName)) { alert("該次分類名稱已存在"); return; }
+
+        // [新增] 準備批次更新雲端的清單
+        const updates = [];
+
         if (type === 'category') {
-            const targets = Object.keys(superCategoryMap).filter(k => k !== selectedSuper);
-            if (targets.length === 0) { alert("沒有其他總分類可移動"); return; }
+            // 1. 更新 Map (本地 UI)
+            const newMap = {};
+            Object.keys(categoryMap).forEach(key => {
+                if (key === item) {
+                    newMap[newName] = categoryMap[item]; 
+                } else {
+                    newMap[key] = categoryMap[key];
+                }
+            });
+            setCategoryMap(newMap);
+
+            // [新增] 同步更新雲端分類結構 (settings/layout) 確保舊名被移除
+            if (window.fs && window.db) {
+                updates.push(
+                    window.fs.setDoc(
+                        window.fs.doc(window.db, "settings", "layout"), 
+                        { categoryMapJSON: JSON.stringify(newMap) }, 
+                        { merge: true }
+                    )
+                );
+            }
             
-            const targetSuper = prompt(`將「${item}」移動到哪個總分類？\n(輸入: ${targets.join(', ')})`);
-            if (!targetSuper || !targets.includes(targetSuper)) return;
-
-            // 1. 更新 superCategoryMap
-            const newSuperMap = { ...superCategoryMap };
-            // 移除舊的
-            newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== item);
-            // 加入新的
-            newSuperMap[targetSuper] = [...(newSuperMap[targetSuper] || []), item];
-            setSuperCategoryMap(newSuperMap);
-
-            // 2. 更新所有相關筆記
+            // 2. 更新筆記 (本地 + 雲端)
             const newNotes = notes.map(n => {
                 if ((n.category || "未分類") === item) {
-                    // 同步更新雲端
+                    // 加入雲端更新排程
                     if (window.fs && window.db) {
-                        window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { superCategory: targetSuper }, { merge: true });
+                        updates.push(
+                            window.fs.setDoc(
+                                window.fs.doc(window.db, "notes", String(n.id)), 
+                                { category: newName }, 
+                                { merge: true }
+                            )
+                        );
                     }
-                    return { ...n, superCategory: targetSuper };
+                    return { ...n, category: newName };
                 }
                 return n;
             });
             setNotes(newNotes);
+
+        } else {
+            // 1. 更新 Map (本地 UI)
+            const newMap = { ...categoryMap };
+            const subs = newMap[selectedCategory].map(s => s === item ? newName : s);
+            newMap[selectedCategory] = subs;
+            setCategoryMap(newMap);
+
+            // [新增] 同步更新雲端分類結構 (settings/layout)
+            if (window.fs && window.db) {
+                updates.push(
+                    window.fs.setDoc(
+                        window.fs.doc(window.db, "settings", "layout"), 
+                        { categoryMapJSON: JSON.stringify(newMap) }, 
+                        { merge: true }
+                    )
+                );
+            }
             
-            // 3. 同步 Map 到雲端
-            syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newSuperMap) });
-            
-            setContextMenu(null);
-            if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+            // 2. 更新筆記 (本地 + 雲端)
+            const newNotes = notes.map(n => {
+                if (((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item)) {
+                    // 加入雲端更新排程
+                    if (window.fs && window.db) {
+                        updates.push(
+                            window.fs.setDoc(
+                                window.fs.doc(window.db, "notes", String(n.id)), 
+                                { subcategory: newName }, 
+                                { merge: true }
+                            )
+                        );
+                    }
+                    return { ...n, subcategory: newName };
+                }
+                return n;
+            });
+            setNotes(newNotes);
         }
+        
+        // 3. 執行雲端更新
+        if (updates.length > 0) {
+            try {
+                await Promise.all(updates);
+                console.log(`✅ 已同步更新 ${updates.length} 則筆記與分類結構`);
+            } catch (e) {
+                console.error("雲端分類更新失敗", e);
+                // 這裡不跳出 Alert，避免干擾體驗，失敗通常是因為離線，Firebase 會自動重試
+            }
+        }
+
+        // [修正] 移除備份提醒標記，因為已全面雲端化
+        setContextMenu(null);
     };
 
-    const handleDelete = () => {
+    // [新增] 處理選單刪除
+    const handleDeleteFromMenu = () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
-        
-        // 刪除邏輯：確保該分類下沒有筆記
-        let hasNotes = false;
-        if (type === 'superCategory') {
-            // 檢查該總分類下是否有任何大分類有筆記 (簡化：若有大分類則不給刪)
-            if (superCategoryMap[item] && superCategoryMap[item].length > 0) hasNotes = true;
-        } else if (type === 'category') {
-            hasNotes = notes.some(n => (n.category || "未分類") === item);
-        } else if (type === 'subcategory') {
-            hasNotes = notes.some(n => (n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item);
-        }
-
-        if (hasNotes) { alert(`「${item}」下還有內容，無法刪除！`); return; }
-
-        if (confirm(`確定要刪除「${item}」嗎？`)) {
-            if (type === 'superCategory') {
-                const newMap = { ...superCategoryMap };
-                delete newMap[item];
-                setSuperCategoryMap(newMap);
-                syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
-            } else if (type === 'category') {
-                const newMap = { ...superCategoryMap };
-                newMap[selectedSuper] = newMap[selectedSuper].filter(i => i !== item);
-                setSuperCategoryMap(newMap);
-                syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
-                
-                // 同步刪除 subcategories
-                const newCatMap = { ...categoryMap };
-                delete newCatMap[item];
-                setCategoryMap(newCatMap);
-                syncToCloud('layout', { categoryMapJSON: JSON.stringify(newCatMap) });
-            } else if (type === 'subcategory') {
-                const newMap = { ...categoryMap };
-                newMap[selectedCategory] = newMap[selectedCategory].filter(i => i !== item);
-                setCategoryMap(newMap);
-                syncToCloud('layout', { categoryMapJSON: JSON.stringify(newMap) });
-            }
-            setContextMenu(null);
-            if (setHasDataChangedInSession) setHasDataChangedInSession(true);
-        }
-    };
-    
-    // 重新命名
-    const handleRename = () => {
-         if (!contextMenu) return;
-         const { type, item } = contextMenu;
-         const newName = prompt("請輸入新名稱", item);
-         if (!newName || newName === item) return;
-
-         // 這裡省略詳細的重新命名邏輯 (涉及 Map Key 變更與 Note 變更)，避免程式碼過長
-         // 建議使用者使用移動與新增功能來整理
-         alert("暫不支援直接重新命名，請建立新分類後將筆記移動過去。");
-         setContextMenu(null);
+        if (type === 'category') handleDeleteCategory(item);
+        if (type === 'subcategory') handleDeleteSubcategory(item);
+        setContextMenu(null);
     };
 
-    // 觸控與長按邏輯
-    const pressTimer = useRef(null);
-    const handleTouchStart = (e, index) => { e.stopPropagation(); dragItem.current = index; setDraggingIndex(index); };
-    const handleTouchMove = (e) => {
-        if (e.cancelable) e.preventDefault();
-        const touch = e.touches[0];
-        const target = document.elementFromPoint(touch.clientX, touch.clientY);
-        const row = target?.closest('[data-index]');
-        if (row) { const idx = parseInt(row.dataset.index, 10); if (!isNaN(idx)) { dragOverItem.current = idx; setDragOverIndex(idx); } }
-    };
-    const handleTouchEnd = () => handleSort();
-    
-    const bindLongPress = (item, type) => {
-        const start = (e) => {
-            const cx = e.touches ? e.touches[0].clientX : e.clientX;
-            const cy = e.touches ? e.touches[0].clientY : e.clientY;
-            pressTimer.current = setTimeout(() => {
-                if (navigator.vibrate) navigator.vibrate(50);
-                setContextMenu({ visible: true, x: cx, y: cy, type, item });
-            }, 600);
-        };
-        const end = () => clearTimeout(pressTimer.current);
-        return { onMouseDown: start, onTouchStart: start, onMouseUp: end, onMouseLeave: end, onTouchEnd: end };
-    };
+    // 3. 取得最終筆記列表
+    const targetNotes = useMemo(() => {
+        if (!selectedCategory || !selectedSubcategory) return [];
+        return notes.filter(n => 
+            (n.category || "未分類") === selectedCategory && 
+            (n.subcategory || "一般") === selectedSubcategory
+        );
+    }, [notes, selectedCategory, selectedSubcategory]);
 
-    // 返回邏輯
+    // 搜尋邏輯 (搜尋時暫時忽略層級)
+    // 搜尋邏輯 (搜尋時暫時忽略層級)
+    const searchResults = useMemo(() => {
+        if (!searchTerm) return [];
+        return notes.filter(n => 
+            (n.title && n.title.includes(searchTerm)) || 
+            (n.content && n.content.includes(searchTerm)) ||
+            (n.category && n.category.includes(searchTerm)) || 
+            (n.subcategory && n.subcategory.includes(searchTerm))
+        );
+    }, [notes, searchTerm]);
+
+    // 返回上一層邏輯
     const handleBack = () => {
-        if (viewLevel === 'notes') setViewLevel('subcategories');
-        else if (viewLevel === 'subcategories') setViewLevel('categories');
-        else if (viewLevel === 'categories') setViewLevel('superCategories');
+        // 從「筆記」層級返回「次分類」
+        if (viewLevel === 'notes') {
+            setViewLevel('subcategories');
+            setSelectedSubcategory(null);
+        } 
+        // 從「次分類」層級返回「大分類」 <--- 清空 Category，修復空白畫面問題
+        else if (viewLevel === 'subcategories') {
+            setViewLevel('categories');
+            setSelectedCategory(null); // 【關鍵修復】
+        }
     };
 
     return (
         <div className={`fixed inset-0 z-40 ${theme.bg} flex flex-col animate-in slide-in-from-right duration-300`}>
-             {/* 頂部導航列 */}
+            {/* 頂部導航列 (修復版) */}
             <div className={`p-4 border-b ${theme.border} ${theme.card} flex justify-between items-center sticky top-0 z-10`}>
                 <div className="flex items-center gap-2">
+                    {/* 智慧返回/關閉按鈕：在非搜尋模式下 */}
                     {(!searchTerm) ? (
                         <button 
-                            onClick={viewLevel === 'superCategories' ? onClose : handleBack} 
+                            onClick={viewLevel === 'categories' ? onClose : handleBack} 
                             className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"
+                            title={viewLevel === 'categories' ? "關閉" : "返回上一層"}
                         >
-                            {viewLevel === 'superCategories' ? <X className="w-5 h-5" /> : <IconBase d="M15 18l-6-6 6-6" />}
+                            {/* 在「大分類」層級時顯示 X 關閉，否則顯示左箭頭返回 */}
+                            {viewLevel === 'categories' ? <X className="w-5 h-5" /> : <IconBase d="M15 18l-6-6 6-6" />}
                         </button>
                     ) : (
-                        <button onClick={() => setSearchTerm("")} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1">
+                        <button onClick={() => setSearchTerm("")} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1" title="返回分類列表">
                             <IconBase d="M15 18l-6-6 6-6" /> 
                         </button>
                     )}
+                    {/* 標題隨層級變化 */}
                     <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text}`}>
                         {searchTerm ? "搜尋結果" : 
-                         viewLevel === 'superCategories' ? "總分類" : 
-                         viewLevel === 'categories' ? selectedSuper :
+                         viewLevel === 'categories' ? "筆記分類" : 
                          viewLevel === 'subcategories' ? selectedCategory : 
                          selectedSubcategory}
                     </h2>
                 </div>
+                {/* 移除原本固定的右上角 X 按鈕 */}
             </div>
-
-            {/* 搜尋與內容區 */}
+            
+            {/* 搜尋框 */}
             <div className={`p-4 ${theme.bg} sticky top-[69px] z-10`}>
                 <input 
-                    type="text" placeholder="搜尋筆記..." 
+                    type="text" 
+                    placeholder="搜尋筆記關鍵字..." 
                     className={`w-full ${theme.card} border ${theme.border} rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 ${theme.text}`}
-                    value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
 
+            {/* 列表內容區 */}
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar pb-20">
-                {searchTerm ? (
-                    // 搜尋結果
-                    notes.filter(n => n.title.includes(searchTerm) || n.content.includes(searchTerm)).map(item => (
-                        <div key={item.id} className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} onClick={() => onItemClick(item)}>
-                            <div className="text-xs text-stone-400 mb-1">{item.superCategory} / {item.category}</div>
+                
+                {/* 情況 A: 正在搜尋 (顯示扁平列表) */}
+                {searchTerm && (
+                    searchResults.length > 0 ? searchResults.map(item => (
+                        <div key={item.id} className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} 
+                             onClick={() => onItemClick(item)}>
+                            <div className="text-xs text-stone-400 mb-1">{item.category} / {item.subcategory}</div>
                             <h4 className={`font-bold ${theme.text}`}>{item.title}</h4>
                         </div>
-                    ))
-                ) : (
-                    // 階層列表
-                    currentList.map((item, index) => {
-                        const isDragging = index === draggingIndex;
-                        const isDragOver = index === dragOverIndex && index !== draggingIndex;
-                        const isNote = viewLevel === 'notes';
-                        
-                        // 計算數量 (僅供顯示)
-                        let count = 0;
-                        if (viewLevel === 'superCategories') count = notes.filter(n => (n.superCategory || "其他") === item).length;
-                        if (viewLevel === 'categories') count = notes.filter(n => (n.superCategory || "其他") === selectedSuper && (n.category || "未分類") === item).length;
+                    )) : <div className="text-center text-gray-400 mt-10">沒有找到相關筆記</div>
+                )}
 
-                        return (
-                            <div key={isNote ? item.id : item} 
-                                 data-index={index}
-                                 {...(!isNote ? bindLongPress(item, viewLevel.slice(0, -1)) : {})} // 筆記不支援長按選單
-                                 onClick={() => {
-                                     if (isNote) onItemClick(item);
-                                     else {
-                                         if (viewLevel === 'superCategories') { setSelectedSuper(item); setViewLevel('categories'); }
-                                         else if (viewLevel === 'categories') { setSelectedCategory(item); setViewLevel('subcategories'); }
-                                         else if (viewLevel === 'subcategories') { setSelectedSubcategory(item); setViewLevel('notes'); }
-                                     }
-                                 }}
-                                 className={`
-                                    ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : `${theme.card} ${theme.border}`} 
-                                    ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2' : ''} 
-                                    p-4 rounded-xl shadow-sm border mb-3 flex items-center cursor-pointer select-none transition-all
-                                 `}>
-                                <div className="flex-1">
-                                    <h4 className={`font-bold text-lg ${theme.text}`}>{isNote ? item.title : item}</h4>
-                                    {!isNote && count === 0 && <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full ml-2">空</span>}
-                                    {isNote && <p className={`text-sm ${theme.subtext} line-clamp-1`}>{item.content}</p>}
-                                </div>
-                                {/* 拖曳手把 (僅分類層級顯示) */}
-                                {!isNote && (
-                                    <div className="p-2 -mr-2 text-stone-300 hover:text-stone-500 cursor-grab touch-none"
-                                         onTouchStart={(e) => handleTouchStart(e, index)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
-                                         onMouseDown={(e) => { e.stopPropagation(); dragItem.current = index; }}
-                                         draggable onDragStart={() => (dragItem.current = index)}
-                                         onDragEnter={() => { dragOverItem.current = index; setDragOverIndex(index); }}
-                                         onDragEnd={handleSort} onClick={(e) => e.stopPropagation()}>
-                                        <GripVertical className="w-6 h-6" />
+                {/* 情況 B: 階層導航 */}
+                {!searchTerm && (
+                    <>
+                        {/* Level 1: 大分類列表 */}
+                        {viewLevel === 'categories' && categories.map((cat, index) => {
+                            const count = notes.filter(n => (n.category || "未分類") === cat).length;
+                            const isDragging = index === draggingIndex;
+                            const isDragOver = index === dragOverIndex && index !== draggingIndex;
+                            return (
+                                <div key={cat} 
+                                     data-index={index}
+                                     {...bindLongPress(
+                                         (x, y) => setContextMenu({ visible: true, x, y, type: 'category', item: cat }), // [修改] 長按開啟選單
+                                         () => {
+                                             setSelectedCategory(cat); 
+                                             setViewLevel('subcategories'); 
+                                             window.history.pushState({ page: 'modal', level: 'subcategories', time: Date.now() }, '', '');
+                                         }
+                                     )}
+                                     className={`
+                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : `${theme.card} ${theme.border}`} 
+                                        ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2 transition-all duration-200' : ''} 
+                                        p-4 rounded-xl shadow-sm border mb-3 flex items-center cursor-pointer hover:border-stone-300 select-none transition-all
+                                     `}>
+                                    
+                                    <div className="flex-1 flex items-baseline gap-2">
+                                        <span className={`font-bold text-lg ${theme.text}`}>{cat}</span>
+                                        {count === 0 && <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">空</span>}
                                     </div>
-                                )}
-                            </div>
-                        );
-                    })
+
+                                    <div className="flex items-center gap-3">
+                                        <IconBase d="M9 18l6-6-6-6" className="text-stone-300 w-5 h-5" />
+                                        {/* 拖曳手把 */}
+                                        <div className="p-2 -mr-2 text-stone-300 hover:text-stone-500 cursor-grab touch-none active:text-stone-800"
+                                             onTouchStart={(e) => handleTouchStart(e, index)}
+                                             onTouchMove={handleTouchMove}
+                                             onTouchEnd={handleTouchEnd}
+                                             onMouseDown={(e) => { e.stopPropagation(); dragItem.current = index; }}
+                                             draggable
+                                             onDragStart={() => (dragItem.current = index)}
+                                             onDragEnter={() => { dragOverItem.current = index; setDragOverIndex(index); }}
+                                             onDragEnd={handleSort}
+                                             onDragOver={(e) => e.preventDefault()}
+                                             onClick={(e) => e.stopPropagation()}>
+                                            <GripVertical className="w-6 h-6" />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Level 2: 次分類列表 */}
+                        {viewLevel === 'subcategories' && subcategories.map((sub, index) => {
+                            const count = notes.filter(n => (n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === sub).length;
+                            const isDragging = index === draggingIndex;
+                            const isDragOver = index === dragOverIndex && index !== draggingIndex;
+                            return (
+                                <div key={sub} 
+                                     data-index={index}
+                                     {...bindLongPress(
+                                         (x, y) => setContextMenu({ visible: true, x, y, type: 'subcategory', item: sub }), // [修改] 長按開啟選單
+                                         () => {
+                                             setSelectedSubcategory(sub); 
+                                             setViewLevel('notes'); 
+                                             window.history.pushState({ page: 'modal', level: 'notes', time: Date.now() }, '', '');
+                                         }
+                                     )}
+                                     className={`
+                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : `${theme.card} ${theme.border}`} 
+                                        ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2 transition-all duration-200' : ''}
+                                        p-4 rounded-xl shadow-sm border mb-3 flex items-center cursor-pointer hover:border-stone-300 select-none transition-all
+                                     `}>
+                                    
+                                    <div className="flex-1 flex items-baseline gap-2">
+                                        <span className={`font-medium text-lg ${theme.text}`}>{sub}</span>
+                                        {count === 0 && <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full">空</span>}
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-3">
+                                        <IconBase d="M9 18l6-6-6-6" className="text-stone-300 w-5 h-5" />
+                                        <div className="p-2 -mr-2 text-stone-300 hover:text-stone-500 cursor-grab touch-none active:text-stone-800"
+                                             onTouchStart={(e) => handleTouchStart(e, index)}
+                                             onTouchMove={handleTouchMove}
+                                             onTouchEnd={handleTouchEnd}
+                                             onMouseDown={(e) => { e.stopPropagation(); dragItem.current = index; }}
+                                             draggable
+                                             onDragStart={() => (dragItem.current = index)}
+                                             onDragEnter={() => { dragOverItem.current = index; setDragOverIndex(index); }}
+                                             onDragEnd={handleSort}
+                                             onDragOver={(e) => e.preventDefault()}
+                                             onClick={(e) => e.stopPropagation()}>
+                                            <GripVertical className="w-6 h-6" />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Level 3: 最終筆記列表 */}
+                        {viewLevel === 'notes' && targetNotes.map((item, index) => {
+                            const isDragging = index === draggingIndex;
+                            const isDragOver = index === dragOverIndex && index !== draggingIndex; // [新增]
+                            return (
+                                <div key={item.id} 
+                                     data-index={index}
+                                     className={`
+                                        ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : `${theme.card} ${theme.border}`} 
+                                        ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2 transition-all duration-200' : ''}
+                                        p-4 rounded-xl shadow-sm border mb-3 transition-all select-none
+                                     `}
+                                     onClick={() => onItemClick(item)}>
+                                    
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            <h4 className={`font-bold ${theme.text} text-lg`}>{item.title}</h4>
+                                            <p className={`text-sm ${theme.subtext} line-clamp-2 mt-2`}>{item.content}</p>
+                                        </div>
+                                        
+                                        <div className="flex flex-col items-end gap-2 ml-2">
+                                            {/* 拖曳手把 */}
+                                            <div className="p-2 -mr-2 -mt-2 text-stone-300 hover:text-stone-500 cursor-grab touch-none active:text-stone-800"
+                                                 onTouchStart={(e) => handleTouchStart(e, index)}
+                                                 onTouchMove={handleTouchMove}
+                                                 onTouchEnd={handleTouchEnd}
+                                                 onMouseDown={(e) => { e.stopPropagation(); dragItem.current = index; }}
+                                                 draggable
+                                                 onDragStart={() => (dragItem.current = index)}
+                                                 onDragEnter={() => { dragOverItem.current = index; setDragOverIndex(index); }} // [修改]
+                                                 onDragEnd={handleSort}
+                                                 onDragOver={(e) => e.preventDefault()}
+                                                 onClick={(e) => e.stopPropagation()}>
+                                                <GripVertical className="w-6 h-6" />
+                                            </div>
+                                            <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} className="text-stone-300 hover:text-red-500 p-2 -mr-2">
+                                                <Trash2 className="w-4 h-4"/>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </>
                 )}
             </div>
 
-            {/* 上下文選單 */}
+            {/* [新增] 懸浮操作選單 */}
             {contextMenu && (
                 <>
+                    {/* 背景遮罩：點擊空白處關閉選單 */}
                     <div className="fixed inset-0 z-[60]" onClick={() => setContextMenu(null)} />
-                    <div className={`fixed z-[70] ${theme.card} rounded-xl shadow-xl border ${theme.border} min-w-[160px] flex flex-col overflow-hidden`}
-                         style={{ top: Math.min(contextMenu.y, window.innerHeight - 150), left: Math.min(contextMenu.x, window.innerWidth - 160) }}>
-                        {contextMenu.type === 'category' && (
-                            <button onClick={handleMoveCategory} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border}`}>
-                                移動至其他總分類...
-                            </button>
-                        )}
-                        <button onClick={handleDelete} className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 font-bold text-sm flex items-center gap-2">
+                    
+                    {/* 選單本體：根據滑鼠/手指座標定位 */}
+                    <div 
+                        className={`fixed z-[70] ${theme.card} rounded-xl shadow-xl border ${theme.border} overflow-hidden min-w-[140px] animate-in fade-in zoom-in-95 duration-100 flex flex-col`}
+                        style={{ 
+                            // 智慧定位：防止選單超出螢幕邊界
+                            top: Math.min(contextMenu.y, window.innerHeight - 100), 
+                            left: Math.min(contextMenu.x, window.innerWidth - 140) 
+                        }}
+                    >
+                        <button onClick={handleRename} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border} flex items-center gap-2`}>
+                            <Edit className="w-4 h-4"/> 重新命名
+                        </button>
+                        <button onClick={handleDeleteFromMenu} className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 font-bold text-sm flex items-center gap-2">
                             <Trash2 className="w-4 h-4"/> 刪除
                         </button>
                     </div>
@@ -1119,14 +1349,9 @@ function EchoScriptApp() {
     const [activeTab, setActiveTab] = useState('favorites');
     const [notification, setNotification] = useState(null);
     
-    // [新增] 分類結構地圖 { "大分類": ["次分類1", "次分類2"] }
+    // [新增] 分類結構地圖 { "大分類": ["次分類1", "次分類2"] }，用於保留空分類
     const [categoryMap, setCategoryMap] = useState({});
-    // [新增] 總分類結構地圖 { "總分類": ["大分類1", "大分類2"] }
-    const [superCategoryMap, setSuperCategoryMap] = useState({
-        "敘事技巧": [], "智慧": [], "其他": [] // 預設值
-    });
-    
-    // [新增] 安全鎖：標記雲端設定是否已載入
+    // [新增] 安全鎖：標記雲端設定是否已載入，防止手機端在還沒拿到資料前，就用不完整的本地資料覆蓋雲端
     const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
     
     // [新增] 外觀主題狀態
@@ -1312,46 +1537,44 @@ function EchoScriptApp() {
         }
     };
 
-    // [同步] 當筆記更新時，將新的分類補入結構中 (支援總分類與大分類)
+    // [同步] 當筆記更新時，將新的分類補入結構中 (只增不減，達成保留效果)
+    // [修正] 加入 isSettingsLoaded 檢查，防止在雲端分類尚未下載前，就用本地不完整的資料覆蓋雲端
     useEffect(() => {
         if (notes.length === 0) return; 
 
-        const newCatMap = { ...categoryMap };
-        const newSuperMap = { ...superCategoryMap };
+        const newMap = { ...categoryMap };
         let hasChange = false;
 
         notes.forEach(n => {
-            const sup = n.superCategory || "其他";
-            const cat = n.category || "未分類";
-            const sub = n.subcategory || "一般";
+            const c = n.category || "未分類";
+            const s = n.subcategory || "一般";
             
-            // 1. 確保總分類存在並包含大分類
-            if (!newSuperMap[sup]) { newSuperMap[sup] = []; hasChange = true; }
-            if (!newSuperMap[sup].includes(cat)) { newSuperMap[sup].push(cat); hasChange = true; }
-
-            // 2. 確保大分類存在並包含次分類
-            if (!newCatMap[cat]) { newCatMap[cat] = []; hasChange = true; }
-            if (!newCatMap[cat].includes(sub)) { newCatMap[cat].push(sub); hasChange = true; }
+            if (!newMap[c]) { 
+                newMap[c] = []; 
+                hasChange = true; 
+            }
+            if (!newMap[c].includes(s)) { 
+                newMap[c].push(s); 
+                hasChange = true; 
+            }
         });
 
         if (hasChange) {
-            console.log("♻️ 發現新分類結構，更新本地顯示...");
-            setCategoryMap(newCatMap);
-            setSuperCategoryMap(newSuperMap);
+            console.log("♻️ 發現新分類，更新本地顯示...");
+            setCategoryMap(newMap);
             
+            // [關鍵修正] 只有當雲端設定已經載入過一次後，才允許寫回雲端
+            // 避免手機端剛開啟時，因為還沒拿到完整的分類表，就誤以為只有這幾個分類，而把雲端資料洗掉
             if (window.fs && window.db && isSettingsLoaded) {
                 console.log("☁️ 同步寫入雲端 settings/layout");
                 window.fs.setDoc(
                     window.fs.doc(window.db, "settings", "layout"), 
-                    { 
-                        categoryMapJSON: JSON.stringify(newCatMap),
-                        superCategoryMapJSON: JSON.stringify(newSuperMap)
-                    }, 
+                    { categoryMapJSON: JSON.stringify(newMap) }, 
                     { merge: true }
                 ).catch(e => console.error("自動同步分類失敗", e));
             }
         }
-    }, [notes, categoryMap, superCategoryMap, isSettingsLoaded]);
+    }, [notes, categoryMap, isSettingsLoaded]);
 
     // [存取] 持久化分類結構
     useEffect(() => {
@@ -1361,6 +1584,7 @@ function EchoScriptApp() {
     useEffect(() => { localStorage.setItem('echoScript_CategoryMap', JSON.stringify(categoryMap)); }, [categoryMap]);
 
     // [新增] 監聽雲端分類排序 (settings/layout)
+    // [修正] 優先讀取 JSON 字串格式，確保順序正確，並設定 isSettingsLoaded 標記
     useEffect(() => {
         if (!window.fs || !window.db) return;
         const unsubscribe = window.fs.onSnapshot(
@@ -1368,18 +1592,16 @@ function EchoScriptApp() {
             (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
-                    // 同步大分類地圖
                     if (data.categoryMapJSON) {
-                        try { setCategoryMap(JSON.parse(data.categoryMapJSON)); } catch (e) {}
-                    }
-                    // 同步總分類地圖
-                    if (data.superCategoryMapJSON) {
-                        try { 
-                            setSuperCategoryMap(JSON.parse(data.superCategoryMapJSON)); 
-                            console.log("📥 同步雲端總分類結構");
-                        } catch (e) {}
+                        console.log("📥 同步雲端分類排序 (JSON)");
+                        try {
+                            setCategoryMap(JSON.parse(data.categoryMapJSON));
+                        } catch (e) { console.error("解析排序失敗", e); }
+                    } else if (data.categoryMap) {
+                        setCategoryMap(data.categoryMap);
                     }
                 }
+                // [關鍵] 標記已完成首次載入 (無論有沒有資料)，允許後續的寫入操作
                 setIsSettingsLoaded(true);
             }
         );
@@ -1387,7 +1609,7 @@ function EchoScriptApp() {
     }, []);
 
     // [新增] 儲存 AllNotesModal 的內部導航層級狀態，用於支援 PopState
-    const [allNotesViewLevel, setAllNotesViewLevel] = useState('superCategories'); // superCategories -> categories -> subcategories -> notes
+    const [allNotesViewLevel, setAllNotesViewLevel] = useState('categories'); // 'categories', 'subcategories', 'notes'
     // 新增 Ref 以解決 EventListener 閉包狀態不同步導致的導航錯誤
     const allNotesViewLevelRef = useRef(allNotesViewLevel);
     useEffect(() => { allNotesViewLevelRef.current = allNotesViewLevel; }, [allNotesViewLevel]);
@@ -2815,24 +3037,23 @@ function EchoScriptApp() {
                     setNotes={setNotes} 
                     categoryMap={categoryMap}
                     setCategoryMap={setCategoryMap}
-                    superCategoryMap={superCategoryMap} // [新增]
-                    setSuperCategoryMap={setSuperCategoryMap} // [新增]
-                    setHasDataChangedInSession={setHasDataChangedInSession}
+                    setHasDataChangedInSession={setHasDataChangedInSession} // [新增] 傳遞狀態設定器
                     // 關閉時重置狀態
                     onClose={() => { 
                         setShowAllNotesModal(false); 
-                        setAllNotesViewLevel('superCategories'); // 回到最上層
+                        setAllNotesViewLevel('categories'); 
                     }}
                     onItemClick={(item) => {
                         const idx = notes.findIndex(n => n.id === item.id);
                         if(idx !== -1) {
                             setCurrentIndex(idx);
                             setShowAllNotesModal(false);
-                            setAllNotesViewLevel('superCategories');
+                            setAllNotesViewLevel('categories'); // 關閉時重置狀態
                             window.scrollTo(0,0);
                         }
                     }}
                     onDelete={handleDeleteNote}
+                    // 傳遞狀態與設定器
                     viewLevel={allNotesViewLevel}
                     setViewLevel={setAllNotesViewLevel}
                     theme={theme}
@@ -2906,8 +3127,6 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
-
-
 
 
 

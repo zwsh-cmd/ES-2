@@ -102,6 +102,7 @@ const Underline = (props) => <IconBase d={["M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3
 const Calendar = (props) => <IconBase d={["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18"]} {...props} />;
 const GripVertical = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>;
 const Pin = (props) => <IconBase d={["M2 12h10", "M9 4v16", "M3 7l3 3", "M3 17l3-3", "M12 2l3 3", "M12 22l3-3"]} d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" {...props} d={["M12 17v5", "M9 2h6v2l-1 1v8l4 4H6l4-4V5l-1-1V2z"]} />; // 使用 Pushpin 樣式
+const MoveRight = (props) => <IconBase d={["M13 5l7 7-7 7", "M5 12h14"]} {...props} />;
 
 
 // === 2. 初始筆記資料庫 (確保有完整分類) ===
@@ -666,7 +667,7 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 };
 
 // === 6. 所有筆記列表 Modal (支援分類顯示) ===
-// [修改] 接收 superCategoryMap 以支援總分類
+// [修改] 接收 superCategoryMap 以支援總分類，並新增 handleMove 邏輯
 const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLevel, setViewLevel, categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, setHasDataChangedInSession, theme }) => {
     // 狀態管理：目前選中的層級
     const [selectedSuper, setSelectedSuper] = useState(null);
@@ -764,6 +765,132 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         }
     };
 
+    // [新增] 處理移動邏輯
+    const handleMove = async () => {
+        if (!contextMenu) return;
+        const { type, item } = contextMenu;
+        
+        let targetList = [];
+        let promptMsg = "";
+        
+        if (type === 'category') {
+            // 移動「大分類」 -> 到不同的「總分類」
+            targetList = Object.keys(superCategoryMap).filter(k => k !== selectedSuper);
+            promptMsg = `將大分類「${item}」移動到哪個總分類？\n(現有: ${targetList.join(', ')})`;
+        } else if (type === 'subcategory') {
+            // 移動「次分類」 -> 到不同的「大分類」
+            targetList = Object.keys(categoryMap).filter(k => k !== selectedCategory);
+             promptMsg = `將次分類「${item}」移動到哪個大分類？\n(現有: ${targetList.join(', ')})`;
+        } else if (type === 'note') {
+             // 移動「筆記」 -> 到不同的「次分類」 (限定在同一大分類下)
+             targetList = (categoryMap[selectedCategory] || []).filter(s => s !== selectedSubcategory);
+             promptMsg = `將筆記「${item.title}」移動到哪個次分類？\n(現有: ${targetList.join(', ')})`;
+        }
+
+        if (targetList.length === 0) {
+            alert("沒有其他可移動的目標分類");
+            setContextMenu(null);
+            return;
+        }
+
+        const target = prompt(promptMsg);
+        if (!target) return;
+        
+        if (!targetList.includes(target)) {
+            alert("找不到該目標分類，請確認名稱輸入正確（需完全一致）。");
+            return;
+        }
+
+        // 開始執行移動
+        const updates = [];
+        
+        if (type === 'category') {
+            const newSuper = target;
+            // 1. 更新 SuperCategoryMap
+            const newSuperMap = { ...superCategoryMap };
+            // 從舊的移除
+            newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== item);
+            // 加入新的
+            if (!newSuperMap[newSuper]) newSuperMap[newSuper] = [];
+            newSuperMap[newSuper].push(item);
+            setSuperCategoryMap(newSuperMap);
+            
+            if (window.fs && window.db) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
+            }
+
+            // 2. 更新所有該分類下的筆記
+            const newNotes = notes.map(n => {
+                if ((n.category || "未分類") === item) {
+                     if (window.fs && window.db) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { superCategory: newSuper }, { merge: true }));
+                    }
+                    return { ...n, superCategory: newSuper };
+                }
+                return n;
+            });
+            setNotes(newNotes);
+
+        } else if (type === 'subcategory') {
+            const newCat = target;
+            // 1. 更新 CategoryMap
+            const newCatMap = { ...categoryMap };
+            // 從舊的移除
+            newCatMap[selectedCategory] = newCatMap[selectedCategory].filter(s => s !== item);
+            // 加入新的
+            if (!newCatMap[newCat]) newCatMap[newCat] = [];
+            newCatMap[newCat].push(item);
+            setCategoryMap(newCatMap);
+
+            if (window.fs && window.db) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
+            }
+
+            // 2. 尋找新分類所屬的總分類 (SuperCategory)
+            let newSuper = null;
+            Object.entries(superCategoryMap).forEach(([sKey, cats]) => {
+                if (cats.includes(newCat)) newSuper = sKey;
+            });
+
+            // 3. 更新相關筆記
+            const newNotes = notes.map(n => {
+                if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
+                    const updateData = { category: newCat };
+                    if (newSuper) updateData.superCategory = newSuper; // 若跨總分類移動，一併更新
+
+                    if (window.fs && window.db) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), updateData, { merge: true }));
+                    }
+                    return { ...n, ...updateData };
+                }
+                return n;
+            });
+            setNotes(newNotes);
+
+        } else if (type === 'note') {
+             const newSub = target;
+             const newNotes = notes.map(n => {
+                if (n.id === item.id) {
+                    if (window.fs && window.db) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { subcategory: newSub }, { merge: true }));
+                    }
+                    return { ...n, subcategory: newSub };
+                }
+                return n;
+            });
+            setNotes(newNotes);
+        }
+
+        if (updates.length > 0) {
+            try {
+                await Promise.all(updates);
+                console.log("✅ 移動同步完成");
+            } catch(e) { console.error("移動失敗", e); }
+        }
+        setContextMenu(null);
+        if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+    };
+
     const handleDelete = () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
@@ -771,12 +898,16 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         // 刪除邏輯：確保該分類下沒有筆記
         let hasNotes = false;
         if (type === 'superCategory') {
-            // 檢查該總分類下是否有任何大分類有筆記 (簡化：若有大分類則不給刪)
             if (superCategoryMap[item] && superCategoryMap[item].length > 0) hasNotes = true;
         } else if (type === 'category') {
             hasNotes = notes.some(n => (n.category || "未分類") === item);
         } else if (type === 'subcategory') {
             hasNotes = notes.some(n => (n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item);
+        } else if (type === 'note') {
+            // 筆記直接刪除
+            onDelete(item.id);
+            setContextMenu(null);
+            return;
         }
 
         if (hasNotes) { alert(`「${item}」下還有內容，無法刪除！`); return; }
@@ -793,7 +924,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                 setSuperCategoryMap(newMap);
                 syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
                 
-                // 同步刪除 subcategories
                 const newCatMap = { ...categoryMap };
                 delete newCatMap[item];
                 setCategoryMap(newCatMap);
@@ -809,9 +939,12 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         }
     };
     
-    // 重新命名 (暫不支援，簡化版)
+    // 重新命名
     const handleRename = () => {
-         // 這裡省略詳細的重新命名邏輯 (涉及 Map Key 變更與 Note 變更)，避免程式碼過長
+         if (!contextMenu) return;
+         const { type, item } = contextMenu;
+         if (type === 'note') { alert("筆記請直接點擊進入編輯模式修改。"); return; }
+
          alert("暫不支援直接重新命名，請建立新分類後將筆記移動過去。");
          setContextMenu(null);
     };
@@ -828,17 +961,24 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
     };
     const handleTouchEnd = () => handleSort();
     
-    const bindLongPress = (item, type) => {
+    const bindLongPress = (onLongPress, onClick) => {
         const start = (e) => {
             const cx = e.touches ? e.touches[0].clientX : e.clientX;
             const cy = e.touches ? e.touches[0].clientY : e.clientY;
             pressTimer.current = setTimeout(() => {
                 if (navigator.vibrate) navigator.vibrate(50);
-                setContextMenu({ visible: true, x: cx, y: cy, type, item });
+                onLongPress(cx, cy);
             }, 600);
         };
         const end = () => clearTimeout(pressTimer.current);
-        return { onMouseDown: start, onTouchStart: start, onMouseUp: end, onMouseLeave: end, onTouchEnd: end };
+        return { 
+            onMouseDown: start, onTouchStart: start, 
+            onMouseUp: end, onMouseLeave: end, onTouchEnd: end,
+            onClick: (e) => {
+                if (pressTimer.current) clearTimeout(pressTimer.current);
+                onClick(e);
+            }
+        };
     };
 
     // 返回邏輯
@@ -908,15 +1048,17 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                         return (
                             <div key={isNote ? item.id : item} 
                                  data-index={index}
-                                 {...(!isNote ? bindLongPress(item, viewLevel.slice(0, -1)) : {})} // 筆記不支援長按選單
-                                 onClick={() => {
-                                     if (isNote) onItemClick(item);
-                                     else {
-                                         if (viewLevel === 'superCategories') { setSelectedSuper(item); setViewLevel('categories'); }
-                                         else if (viewLevel === 'categories') { setSelectedCategory(item); setViewLevel('subcategories'); }
-                                         else if (viewLevel === 'subcategories') { setSelectedSubcategory(item); setViewLevel('notes'); }
+                                 {...bindLongPress(
+                                     (x, y) => setContextMenu({ visible: true, x, y, type: isNote ? 'note' : viewLevel.slice(0, -1), item }),
+                                     () => {
+                                         if (isNote) onItemClick(item);
+                                         else {
+                                             if (viewLevel === 'superCategories') { setSelectedSuper(item); setViewLevel('categories'); }
+                                             else if (viewLevel === 'categories') { setSelectedCategory(item); setViewLevel('subcategories'); }
+                                             else if (viewLevel === 'subcategories') { setSelectedSubcategory(item); setViewLevel('notes'); }
+                                         }
                                      }
-                                 }}
+                                 )}
                                  className={`
                                     ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : `${theme.card} ${theme.border}`} 
                                     ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2' : ''} 
@@ -948,8 +1090,11 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             {contextMenu && (
                 <>
                     <div className="fixed inset-0 z-[60]" onClick={() => setContextMenu(null)} />
-                    <div className={`fixed z-[70] ${theme.card} rounded-xl shadow-xl border ${theme.border} min-w-[140px] flex flex-col overflow-hidden`}
-                         style={{ top: Math.min(contextMenu.y, window.innerHeight - 150), left: Math.min(contextMenu.x, window.innerWidth - 140) }}>
+                    <div className={`fixed z-[70] ${theme.card} rounded-xl shadow-xl border ${theme.border} min-w-[160px] flex flex-col overflow-hidden`}
+                         style={{ top: Math.min(contextMenu.y, window.innerHeight - 150), left: Math.min(contextMenu.x, window.innerWidth - 160) }}>
+                        <button onClick={handleMove} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border} flex items-center gap-2`}>
+                            <MoveRight className="w-4 h-4"/> 移動
+                        </button>
                         <button onClick={handleRename} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border} flex items-center gap-2`}>
                             <Edit className="w-4 h-4"/> 重新命名
                         </button>
@@ -2865,6 +3010,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

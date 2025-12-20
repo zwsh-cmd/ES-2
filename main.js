@@ -2183,10 +2183,12 @@ function EchoScriptApp() {
     const handleDeleteNote = (id) => {
         if (confirm("確定要刪除這則筆記嗎？此動作無法復原。")) {
             // 1. 先找出這張筆記「刪除前」的 Index
-            const deletedIndex = notes.findIndex(n => n.id === id);
+            // [修正] 強制轉 String 比較，避免數字/字串型別不符導致找不到
+            const deletedIndex = notes.findIndex(n => String(n.id) === String(id));
 
             // 2. 執行刪除 (更新筆記列表 - 本地 React State 先跑，確保 UI 反應快)
-            const newNotes = notes.filter(n => n.id !== id);
+            // [修正] 強制轉 String 比較，確保筆記真的被濾掉
+            const newNotes = notes.filter(n => String(n.id) !== String(id));
             setNotes(newNotes);
 
             // [修正] 同步從編輯歷史中移除該筆記 (加入自我修復機制)
@@ -2194,11 +2196,12 @@ function EchoScriptApp() {
                 const validHistory = Array.isArray(prevHistory) ? prevHistory : [];
                 
                 // 1. 建立「合法 ID 白名單」：只有還在 newNotes 裡的筆記才是合法的
+                // 注意：這裡的 newNotes 已經排除了被刪除的筆記 (因為上面用了 String 比較)
                 const validNoteIds = new Set(newNotes.map(n => String(n.id)));
                 
                 // 2. 過濾歷史紀錄：
-                //    (a) 移除剛被刪除的 ID (h.id !== id)
-                //    (b) 順便移除所有不在白名單內的「幽靈資料」(validNoteIds.has(h.id))
+                //    (a) 移除剛被刪除的 ID (String(h.id) !== String(id))
+                //    (b) 順便移除所有不在白名單內的「幽靈資料」(validNoteIds.has)
                 const newHistory = validHistory.filter(h => 
                     h && 
                     String(h.id) !== String(id) && 
@@ -2221,7 +2224,6 @@ function EchoScriptApp() {
             });
 
             // [新增] 同步刪除雲端資料 (Firestore)
-            // 必須執行這一步，否則 onSnapshot 會把刪除的筆記又抓回來
             try {
                 if (window.fs && window.db) {
                     window.fs.deleteDoc(window.fs.doc(window.db, "notes", String(id)));
@@ -2957,6 +2959,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

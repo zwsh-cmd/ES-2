@@ -1918,18 +1918,31 @@ function EchoScriptApp() {
 
         setHistory(prev => {
             const safePrev = Array.isArray(prev) ? prev : [];
-            const targetId = String(note.id);
 
-            // [修正邏輯] 使用 filter 先移除舊的相同 ID 項目，再將新的插到最前面
-            // 這樣做比 Set 迴圈更直觀且不易出錯，能確保無論舊資料是否有重複，都會被清乾淨：
-            // 1. 找出所有「ID 不等於」目前筆記的舊紀錄 (保留其他筆記)
-            const otherNotes = safePrev.filter(h => h && String(h.id) !== targetId);
+            // [強制修正] 改用 Map 資料結構進行去重
+            // 原理：Map 的 Key 是唯一的。我們依序放入資料，如果 ID 已經存在，Map 就不會重複計算 (或我們控制只留第一筆)。
+            // 這裡採用「優先保留最新」的策略：
             
-            // 2. 將新筆記 (entry) 放在最前面，後面接剩下的舊筆記
-            const result = [entry, ...otherNotes];
+            const uniqueMap = new Map();
+            
+            // 1. 將「最新這筆」與「舊歷史」合併成一個暫時陣列，新筆記排在最前面
+            const combinedList = [entry, ...safePrev];
 
-            // 限制最大筆數為 50
-            return result.slice(0, 50);
+            // 2. 遍歷陣列，將 ID 存入 Map
+            combinedList.forEach(item => {
+                if (item && item.id !== undefined && item.id !== null) {
+                    const idStr = String(item.id); // 強制轉字串當 Key，避免型別不一致
+                    
+                    // 只有當 Map 裡還沒有這個 ID 時才加入
+                    // 因為我們是從最新的開始遍歷 (index 0)，所以 Map 裡永遠只會保留該 ID 最新的那個版本
+                    if (!uniqueMap.has(idStr)) {
+                        uniqueMap.set(idStr, item);
+                    }
+                }
+            });
+
+            // 3. 將 Map 的 Values 轉回陣列，並限制數量
+            return Array.from(uniqueMap.values()).slice(0, 50);
         });
     };
 
@@ -3093,6 +3106,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

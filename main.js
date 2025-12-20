@@ -2190,10 +2190,14 @@ function EchoScriptApp() {
             setNotes(newNotes);
 
             // [修正] 同步從編輯歷史中移除該筆記
-            // 改為立即計算並強制寫入雲端，避免依賴 useEffect 的延遲更新導致資料回朔
-            const newHistory = history.filter(h => String(h.id) !== String(id));
+            // 強制過濾並立即同步到所有儲存層 (State, LocalStorage, Cloud)，防止資料回朔
+            const newHistory = history.filter(h => h && String(h.id) !== String(id));
             setHistory(newHistory);
             
+            // 1. 強制更新 LocalStorage (防止重整後舊資料跑出來)
+            localStorage.setItem('echoScript_History', JSON.stringify(newHistory));
+            
+            // 2. 強制更新雲端 (覆蓋 settings/history)
             if (window.fs && window.db) {
                  window.fs.setDoc(
                     window.fs.doc(window.db, "settings", "history"), 
@@ -2939,6 +2943,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

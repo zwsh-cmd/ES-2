@@ -1910,17 +1910,37 @@ function EchoScriptApp() {
     const showNotification = (msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); };
 
     const addToHistory = (note) => {
-        if(!note) return;
+        // 防呆：確保筆記物件與 ID 存在
+        if (!note || !note.id) return;
         
-        // 建立歷史紀錄項目 (包含時間戳記與顯示ID)
+        // 建立新的歷史紀錄物件 (加上時間戳記)
         const entry = { ...note, timestamp: new Date().toISOString(), displayId: Date.now() };
         
         setHistory(prev => {
-            // [修改] 確保歷史紀錄是「卡片」而非「編輯行為」
-            // 邏輯：同一張卡片 ID 在歷史列表中只能出現一次 (最新的版本)
-            // 作法：先過濾掉舊的該卡片紀錄，再將最新的這筆加入最前面
-            const filtered = prev.filter(h => String(h.id) !== String(note.id));
-            return [entry, ...filtered].slice(0, 50);
+            const safePrev = Array.isArray(prev) ? prev : [];
+            
+            // [重構] 使用 Set 與迴圈進行嚴格去重
+            // 邏輯：
+            // 1. 先放入最新的這筆紀錄 (entry)
+            // 2. 遍歷舊紀錄，只有「ID 尚未出現過」的才放進來
+            // 這樣能保證同一張卡片 ID 絕對只出現一次，且最新的在最上面
+            
+            const uniqueHistory = [entry];
+            const seenIds = new Set([String(note.id)]); // 記錄已存在的 ID
+            
+            for (const h of safePrev) {
+                // 過濾無效資料 (沒有 ID 的舊紀錄不保留)
+                if (h && h.id) {
+                    const hId = String(h.id);
+                    if (!seenIds.has(hId)) {
+                        uniqueHistory.push(h);
+                        seenIds.add(hId);
+                    }
+                }
+            }
+            
+            // 限制最大筆數
+            return uniqueHistory.slice(0, 50);
         });
     };
 
@@ -3084,6 +3104,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

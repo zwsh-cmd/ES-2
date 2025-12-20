@@ -2191,10 +2191,12 @@ function EchoScriptApp() {
                     // 2. 顯示「無內容卡片」並設 index 為 -1 (暫停顯示筆記)
                     setShowPinnedPlaceholder(true);
                     nextIdx = -1;
+                    
+                    // 清除 ResumeID，避免雲端同步時亂跳
+                    localStorage.removeItem('echoScript_ResumeNoteId');
                 } else {
                     // === 情況 B: 刪除的是一般筆記 ===
                     // 邏輯：刪除後，跳轉到剩餘筆記中「修改時間最新」的那一張
-                    // 這代表「除了剛刪除這張以外，前一個被修改/編輯過的卡片」
                     const latestNote = [...newNotes].sort((a, b) => {
                         const dateA = new Date(a.modifiedDate || a.createdDate || 0);
                         const dateB = new Date(b.modifiedDate || b.createdDate || 0);
@@ -2203,8 +2205,21 @@ function EchoScriptApp() {
                     
                     if (latestNote) {
                         nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
+                        
+                        // [關鍵修正] 立即更新 ResumeNoteId 為即將跳轉的卡片
+                        // 這樣當雲端監聽器 (onSnapshot) 因為刪除動作被觸發時，
+                        // 它會讀到這個新的 ID，而不是舊的(已刪除的) ID，從而正確停留在這張卡片，不會跳回釘選筆記
+                        const targetId = String(latestNote.id);
+                        localStorage.setItem('echoScript_ResumeNoteId', targetId);
+                        if (window.fs && window.db) {
+                            window.fs.setDoc(
+                                window.fs.doc(window.db, "settings", "preferences"), 
+                                { resumeNoteId: targetId }, 
+                                { merge: true }
+                            );
+                        }
                     } else {
-                        nextIdx = 0; // 若無其他筆記，回第一張
+                        nextIdx = 0; 
                     }
                     setShowPinnedPlaceholder(false);
                 }
@@ -2212,6 +2227,7 @@ function EchoScriptApp() {
                 // 全部刪光了
                 setShowPinnedPlaceholder(false);
                 nextIdx = -1;
+                localStorage.removeItem('echoScript_ResumeNoteId');
             }
             
             setCurrentIndex(nextIdx);
@@ -2896,6 +2912,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

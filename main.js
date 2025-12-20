@@ -1912,7 +1912,12 @@ function EchoScriptApp() {
     const addToHistory = (note) => {
         if(!note) return;
         const entry = { ...note, timestamp: new Date().toISOString(), displayId: Date.now() };
-        setHistory(prev => [entry, ...prev].slice(0, 50));
+        
+        setHistory(prev => {
+            // [修正] 移除舊的相同筆記紀錄，確保歷史列表中每則筆記只出現一次 (最新的排前面)
+            const filtered = prev.filter(h => String(h.id) !== String(note.id));
+            return [entry, ...filtered].slice(0, 50);
+        });
     };
 
     const currentNote = notes[currentIndex];
@@ -3075,6 +3080,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

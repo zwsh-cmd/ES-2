@@ -1912,38 +1912,22 @@ function EchoScriptApp() {
     const addToHistory = (note) => {
         // 防呆：確保筆記物件與 ID 存在
         if (!note || note.id === undefined || note.id === null) return;
-        
+
         // 建立新的歷史紀錄物件 (加上時間戳記)
         const entry = { ...note, timestamp: new Date().toISOString(), displayId: Date.now() };
-        
+
         setHistory(prev => {
             const safePrev = Array.isArray(prev) ? prev : [];
+            const targetId = String(note.id);
+
+            // [修正邏輯] 使用 filter 先移除舊的相同 ID 項目，再將新的插到最前面
+            // 這樣做比 Set 迴圈更直觀且不易出錯，能確保無論舊資料是否有重複，都會被清乾淨：
+            // 1. 找出所有「ID 不等於」目前筆記的舊紀錄 (保留其他筆記)
+            const otherNotes = safePrev.filter(h => h && String(h.id) !== targetId);
             
-            // [終極修正] 使用 Set 進行全域去重，確保同一 ID 絕對只出現一次
-            // 邏輯：
-            // 1. 建立一個 result 陣列，先放入最新的這筆 (entry)
-            // 2. 建立一個 seenIds 集合，記錄已經放入 result 的 ID
-            // 3. 遍歷舊的歷史紀錄 (safePrev)，如果該 ID 還沒出現過，才放入 result
-            // 這樣可以保證：
-            //    A. 最新的 entry 一定在最上面 (index 0)
-            //    B. 舊的同 ID 紀錄會被忽略 (因為 seenIds 已經有了)
-            //    C. 即使舊資料裡原本就有重複的 ID，也會在這次操作中被一併清洗掉
-            
-            const result = [entry];
-            const seenIds = new Set([String(note.id)]); // 先記錄新筆記的 ID
-            
-            for (const h of safePrev) {
-                // 過濾無效資料 (確保有 ID)
-                if (h && (h.id !== undefined && h.id !== null)) {
-                    const hId = String(h.id);
-                    // 只有當這個 ID 還沒被加入過時，才保留 (舊的就被丟棄了)
-                    if (!seenIds.has(hId)) {
-                        result.push(h);
-                        seenIds.add(hId);
-                    }
-                }
-            }
-            
+            // 2. 將新筆記 (entry) 放在最前面，後面接剩下的舊筆記
+            const result = [entry, ...otherNotes];
+
             // 限制最大筆數為 50
             return result.slice(0, 50);
         });
@@ -3109,6 +3093,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

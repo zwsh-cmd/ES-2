@@ -1720,6 +1720,7 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
+                // 推入一個 trap 狀態來抵銷使用者的返回動作
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1736,52 +1737,53 @@ function EchoScriptApp() {
             const state = event.state || {};
 
             // 情況 1: 歷史紀錄指示我們應該在「列表模式」
+            // (通常發生在歷史前進，或重新載入時)
             if (state.page === 'modal') {
                 if (!showAllNotesModal) {
                     isRestoringHistoryRef.current = true;
                     setShowAllNotesModal(true);
                 }
-                
-                // [關鍵修正] 根據歷史狀態決定是否顯示搜尋內容
-                // 如果歷史狀態沒有 search 標記，但 UI 有搜尋文字 -> 代表使用者按了返回鍵想退出搜尋
-                if (!state.search && categorySearchTermRef.current) {
-                    setCategorySearchTerm("");
-                    categorySearchTermRef.current = "";
-                    isSearchHistoryPushed.current = false; // 同步狀態
+                // 如果是透過歷史紀錄回到搜尋狀態，也要還原
+                if (state.search && !categorySearchTermRef.current) {
+                    // 這裡可以選擇是否要還原搜尋文字，或者保持空白
                 }
-
                 if (state.level) {
                     setAllNotesViewLevel(state.level);
                 }
                 return;
             }
 
-            // 情況 2: 歷史紀錄已離開列表 (例如退到了 Home)，但視窗還開著 -> 這是使用者按了返回鍵
+            // 情況 2: 歷史紀錄已離開列表 (使用者按了返回鍵)，但視窗還開著
             if (showAllNotesModal && state.page !== 'modal') {
                 
-                // [關鍵修正] 新邏輯下，這裡不需要再做複雜的 pushState 補救
-                // 因為我們在搜尋開始時已經建立了歷史層級。
-                // 如果跑到這裡，代表使用者已經退出了 'modal_search' 並且也退出了 'modal' 層級
+                // [關鍵修正] 2-1. 搜尋狀態下的返回處理 (搜尋 -> 總分類)
+                if (categorySearchTermRef.current) {
+                    // 1. 同步推入歷史紀錄，把使用者「關」在視窗內
+                    window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
+                    
+                    // 2. 清除搜尋狀態，回到總分類介面
+                    setCategorySearchTerm(""); 
+                    categorySearchTermRef.current = ""; // 手動同步 Ref
+                    setAllNotesViewLevel('superCategories'); 
+                    return;
+                }
+
+                // [關鍵修正] 2-2. 正常關閉視窗 (總分類 -> 首頁卡片)
+                // 為了防止回到首頁後再按返回直接閃退，我們必須在這裡建立「首頁防護網 (Home Trap)」
                 
-                // 1. 關閉視窗
+                // 1. 推入 Home Trap
+                // 這樣瀏覽器堆疊會變成 [..., Home (current), Home Trap (new)]
+                // 當使用者下次按返回時，會 Pop 這個 Trap，觸發下方的 Section E
+                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+
+                // 2. 執行 UI 關閉
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
                 
-                // 2. 清除搜尋狀態 (以防萬一)
-                if (categorySearchTermRef.current) {
-                    setCategorySearchTerm("");
-                    categorySearchTermRef.current = "";
-                    isSearchHistoryPushed.current = false;
-                }
-
                 // 3. 還原到開啟前的卡片
                 if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
                     setCurrentIndex(preModalIndexRef.current);
                 }
-                
-                // 4. [建立首頁防護網]
-                // 為了確保回到首頁後，再按一次返回能觸發確認視窗，我們在這裡補一個 Trap
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
                 return;
             }
@@ -1789,6 +1791,7 @@ function EchoScriptApp() {
             // === D. 正常關閉其他視窗 ===
             const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal;
             if (isAnyOtherModalOpen) {
+                // 關閉任何視窗後，都要補一個防護網，確保回到首頁是安全的
                 window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
                 
                 setShowMenuModal(false);
@@ -1799,29 +1802,37 @@ function EchoScriptApp() {
             }
 
             // === E. 首頁退出檢查 (攔截所有退出動作) ===
-            // 當堆疊已經退無可退，觸發此處
+            // 當堆疊已經退無可退 (或退到了 trap 之前)，觸發此處
             
-            // 1. 先把人留住 (Trap)
+            // 1. [絕對攔截] 無論如何，先推入一個 Trap，抵銷使用者的返回動作
+            // 這保證了 APP 不會直接關閉，給我們機會顯示確認視窗
             window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
-            // 2. 檢查資料變更
+            // 2. 檢查資料變更 (備份提示)
             if (hasDataChangedInSessionRef.current) {
                 if (confirm("您本次使用已更動過資料，離開前是否前往備份？")) {
                     setShowMenuModal(true);
                     setActiveTab('settings');
                     setHasDataChangedInSession(false); 
-                    return;
+                    return; // 使用者選擇去備份，不退出
                 }
+                // 如果使用者選擇「取消」(不備份)，程式碼會繼續往下執行 -> 顯示退出確認
             }
 
-            // 3. 退出確認提示
+            // 3. [退出確認] 這是最後一道防線，確保所有退出行為都要經過這裡
+            // 使用 setTimeout 確保 UI 渲染不會被 confirm 阻塞
             setTimeout(() => {
                 if (confirm("確定退出EchoScript?")) {
                     isExitingRef.current = true;
+                    // 回退兩步：一步是剛剛在 Step 1 推入的 trap，一步是原本使用者的返回動作
                     window.history.go(-2);
                 }
             }, 10);
         };
+
+        // 確保在組件掛載時，如果是首頁，也推入一個初始防護網 (防止一進來按返回就退)
+        // 注意：這可能會導致歷史紀錄變多，但能確保安全性。
+        // 為避免無限迴圈，我們只在沒有任何 modal 開啟且歷史狀態為空時做一次 (這裡省略，依賴上述邏輯即可)
 
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
@@ -3204,6 +3215,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

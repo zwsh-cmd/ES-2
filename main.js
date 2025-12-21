@@ -667,11 +667,17 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 };
 
 // === 6. 所有筆記列表 Modal (支援分類顯示) ===
-// [修改] 1. 大分類標題加入「| 大分類」 2. 筆記項目使用不同背景色與邊框樣式
-const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLevel, setViewLevel, categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, setHasDataChangedInSession, theme }) => {
-    const [selectedSuper, setSelectedSuper] = useState(null);
-    const [selectedCategory, setSelectedCategory] = useState(null);
-    const [selectedSubcategory, setSelectedSubcategory] = useState(null);
+// [修正] 接收來自父層的 selected 狀態，取代內部的 useState
+const AllNotesModal = ({ 
+    notes, setNotes, onClose, onItemClick, onDelete, 
+    viewLevel, setViewLevel, 
+    selectedSuper, setSelectedSuper,       // [新增] 接收狀態
+    selectedCategory, setSelectedCategory, // [新增] 接收狀態
+    selectedSubcategory, setSelectedSubcategory, // [新增] 接收狀態
+    categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, 
+    setHasDataChangedInSession, theme 
+}) => {
+    // 移除內部的 selected 狀態，改用 props 傳進來的
     const [searchTerm, setSearchTerm] = useState("");
     
     const [draggingIndex, setDraggingIndex] = useState(null);
@@ -1505,6 +1511,12 @@ function EchoScriptApp() {
 
     // [新增] 儲存 AllNotesModal 的內部導航層級狀態，用於支援 PopState
     const [allNotesViewLevel, setAllNotesViewLevel] = useState('superCategories'); // superCategories -> categories -> subcategories -> notes
+    
+    // [關鍵修正] 將分類選擇狀態提升至主程式，確保從筆記返回列表時，這些狀態不會因為 Modal 關閉而遺失
+    const [selectedSuper, setSelectedSuper] = useState(null);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [selectedSubcategory, setSelectedSubcategory] = useState(null);
+
     // 新增 Ref 以解決 EventListener 閉包狀態不同步導致的導航錯誤
     const allNotesViewLevelRef = useRef(allNotesViewLevel);
     useEffect(() => { allNotesViewLevelRef.current = allNotesViewLevel; }, [allNotesViewLevel]);
@@ -2905,24 +2917,28 @@ function EchoScriptApp() {
                     setNotes={setNotes} 
                     categoryMap={categoryMap}
                     setCategoryMap={setCategoryMap}
-                    superCategoryMap={superCategoryMap} // [新增]
-                    setSuperCategoryMap={setSuperCategoryMap} // [新增]
+                    superCategoryMap={superCategoryMap}
+                    setSuperCategoryMap={setSuperCategoryMap}
                     setHasDataChangedInSession={setHasDataChangedInSession}
-                    // 關閉時重置狀態
+                    
+                    // [關鍵修正] 傳遞狀態給子視窗，確保關閉重開後狀態還在
+                    selectedSuper={selectedSuper} setSelectedSuper={setSelectedSuper}
+                    selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
+                    selectedSubcategory={selectedSubcategory} setSelectedSubcategory={setSelectedSubcategory}
+
                     onClose={() => { 
                         setShowAllNotesModal(false); 
-                        setAllNotesViewLevel('superCategories'); // 回到最上層
+                        setAllNotesViewLevel('superCategories'); 
+                        // 關閉視窗時可以選擇是否要重置選取狀態，這裡保留狀態以防使用者是不小心關閉的
                     }}
                     onItemClick={(item) => {
                         const idx = notes.findIndex(n => n.id === item.id);
                         if(idx !== -1) {
                             setCurrentIndex(idx);
                             setShowAllNotesModal(false);
+                            // 這裡不清除 selected 狀態，確保按返回時能回到原本的列表位置
                             
-                            // [關鍵修改] 點擊筆記時，推入一個「閱讀狀態」到歷史紀錄
-                            // 這樣當使用者按「返回」時，會退回到上一個狀態 (即 page: 'modal')，進而觸發重新開啟列表
                             window.history.pushState({ page: 'reading_from_list', noteId: item.id }, '', '');
-                            
                             window.scrollTo(0,0);
                         }
                     }}
@@ -3000,6 +3016,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

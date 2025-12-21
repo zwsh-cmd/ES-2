@@ -2130,32 +2130,59 @@ function EchoScriptApp() {
     const isFavorite = favorites.some(f => f.id === (currentNote ? currentNote.id : null));
     const currentNoteResponses = currentNote ? (allResponses[currentNote.id] || []) : [];
 
-    // [修改] 接收 mode 參數以支援同分類隨機
-    const handleNextNote = (mode) => {
+    // [修改] 統一使用「同分類隨機」邏輯 (移除全域洗牌)
+    // 無論是透過按鈕(local)或左滑(無參數)，現在一律只在同分類中切換
+    const handleNextNote = () => {
         if (notes.length <= 1) return;
-        // [修正] 移除清除 ResumeNoteId 的邏輯，確保首頁按鈕永遠能回到最後編輯/關注的卡片
 
-        // === [新增邏輯] 同分類隨機抽卡 (Local Shuffle) ===
-        // 只有當按鈕傳入 'local' 且當前有筆記時，才執行限定範圍的隨機
-        if (mode === 'local' && currentNote) {
-            setIsAnimating(true);
-            setTimeout(() => {
-                const targetSuper = currentNote.superCategory || "其他";
-                // 1. 找出所有屬於該總分類的筆記索引
-                const candidateIndices = notes
+        setIsAnimating(true);
+        setTimeout(() => {
+            // === 1. 優先檢查「未來堆疊」 (History Redo) ===
+            // 這是為了讓「上一張」按鈕能正常運作，按下一張時能回到原本的路徑
+            if (futureIndices.length > 0) {
+                const nextIndex = futureIndices[0];
+                setFutureIndices(prev => prev.slice(1)); // 移除未來的第一張
+                
+                setRecentIndices(prev => {
+                    let currentHistory = [...prev];
+                    // 確保歷史紀錄有當前這張作為錨點
+                    if (currentIndex !== -1) {
+                        if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
+                            currentHistory.unshift(currentIndex);
+                        }
+                    }
+                    return [nextIndex, ...currentHistory];
+                });
+                
+                setCurrentIndex(nextIndex);
+                setIsAnimating(false);
+                window.scrollTo(0,0);
+                return;
+            }
+
+            // === 2. 核心邏輯：強制同分類隨機 (Strict Category Shuffle) ===
+            // 如果當前有筆記，就鎖定它的分類；如果沒有(極少見)，就全域隨機
+            if (currentNote) {
+                const targetSuper = String(currentNote.superCategory || "其他").trim();
+                
+                // 找出所有同分類的候選筆記
+                let candidates = notes
                     .map((n, i) => ({ ...n, originalIndex: i }))
-                    .filter(n => (n.superCategory || "其他") === targetSuper)
-                    .map(n => n.originalIndex);
+                    .filter(n => String(n.superCategory || "其他").trim() === targetSuper);
 
-                if (candidateIndices.length > 0) {
-                    // 2. 隨機選取一個索引
-                    const rand = Math.floor(Math.random() * candidateIndices.length);
-                    const nextIndex = candidateIndices[rand];
+                // [優化] 強制排除當前正在看的這張 (確保一定會換頁)
+                if (candidates.length > 1) {
+                    candidates = candidates.filter(n => n.originalIndex !== currentIndex);
+                }
 
-                    // 3. 更新歷史堆疊 (讓上一張功能正常運作)
+                if (candidates.length > 0) {
+                    // 隨機抽選
+                    const rand = Math.floor(Math.random() * candidates.length);
+                    const nextIndex = candidates[rand].originalIndex;
+
+                    // 更新歷史堆疊
                     setRecentIndices(prev => {
                         let currentHistory = [...prev];
-                        // 確保歷史紀錄有當前這張作為錨點
                         if (currentIndex !== -1) {
                             if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
                                 currentHistory.unshift(currentIndex);
@@ -2166,121 +2193,16 @@ function EchoScriptApp() {
                         return updated;
                     });
                     
-                    // 4. 清空未來堆疊 (因為打破了線性路徑) 並跳轉
                     setFutureIndices([]);
                     setCurrentIndex(nextIndex);
                 } else {
-                    showNotification("此分類無其他筆記");
+                    showNotification(`「${targetSuper}」分類無其他筆記`);
                 }
-                
-                setIsAnimating(false);
-                window.scrollTo(0,0);
-            }, 300);
-            return; // [關鍵] 結束函式，不執行下方的全域洗牌邏輯
-        }
-        
-        setIsAnimating(true);
-        setTimeout(() => {
-            // === [新增邏輯] 優先檢查「未來堆疊」 (History Redo) ===
-            // 如果我們之前按了「上一張」，futureIndices 會有紀錄。
-            // 這時候按「下一張」，應該要依照順序走回原本的路，而不是隨機抽新牌。
-            if (futureIndices.length > 0) {
-                const nextIndex = futureIndices[0]; // 取出最近被放入「未來」的那張
-                
-                // 1. 將這張牌從「未來」移除
-                setFutureIndices(prev => prev.slice(1));
-                
-                // 2. 將這張牌加回「最近」歷史
-                setRecentIndices(prev => [nextIndex, ...prev]);
-                
-                // 3. 顯示這張牌
-                setCurrentIndex(nextIndex);
-                // [修正] 移除 addToHistory，避免單純的瀏覽/重播被誤認為編輯紀錄
-                
-                setIsAnimating(false);
-                window.scrollTo(0,0);
-                return; // [關鍵] 直接結束，不消耗洗牌堆的額度 (DeckPointer 不動)
+            } else {
+                // Fallback: 如果當前沒筆記 (例如初始空狀態)，隨機挑一張來啟動
+                const rand = Math.floor(Math.random() * notes.length);
+                setCurrentIndex(rand);
             }
-            
-            // === 原本的隨機抽卡邏輯 (當沒有未來路徑時才執行) ===
-            let currentDeck = [...shuffleDeck];
-            let currentPointer = deckPointer;
-
-            // [新增] 防重複檢查：解決「剛開啟 App 時按下一張會重複」的問題
-            // 如果指標指向的卡片就是當前正在顯示的卡片，直接跳過這張，往後移一格
-            if (currentPointer < currentDeck.length && notes[currentDeck[currentPointer]]?.id === (currentNote ? currentNote.id : null)) {
-                currentPointer++;
-            }
-
-            // [修正] 智慧洗牌邏輯：避免因筆記數量變動而強制重洗，導致容易抽到重複卡片
-            
-            // 情況 A: 牌堆長度不符 (有新增或刪除筆記) -> 執行「智慧修補」，而不是重洗
-            if (currentDeck.length !== notes.length) {
-                // 1. 建立目前所有有效的索引集合
-                const allIndices = new Set(notes.map((_, i) => i));
-                // 2. 過濾掉牌堆裡已經無效的索引 (例如被刪除的筆記)
-                currentDeck = currentDeck.filter(idx => allIndices.has(idx));
-                
-                // 3. 找出哪些是新筆記的索引 (不在目前牌堆裡的)
-                const existingIndices = new Set(currentDeck);
-                const newIndices = [...allIndices].filter(idx => !existingIndices.has(idx));
-
-                // 4. 將新筆記隨機插入到「未來」的牌堆中 (Pointer 之後)
-                if (newIndices.length > 0) {
-                    newIndices.forEach(newIdx => {
-                        // 在 pointer 到 結尾 之間隨機找個位置插進去
-                        // 這樣保證你下一張還是原本排好的，但新筆記會在未來出現
-                        const remainingSlots = currentDeck.length - currentPointer;
-                        const insertOffset = Math.floor(Math.random() * (remainingSlots + 1));
-                        currentDeck.splice(currentPointer + insertOffset, 0, newIdx);
-                    });
-                }
-            }
-
-            // 情況 B: 牌真的抽完了 (或是修補後還是空的) -> 執行「全域洗牌」
-            if (currentPointer >= currentDeck.length || currentDeck.length === 0) {
-                console.log("🃏 牌堆用盡，重新洗牌...");
-                const newDeck = Array.from({length: notes.length}, (_, i) => i);
-                // Fisher-Yates 洗牌
-                for (let i = newDeck.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
-                }
-                currentDeck = newDeck;
-                currentPointer = 0;
-
-                // 防重複：如果剛洗完的第一張跟現在顯示的一樣，把它塞到最後面去
-                if (notes[currentDeck[0]]?.id === (currentNote ? currentNote.id : null)) {
-                    const firstCard = currentDeck.shift();
-                    currentDeck.push(firstCard);
-                }
-            }
-
-            // 抽出下一張
-            const newIndex = currentDeck[currentPointer];
-
-            // 更新狀態
-            setShuffleDeck(currentDeck);
-            setDeckPointer(currentPointer + 1);
-
-            setRecentIndices(prev => {
-                // [修正] 確保當前卡片被記錄在歷史中 (錨點邏輯)
-                // 如果歷史是空的，或者歷史最新的不是當前這張 (代表我們是跳轉過來的，歷史有斷層)
-                // 我們都必須先把「當前這張 (currentIndex)」補進去，作為返回的基點
-                let currentHistory = [...prev];
-                if (currentIndex !== -1) {
-                    if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
-                        currentHistory.unshift(currentIndex);
-                    }
-                }
-                
-                const updated = [newIndex, ...currentHistory];
-                if (updated.length > 50) updated.pop();
-                return updated;
-            });
-
-            setCurrentIndex(newIndex);
-            // [修改] 移除瀏覽歷史紀錄，改為僅記錄編輯歷史
             
             setIsAnimating(false);
             window.scrollTo(0,0);
@@ -3383,6 +3305,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

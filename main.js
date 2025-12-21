@@ -902,9 +902,21 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                         const isDragging = index === draggingIndex;
                         const isDragOver = index === dragOverIndex && index !== draggingIndex;
                         const isNote = viewLevel === 'notes';
+                        
+                        // [修正] 補全各層級的筆記數量計算邏輯，解決次分類顯示為「空」的問題
                         let count = 0;
-                        if (viewLevel === 'superCategories') count = notes.filter(n => (n.superCategory || "其他") === item).length;
-                        if (viewLevel === 'categories') count = notes.filter(n => (n.superCategory || "其他") === selectedSuper && (n.category || "未分類") === item).length;
+                        if (viewLevel === 'superCategories') {
+                            count = notes.filter(n => (n.superCategory || "其他") === item).length;
+                        } else if (viewLevel === 'categories') {
+                            count = notes.filter(n => (n.superCategory || "其他") === selectedSuper && (n.category || "未分類") === item).length;
+                        } else if (viewLevel === 'subcategories') {
+                            // 這裡必須同時比對 總分類、大分類 與 次分類
+                            count = notes.filter(n => 
+                                (n.superCategory || "其他") === selectedSuper && 
+                                (n.category || "未分類") === selectedCategory && 
+                                (n.subcategory || "一般") === item
+                            ).length;
+                        }
 
                         return (
                             <div key={isNote ? item.id : item} 
@@ -2868,6 +2880,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

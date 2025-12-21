@@ -667,14 +667,14 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 };
 
 // === 6. 所有筆記列表 Modal (支援分類顯示) ===
-// [修正] 升級搜尋邏輯：支援搜尋分類資料夾，並區分顯示樣式
+// [修正] 搜尋樣式優化：筆記使用底色，分類使用卡片色；搜尋返回強制回總分類
 const AllNotesModal = ({ 
     notes, setNotes, onClose, onItemClick, onDelete, 
     viewLevel, setViewLevel, 
     selectedSuper, setSelectedSuper,       
     selectedCategory, setSelectedCategory, 
     selectedSubcategory, setSelectedSubcategory, 
-    categorySearchTerm, setCategorySearchTerm, // [新增] 接收提升後的搜尋狀態
+    categorySearchTerm, setCategorySearchTerm, 
     categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, 
     setHasDataChangedInSession, theme 
 }) => {
@@ -694,7 +694,7 @@ const AllNotesModal = ({
         'notes': 'note'
     };
 
-    // [新增] 混合搜尋邏輯：同時搜尋 總分類、大分類、次分類、筆記
+    // [新增] 混合搜尋邏輯
     const searchResults = useMemo(() => {
         if (!categorySearchTerm) return [];
         const term = categorySearchTerm.toLowerCase();
@@ -710,7 +710,6 @@ const AllNotesModal = ({
         // 2. 搜尋大分類
         Object.keys(categoryMap).forEach(key => {
             if (key.toLowerCase().includes(term)) {
-                // 尋找所屬總分類 (用於導航)
                 let parent = "其他";
                 Object.entries(superCategoryMap).forEach(([sup, cats]) => {
                     if (cats.includes(key)) parent = sup;
@@ -723,7 +722,6 @@ const AllNotesModal = ({
         Object.entries(categoryMap).forEach(([cat, subs]) => {
             subs.forEach(sub => {
                 if (sub.toLowerCase().includes(term)) {
-                    // 尋找所屬結構
                     let superParent = "其他";
                     Object.entries(superCategoryMap).forEach(([sup, cats]) => {
                         if (cats.includes(cat)) superParent = sup;
@@ -744,16 +742,14 @@ const AllNotesModal = ({
         return results;
     }, [categorySearchTerm, notes, superCategoryMap, categoryMap]);
 
-    // [新增] 處理搜尋結果點擊跳轉
     const handleSearchResultClick = (item) => {
         if (item.type === 'note') {
             onItemClick(item.data);
-            // 注意：這裡不清除搜尋關鍵字，這樣返回時才能保留結果
         } else if (item.type === 'superCategory') {
             setSelectedSuper(item.name);
             setViewLevel('categories');
             window.history.pushState({ page: 'modal', level: 'categories', time: Date.now() }, '', '');
-            setCategorySearchTerm(""); // 進入分類後清除搜尋
+            setCategorySearchTerm(""); 
         } else if (item.type === 'category') {
             setSelectedSuper(item.parent);
             setSelectedCategory(item.name);
@@ -768,6 +764,15 @@ const AllNotesModal = ({
             window.history.pushState({ page: 'modal', level: 'notes', time: Date.now() }, '', '');
             setCategorySearchTerm("");
         }
+    };
+
+    // [新增] 處理搜尋返回：清空搜尋並回到總分類
+    const handleSearchBack = () => {
+        setCategorySearchTerm("");
+        setViewLevel('superCategories');
+        setSelectedSuper(null);
+        setSelectedCategory(null);
+        setSelectedSubcategory(null);
     };
 
     const currentList = useMemo(() => {
@@ -792,7 +797,7 @@ const AllNotesModal = ({
         const draggedContent = list[dragItem.current];
         
         if (viewLevel === 'notes') {
-            // 筆記排序 (略，依賴外部邏輯)
+            // 筆記排序 (略)
         } else {
             list.splice(dragItem.current, 1);
             list.splice(dragOverItem.current, 0, draggedContent);
@@ -1043,7 +1048,8 @@ const AllNotesModal = ({
                             {viewLevel === 'superCategories' ? <X className="w-5 h-5" /> : <IconBase d="M15 18l-6-6 6-6" />}
                         </button>
                     ) : (
-                        <button onClick={() => setCategorySearchTerm("")} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"><IconBase d="M15 18l-6-6 6-6" /></button>
+                        // [修正] 搜尋模式下的返回按鈕：點擊後清空搜尋並回到總分類 (強制重置)
+                        <button onClick={handleSearchBack} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"><IconBase d="M15 18l-6-6 6-6" /></button>
                     )}
                     <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text} overflow-hidden text-ellipsis whitespace-nowrap`}>
                         {categorySearchTerm ? "搜尋結果" : 
@@ -1067,7 +1073,8 @@ const AllNotesModal = ({
                             if (item.type === 'note') {
                                 const noteData = item.data;
                                 return (
-                                    <div key={noteData.id} className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} onClick={() => handleSearchResultClick(item)}>
+                                    // [修正] 筆記項目：使用 App 底色 (theme.bg) + 左側強調邊框 (border-l-4)
+                                    <div key={noteData.id} className={`${theme.bg} border-l-4 ${theme.border} p-4 rounded-xl shadow-sm mb-3 cursor-pointer select-none transition-all`} onClick={() => handleSearchResultClick(item)}>
                                         <div className="text-xs text-stone-400 mb-1 font-mono">
                                             {noteData.category} <span className="opacity-40">|</span> {noteData.subcategory}
                                         </div>
@@ -1078,8 +1085,9 @@ const AllNotesModal = ({
                             } else {
                                 // 分類項目 (總/大/次)
                                 return (
+                                    // [修正] 分類項目：使用卡片底色 (theme.card)
                                     <div key={`${item.type}-${item.id}`} 
-                                         className={`${theme.bg} border-l-4 ${theme.border} border-stone-400 p-4 rounded-r-xl shadow-sm mb-3 flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
+                                         className={`${theme.card} ${theme.border} p-4 rounded-xl shadow-sm mb-3 flex items-center cursor-pointer hover:border-stone-300 select-none transition-all`}
                                          onClick={() => handleSearchResultClick(item)}>
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
@@ -3146,6 +3154,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

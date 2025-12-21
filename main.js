@@ -667,18 +667,17 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 };
 
 // === 6. 所有筆記列表 Modal (支援分類顯示) ===
-// [修正] 接收來自父層的 selected 狀態，取代內部的 useState
+// [修正] 升級搜尋邏輯：支援搜尋分類資料夾，並區分顯示樣式
 const AllNotesModal = ({ 
     notes, setNotes, onClose, onItemClick, onDelete, 
     viewLevel, setViewLevel, 
-    selectedSuper, setSelectedSuper,       // [新增] 接收狀態
-    selectedCategory, setSelectedCategory, // [新增] 接收狀態
-    selectedSubcategory, setSelectedSubcategory, // [新增] 接收狀態
+    selectedSuper, setSelectedSuper,       
+    selectedCategory, setSelectedCategory, 
+    selectedSubcategory, setSelectedSubcategory, 
+    categorySearchTerm, setCategorySearchTerm, // [新增] 接收提升後的搜尋狀態
     categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, 
     setHasDataChangedInSession, theme 
 }) => {
-    // 移除內部的 selected 狀態，改用 props 傳進來的
-    const [searchTerm, setSearchTerm] = useState("");
     
     const [draggingIndex, setDraggingIndex] = useState(null);
     const [dragOverIndex, setDragOverIndex] = useState(null);
@@ -693,6 +692,82 @@ const AllNotesModal = ({
         'categories': 'category',
         'subcategories': 'subcategory',
         'notes': 'note'
+    };
+
+    // [新增] 混合搜尋邏輯：同時搜尋 總分類、大分類、次分類、筆記
+    const searchResults = useMemo(() => {
+        if (!categorySearchTerm) return [];
+        const term = categorySearchTerm.toLowerCase();
+        const results = [];
+
+        // 1. 搜尋總分類
+        Object.keys(superCategoryMap).forEach(key => {
+            if (key.toLowerCase().includes(term)) {
+                results.push({ type: 'superCategory', id: key, name: key });
+            }
+        });
+
+        // 2. 搜尋大分類
+        Object.keys(categoryMap).forEach(key => {
+            if (key.toLowerCase().includes(term)) {
+                // 尋找所屬總分類 (用於導航)
+                let parent = "其他";
+                Object.entries(superCategoryMap).forEach(([sup, cats]) => {
+                    if (cats.includes(key)) parent = sup;
+                });
+                results.push({ type: 'category', id: key, name: key, parent: parent });
+            }
+        });
+
+        // 3. 搜尋次分類
+        Object.entries(categoryMap).forEach(([cat, subs]) => {
+            subs.forEach(sub => {
+                if (sub.toLowerCase().includes(term)) {
+                    // 尋找所屬結構
+                    let superParent = "其他";
+                    Object.entries(superCategoryMap).forEach(([sup, cats]) => {
+                        if (cats.includes(cat)) superParent = sup;
+                    });
+                    results.push({ type: 'subcategory', id: `${cat}-${sub}`, name: sub, parent: cat, superParent: superParent });
+                }
+            });
+        });
+
+        // 4. 搜尋筆記
+        notes.filter(n => 
+            n.title.toLowerCase().includes(term) || 
+            n.content.toLowerCase().includes(term)
+        ).forEach(n => {
+            results.push({ type: 'note', data: n });
+        });
+
+        return results;
+    }, [categorySearchTerm, notes, superCategoryMap, categoryMap]);
+
+    // [新增] 處理搜尋結果點擊跳轉
+    const handleSearchResultClick = (item) => {
+        if (item.type === 'note') {
+            onItemClick(item.data);
+            // 注意：這裡不清除搜尋關鍵字，這樣返回時才能保留結果
+        } else if (item.type === 'superCategory') {
+            setSelectedSuper(item.name);
+            setViewLevel('categories');
+            window.history.pushState({ page: 'modal', level: 'categories', time: Date.now() }, '', '');
+            setCategorySearchTerm(""); // 進入分類後清除搜尋
+        } else if (item.type === 'category') {
+            setSelectedSuper(item.parent);
+            setSelectedCategory(item.name);
+            setViewLevel('subcategories');
+            window.history.pushState({ page: 'modal', level: 'subcategories', time: Date.now() }, '', '');
+            setCategorySearchTerm("");
+        } else if (item.type === 'subcategory') {
+            setSelectedSuper(item.superParent);
+            setSelectedCategory(item.parent);
+            setSelectedSubcategory(item.name);
+            setViewLevel('notes');
+            window.history.pushState({ page: 'modal', level: 'notes', time: Date.now() }, '', '');
+            setCategorySearchTerm("");
+        }
     };
 
     const currentList = useMemo(() => {
@@ -717,7 +792,7 @@ const AllNotesModal = ({
         const draggedContent = list[dragItem.current];
         
         if (viewLevel === 'notes') {
-            // 筆記排序邏輯 (暫略，筆記通常依時間排序)
+            // 筆記排序 (略，依賴外部邏輯)
         } else {
             list.splice(dragItem.current, 1);
             list.splice(dragOverItem.current, 0, draggedContent);
@@ -784,56 +859,35 @@ const AllNotesModal = ({
             setNotes(newNotes);
         } else if (type === 'subcategory') {
              const newCat = target;
-             
-             // 1. 更新 CategoryMap (將次分類移到新大分類)
              const newCatMap = { ...categoryMap };
              newCatMap[selectedCategory] = newCatMap[selectedCategory].filter(s => s !== item);
              if (!newCatMap[newCat]) newCatMap[newCat] = [];
              newCatMap[newCat].push(item);
              setCategoryMap(newCatMap);
 
-             // 2. [關鍵修正] 檢查目標大分類是否屬於某個總分類，若是孤兒則歸入「其他」
              let newSuper = null;
              let superMapChanged = false;
              const newSuperMap = { ...superCategoryMap };
+             Object.entries(newSuperMap).forEach(([sKey, cats]) => { if (cats.includes(newCat)) newSuper = sKey; });
 
-             // 遍歷尋找該大分類屬於哪個總分類
-             Object.entries(newSuperMap).forEach(([sKey, cats]) => { 
-                 if (cats.includes(newCat)) newSuper = sKey; 
-             });
-
-             // 如果找不到歸屬 (孤兒分類)，強制歸入「其他」
              if (!newSuper) {
                  newSuper = "其他";
                  if (!newSuperMap["其他"]) newSuperMap["其他"] = [];
-                 if (!newSuperMap["其他"].includes(newCat)) {
-                     newSuperMap["其他"].push(newCat);
-                     superMapChanged = true;
-                 }
+                 if (!newSuperMap["其他"].includes(newCat)) { newSuperMap["其他"].push(newCat); superMapChanged = true; }
                  setSuperCategoryMap(newSuperMap);
-                 console.log(`🔧 修復孤兒分類: 將「${newCat}」歸入「其他」`);
              }
 
-             // 3. 準備雲端更新 (Layout)
              if (window.fs && window.db) {
                  const layoutUpdates = { categoryMapJSON: JSON.stringify(newCatMap) };
-                 if (superMapChanged) {
-                     layoutUpdates.superCategoryMapJSON = JSON.stringify(newSuperMap);
-                 }
+                 if (superMapChanged) layoutUpdates.superCategoryMapJSON = JSON.stringify(newSuperMap);
                  updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), layoutUpdates, { merge: true }));
              }
 
-             // 4. 更新相關筆記 (同步更新 category 與 superCategory)
              const newNotes = notes.map(n => {
                 if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
                     const updateData = { category: newCat };
-                    // 即使原本有 superCategory，也要強制更新為新大分類所屬的 superCategory
-                    // 這樣才能確保筆記出現在正確的路徑下
                     if (newSuper) updateData.superCategory = newSuper;
-
-                    if (window.fs && window.db) {
-                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), updateData, { merge: true }));
-                    }
+                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), updateData, { merge: true }));
                     return { ...n, ...updateData };
                 }
                 return n;
@@ -877,24 +931,14 @@ const AllNotesModal = ({
         }
     };
     
-    // [修正] 實作完整的重新命名邏輯 (含重複檢查、連動更新與狀態同步)
     const handleRename = async () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
-        
-        if (type === 'note') { 
-            alert("筆記請直接點擊進入編輯模式修改。"); 
-            setContextMenu(null); 
-            return; 
-        }
+        if (type === 'note') { alert("筆記請直接點擊進入編輯模式修改。"); setContextMenu(null); return; }
 
         const newName = prompt(`請輸入新的名稱`, item);
-        if (!newName || newName === item) {
-            setContextMenu(null);
-            return;
-        }
+        if (!newName || newName === item) { setContextMenu(null); return; }
 
-        // 1. 檢查名稱是否重複
         let isDuplicate = false;
         if (type === 'superCategory' && superCategoryMap[newName]) isDuplicate = true;
         else if (type === 'category' && categoryMap[newName]) isDuplicate = true;
@@ -903,27 +947,17 @@ const AllNotesModal = ({
             if (subs.includes(newName)) isDuplicate = true;
         }
 
-        if (isDuplicate) {
-            alert("新名稱已存在，請使用其他名稱。");
-            return;
-        }
+        if (isDuplicate) { alert("新名稱已存在，請使用其他名稱。"); return; }
 
-        // 2. 執行資料更新
         const updates = [];
         let updatedNotes = [...notes];
 
         if (type === 'superCategory') {
-            // [關鍵修正] 如果正在瀏覽該分類，同步更新選取狀態，避免畫面變空
             if (selectedSuper === item) setSelectedSuper(newName);
-
-            // 更新 Map Key
             const newMap = { ...superCategoryMap };
-            newMap[newName] = newMap[item];
-            delete newMap[item];
+            newMap[newName] = newMap[item]; delete newMap[item];
             setSuperCategoryMap(newMap);
             if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
-
-            // 更新筆記
             updatedNotes = notes.map(n => {
                 if ((n.superCategory || "其他") === item) {
                     const newNote = { ...n, superCategory: newName };
@@ -932,33 +966,19 @@ const AllNotesModal = ({
                 }
                 return n;
             });
-
         } else if (type === 'category') {
-            // [關鍵修正] 同步更新選取狀態
             if (selectedCategory === item) setSelectedCategory(newName);
-
-            // 更新 CategoryMap Key
             const newCatMap = { ...categoryMap };
-            newCatMap[newName] = newCatMap[item];
-            delete newCatMap[item];
+            newCatMap[newName] = newCatMap[item]; delete newCatMap[item];
             setCategoryMap(newCatMap);
-
-            // 更新 SuperCategoryMap 中的參照
             const newSuperMap = { ...superCategoryMap };
             Object.keys(newSuperMap).forEach(k => {
-                const idx = newSuperMap[k].indexOf(item);
-                if (idx !== -1) newSuperMap[k][idx] = newName;
+                const idx = newSuperMap[k].indexOf(item); if (idx !== -1) newSuperMap[k][idx] = newName;
             });
             setSuperCategoryMap(newSuperMap);
-
             if (window.fs && window.db) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { 
-                    categoryMapJSON: JSON.stringify(newCatMap),
-                    superCategoryMapJSON: JSON.stringify(newSuperMap)
-                }, { merge: true }));
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newCatMap), superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
             }
-
-            // 更新筆記
             updatedNotes = notes.map(n => {
                 if ((n.category || "未分類") === item) {
                     const newNote = { ...n, category: newName };
@@ -967,23 +987,14 @@ const AllNotesModal = ({
                 }
                 return n;
             });
-
         } else if (type === 'subcategory') {
-            // [關鍵修正] 同步更新選取狀態
             if (selectedSubcategory === item) setSelectedSubcategory(newName);
-
-            // 更新 CategoryMap 中的值
             const newCatMap = { ...categoryMap };
             const subs = newCatMap[selectedCategory] || [];
             const idx = subs.indexOf(item);
-            if (idx !== -1) {
-                subs[idx] = newName;
-                newCatMap[selectedCategory] = subs;
-            }
+            if (idx !== -1) { subs[idx] = newName; newCatMap[selectedCategory] = subs; }
             setCategoryMap(newCatMap);
             if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
-
-            // 更新筆記
             updatedNotes = notes.map(n => {
                 if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
                     const newNote = { ...n, subcategory: newName };
@@ -997,15 +1008,10 @@ const AllNotesModal = ({
         setNotes(updatedNotes);
         setContextMenu(null);
         if (setHasDataChangedInSession) setHasDataChangedInSession(true);
-
-        if (updates.length > 0) {
-            try { await Promise.all(updates); console.log("✅ 重新命名同步完成"); } catch(e) { console.error(e); }
-        }
+        if (updates.length > 0) try { await Promise.all(updates); } catch(e) {}
     };
 
-    const handleBack = () => {
-        window.history.back();
-    };
+    const handleBack = () => { window.history.back(); };
 
     const pressTimer = useRef(null);
     const handleTouchStart = (e, index) => { e.stopPropagation(); dragItem.current = index; setDraggingIndex(index); };
@@ -1029,7 +1035,7 @@ const AllNotesModal = ({
         <div className={`fixed inset-0 z-40 ${theme.bg} flex flex-col animate-in slide-in-from-right duration-300`}>
              <div className={`p-4 border-b ${theme.border} ${theme.card} flex justify-between items-center sticky top-0 z-10`}>
                 <div className="flex items-center gap-2">
-                    {(!searchTerm) ? (
+                    {(!categorySearchTerm) ? (
                         <button 
                             onClick={viewLevel === 'superCategories' ? onClose : handleBack} 
                             className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"
@@ -1037,11 +1043,10 @@ const AllNotesModal = ({
                             {viewLevel === 'superCategories' ? <X className="w-5 h-5" /> : <IconBase d="M15 18l-6-6 6-6" />}
                         </button>
                     ) : (
-                        <button onClick={() => setSearchTerm("")} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"><IconBase d="M15 18l-6-6 6-6" /></button>
+                        <button onClick={() => setCategorySearchTerm("")} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"><IconBase d="M15 18l-6-6 6-6" /></button>
                     )}
-                    {/* [修正] 標題顯示格式：改為路徑顯示 (Breadcrumbs) 並移除強調色 */}
                     <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text} overflow-hidden text-ellipsis whitespace-nowrap`}>
-                        {searchTerm ? "搜尋結果" : 
+                        {categorySearchTerm ? "搜尋結果" : 
                          viewLevel === 'superCategories' ? "總分類" : 
                          viewLevel === 'categories' ? selectedSuper : 
                          viewLevel === 'subcategories' ? `${selectedSuper} > ${selectedCategory}` : 
@@ -1051,20 +1056,55 @@ const AllNotesModal = ({
             </div>
 
             <div className={`p-4 ${theme.bg} sticky top-[69px] z-10`}>
-                <input type="text" placeholder="搜尋筆記..." className={`w-full ${theme.card} border ${theme.border} rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 ${theme.text}`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <input type="text" placeholder="搜尋分類與筆記..." className={`w-full ${theme.card} border ${theme.border} rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 ${theme.text}`} value={categorySearchTerm} onChange={(e) => setCategorySearchTerm(e.target.value)} />
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar pb-20">
-                {searchTerm ? (
-                    notes.filter(n => n.title.includes(searchTerm) || n.content.includes(searchTerm)).map(item => (
-                        <div key={item.id} className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} onClick={() => onItemClick(item)}>
-                            {/* [修正] 搜尋結果顯示完整分類：大分類 | 次分類 */}
-                            <div className="text-xs text-stone-400 mb-1 font-mono">
-                                {item.category} <span className="opacity-40">|</span> {item.subcategory}
-                            </div>
-                            <h4 className={`font-bold ${theme.text}`}>{item.title}</h4>
-                        </div>
-                    ))
+                {categorySearchTerm ? (
+                    // [修正] 搜尋結果顯示：區分分類與筆記
+                    searchResults.length > 0 ? (
+                        searchResults.map((item, index) => {
+                            if (item.type === 'note') {
+                                const noteData = item.data;
+                                return (
+                                    <div key={noteData.id} className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} onClick={() => handleSearchResultClick(item)}>
+                                        <div className="text-xs text-stone-400 mb-1 font-mono">
+                                            {noteData.category} <span className="opacity-40">|</span> {noteData.subcategory}
+                                        </div>
+                                        <h4 className={`font-bold ${theme.text}`}>{noteData.title}</h4>
+                                        <p className={`text-sm ${theme.subtext} line-clamp-1`}>{noteData.content}</p>
+                                    </div>
+                                );
+                            } else {
+                                // 分類項目 (總/大/次)
+                                return (
+                                    <div key={`${item.type}-${item.id}`} 
+                                         className={`${theme.bg} border-l-4 ${theme.border} border-stone-400 p-4 rounded-r-xl shadow-sm mb-3 flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
+                                         onClick={() => handleSearchResultClick(item)}>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded text-white font-bold ${
+                                                    item.type === 'superCategory' ? 'bg-indigo-400' : 
+                                                    item.type === 'category' ? 'bg-teal-500' : 'bg-orange-400'
+                                                }`}>
+                                                    {item.type === 'superCategory' ? '總分類' : item.type === 'category' ? '大分類' : '次分類'}
+                                                </span>
+                                            </div>
+                                            <h4 className={`font-bold text-lg mt-1 ${theme.text}`}>{item.name}</h4>
+                                            {item.type !== 'superCategory' && (
+                                                <p className="text-xs text-stone-400 mt-1">
+                                                    {item.type === 'category' ? `位於: ${item.parent}` : `位於: ${item.parent}`}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <IconBase d="M9 18l6-6-6-6" className="text-stone-300 w-5 h-5" />
+                                    </div>
+                                );
+                            }
+                        })
+                    ) : (
+                        <div className="text-center text-gray-400 mt-10">沒有找到相關結果</div>
+                    )
                 ) : (
                     currentList.map((item, index) => {
                         const isDragging = index === draggingIndex;
@@ -1118,7 +1158,6 @@ const AllNotesModal = ({
                                     p-4 rounded-xl shadow-sm border mb-3 flex items-center cursor-pointer select-none transition-all
                                  `}>
                                 <div className="flex-1">
-                                    {/* [修正] 在筆記卡片上方顯示「大分類 | 次分類」標籤 */}
                                     {isNote && (
                                         <div className="mb-1">
                                              <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded tracking-wide">
@@ -1575,6 +1614,9 @@ function EchoScriptApp() {
     const [selectedSuper, setSelectedSuper] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [selectedSubcategory, setSelectedSubcategory] = useState(null);
+    
+    // [新增] 將搜尋關鍵字狀態提升至主程式，確保點擊筆記返回後，搜尋結果依然存在
+    const [categorySearchTerm, setCategorySearchTerm] = useState("");
 
     // 新增 Ref 以解決 EventListener 閉包狀態不同步導致的導航錯誤
     const allNotesViewLevelRef = useRef(allNotesViewLevel);
@@ -3006,6 +3048,9 @@ function EchoScriptApp() {
                     selectedSuper={selectedSuper} setSelectedSuper={setSelectedSuper}
                     selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
                     selectedSubcategory={selectedSubcategory} setSelectedSubcategory={setSelectedSubcategory}
+                    
+                    // [新增] 傳遞搜尋狀態
+                    categorySearchTerm={categorySearchTerm} setCategorySearchTerm={setCategorySearchTerm}
 
                     onClose={() => { 
                         setShowAllNotesModal(false); 
@@ -3101,6 +3146,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -667,7 +667,7 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 };
 
 // === 6. 所有筆記列表 Modal (支援分類顯示) ===
-// [修改] 修正 viewLevel 類型判定，確保移動功能可用
+// [修改] 新增 moveConfig 狀態與 executeMove 邏輯，將 prompt 改為選單介面
 const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLevel, setViewLevel, categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, setHasDataChangedInSession, theme }) => {
     // 狀態管理：目前選中的層級
     const [selectedSuper, setSelectedSuper] = useState(null);
@@ -683,8 +683,10 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
     
     // 選單狀態
     const [contextMenu, setContextMenu] = useState(null);
+    // [新增] 移動目標選擇狀態 { type, item, targets }
+    const [moveConfig, setMoveConfig] = useState(null);
 
-    // [新增] 類型對照表 (解決 slice 切字串導致的錯誤)
+    // 類型對照表
     const viewLevelToType = {
         'superCategories': 'superCategory',
         'categories': 'category',
@@ -713,7 +715,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         return [];
     }, [viewLevel, superCategoryMap, categoryMap, notes, selectedSuper, selectedCategory, selectedSubcategory]);
 
-    // [核心功能] 排序與移動邏輯
+    // [核心功能] 排序邏輯
     const handleSort = () => {
         if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) {
             resetDrag(); return;
@@ -773,26 +775,22 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         }
     };
 
-    // [核心] 處理移動邏輯
-    const handleMove = async () => {
+    // [Step 1] 準備移動：計算可用目標並顯示選單
+    const handleMove = () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
         
         let targetList = [];
-        let promptMsg = "";
         
         if (type === 'category') {
             // 移動「大分類」 -> 到不同的「總分類」
             targetList = Object.keys(superCategoryMap).filter(k => k !== selectedSuper);
-            promptMsg = `將大分類「${item}」移動到哪個總分類？\n(現有: ${targetList.join(', ')})`;
         } else if (type === 'subcategory') {
             // 移動「次分類」 -> 到不同的「大分類」
             targetList = Object.keys(categoryMap).filter(k => k !== selectedCategory);
-             promptMsg = `將次分類「${item}」移動到哪個大分類？\n(現有: ${targetList.join(', ')})`;
         } else if (type === 'note') {
              // 移動「筆記」 -> 到不同的「次分類」 (限定在同一大分類下)
              targetList = (categoryMap[selectedCategory] || []).filter(s => s !== selectedSubcategory);
-             promptMsg = `將筆記「${item.title}」移動到哪個次分類？\n(現有: ${targetList.join(', ')})`;
         }
 
         if (targetList.length === 0) {
@@ -801,15 +799,15 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
             return;
         }
 
-        const target = prompt(promptMsg);
-        if (!target) return;
-        
-        if (!targetList.includes(target)) {
-            alert("找不到該目標分類，請確認名稱輸入正確（需完全一致）。");
-            return;
-        }
+        // 開啟選擇介面
+        setMoveConfig({ type, item, targets: targetList });
+        setContextMenu(null);
+    };
 
-        // 開始執行移動
+    // [Step 2] 執行移動：使用者點選目標後觸發
+    const executeMove = async (target) => {
+        if (!moveConfig) return;
+        const { type, item } = moveConfig;
         const updates = [];
         
         if (type === 'category') {
@@ -895,7 +893,8 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                 console.log("✅ 移動同步完成");
             } catch(e) { console.error("移動失敗", e); }
         }
-        setContextMenu(null);
+        
+        setMoveConfig(null);
         if (setHasDataChangedInSession) setHasDataChangedInSession(true);
     };
 
@@ -946,7 +945,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         }
     };
     
-    // 重新命名
     const handleRename = () => {
          if (!contextMenu) return;
          const { type, item } = contextMenu;
@@ -987,7 +985,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         };
     };
 
-    // 返回邏輯
     const handleBack = () => {
         if (viewLevel === 'notes') setViewLevel('subcategories');
         else if (viewLevel === 'subcategories') setViewLevel('categories');
@@ -1046,7 +1043,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                         const isDragOver = index === dragOverIndex && index !== draggingIndex;
                         const isNote = viewLevel === 'notes';
                         
-                        // 計算數量 (僅供顯示)
                         let count = 0;
                         if (viewLevel === 'superCategories') count = notes.filter(n => (n.superCategory || "其他") === item).length;
                         if (viewLevel === 'categories') count = notes.filter(n => (n.superCategory || "其他") === selectedSuper && (n.category || "未分類") === item).length;
@@ -1055,7 +1051,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                             <div key={isNote ? item.id : item} 
                                  data-index={index}
                                  {...bindLongPress(
-                                     // [修正] 使用 viewLevelToType 確保正確的類型名稱
                                      (x, y) => setContextMenu({ visible: true, x, y, type: viewLevelToType[viewLevel], item }),
                                      () => {
                                          if (isNote) onItemClick(item);
@@ -1076,7 +1071,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                                     {!isNote && count === 0 && <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full ml-2">空</span>}
                                     {isNote && <p className={`text-sm ${theme.subtext} line-clamp-1`}>{item.content}</p>}
                                 </div>
-                                {/* 拖曳手把 */}
                                 {!isNote && (
                                     <div className="p-2 -mr-2 text-stone-300 hover:text-stone-500 cursor-grab touch-none"
                                          onTouchStart={(e) => handleTouchStart(e, index)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
@@ -1099,7 +1093,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                     <div className="fixed inset-0 z-[60]" onClick={() => setContextMenu(null)} />
                     <div className={`fixed z-[70] ${theme.card} rounded-xl shadow-xl border ${theme.border} min-w-[160px] flex flex-col overflow-hidden`}
                          style={{ top: Math.min(contextMenu.y, window.innerHeight - 150), left: Math.min(contextMenu.x, window.innerWidth - 160) }}>
-                        {/* [優化] 只有非總分類時才顯示移動選項 */}
                         {contextMenu.type !== 'superCategory' && (
                             <button onClick={handleMove} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border} flex items-center gap-2`}>
                                 <MoveRight className="w-4 h-4"/> 移動
@@ -1113,6 +1106,31 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                         </button>
                     </div>
                 </>
+            )}
+
+            {/* [新增] 移動目標選擇選單 */}
+            {moveConfig && (
+                <div className="fixed inset-0 z-[80] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setMoveConfig(null); }}>
+                    <div className={`${theme.card} rounded-xl shadow-2xl border ${theme.border} w-full max-w-xs overflow-hidden flex flex-col max-h-[60vh] animate-in zoom-in-95`}>
+                        <div className={`p-4 border-b ${theme.border} font-bold text-center ${theme.text}`}>
+                            移動「{moveConfig.item.title || moveConfig.item}」至...
+                        </div>
+                        <div className="overflow-y-auto p-2 custom-scrollbar">
+                            {moveConfig.targets.map(target => (
+                                <button 
+                                    key={target}
+                                    onClick={() => executeMove(target)}
+                                    className={`w-full text-left px-4 py-3 rounded-lg hover:bg-stone-100 ${theme.text} font-bold text-sm mb-1 transition-colors`}
+                                >
+                                    {target}
+                                </button>
+                            ))}
+                        </div>
+                        <div className={`p-2 border-t ${theme.border}`}>
+                            <button onClick={() => setMoveConfig(null)} className="w-full py-2 text-stone-400 font-bold text-xs hover:text-stone-600">取消</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -3020,6 +3038,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

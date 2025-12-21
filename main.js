@@ -1565,6 +1565,7 @@ function EchoScriptApp() {
         const isAnyModalOpen = showMenuModal || showAllNotesModal || showEditModal || showResponseModal;
         if (isAnyModalOpen) {
             // [優化] 為 AllNotesModal 建立明確的歷史層級 'superCategories'
+            // 這裡確保只要開啟分類視窗，歷史紀錄就會堆疊一層，讓返回鍵可以被攔截
             const state = showAllNotesModal 
                 ? { page: 'modal', level: 'superCategories', time: Date.now() }
                 : { page: 'modal', time: Date.now() };
@@ -1602,33 +1603,35 @@ function EchoScriptApp() {
                 const currentLevel = allNotesViewLevelRef.current;
 
                 // 強制執行層級向上返回邏輯：notes -> subcategories -> categories -> superCategories -> Exit
-                // 原理：當用戶按返回鍵 (PopState) 時，我們攔截並檢查目前在哪一層
-                // 如果不是最上層，我們就手動切換到上一層，並且「再次 PushState」把歷史紀錄補回來
-                // 這樣瀏覽器看起來像是退了一步，但實際上我們把使用者留在了 App 裡的上一層選單
+                // 這裡使用 Ref 確保讀取到最新的狀態，避免 Closure 問題
                 
                 if (currentLevel === 'notes') {
+                    // 筆記 -> 次分類
                     setAllNotesViewLevel('subcategories');
                     window.history.pushState({ page: 'modal', level: 'subcategories', time: Date.now() }, '', '');
                     return;
                 }
                 
                 if (currentLevel === 'subcategories') {
+                    // 次分類 -> 大分類
                     setAllNotesViewLevel('categories');
                     window.history.pushState({ page: 'modal', level: 'categories', time: Date.now() }, '', '');
                     return;
                 }
 
                 if (currentLevel === 'categories') {
+                    // 大分類 -> 總分類
                     setAllNotesViewLevel('superCategories');
                     window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
                     return;
                 }
 
-                // 如果已經在總分類 (superCategories)，則允許正常退出 (不 pushState，讓它自然回到首頁)
+                // 總分類 -> 離開 Modal (回到首頁)
+                // 這裡不執行 pushState，讓瀏覽器正常的「上一頁」行為生效，從而關閉 Modal
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories'); // 重置為預設
                 
-                // [關鍵修復] 退出後若有未存資料，需補防護網
+                // [防護網] 如果離開 Modal 回到首頁時有未存資料，才需要再次攔截 (Home Trap)
                 if (hasDataChangedInSessionRef.current) {
                     window.history.pushState({ page: 'home_trap', changed: true, time: Date.now() }, '', '');
                 }
@@ -3036,6 +3039,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

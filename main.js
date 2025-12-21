@@ -3097,12 +3097,10 @@ function EchoScriptApp() {
                 {/* 3. [修改] 抽卡設定按鈕 (右邊) - 改為圖示「抽卡」，點擊設定目標 */}
                 <button 
                     onClick={() => setShowShuffleMenu(true)} 
-                    className={`${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95 transition-transform relative`} 
+                    className={`${shuffleTarget ? `${theme.accent} ${theme.accentText}` : `${theme.card} border ${theme.border} ${theme.subtext}`} p-3 rounded-full shadow-lg active:scale-95 transition-transform relative`} 
                     title="設定抽卡目標"
                 >
                     <Shuffle className="w-6 h-6" />
-                    {/* 如果有設定目標，顯示一個小紅點提示 */}
-                    {shuffleTarget && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}
                 </button>
             </div>
 
@@ -3413,6 +3411,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

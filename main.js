@@ -3079,7 +3079,7 @@ function EchoScriptApp() {
                     className={`${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95 transition-transform relative`} 
                     title="設定抽卡目標"
                 >
-                    <Cards className="w-6 h-6" />
+                    <Shuffle className="w-6 h-6" />
                     {/* 如果有設定目標，顯示一個小紅點提示 */}
                     {shuffleTarget && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}
                 </button>
@@ -3392,6 +3392,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2130,9 +2130,54 @@ function EchoScriptApp() {
     const isFavorite = favorites.some(f => f.id === (currentNote ? currentNote.id : null));
     const currentNoteResponses = currentNote ? (allResponses[currentNote.id] || []) : [];
 
-    const handleNextNote = () => {
+    // [修改] 接收 mode 參數以支援同分類隨機
+    const handleNextNote = (mode) => {
         if (notes.length <= 1) return;
         // [修正] 移除清除 ResumeNoteId 的邏輯，確保首頁按鈕永遠能回到最後編輯/關注的卡片
+
+        // === [新增邏輯] 同分類隨機抽卡 (Local Shuffle) ===
+        // 只有當按鈕傳入 'local' 且當前有筆記時，才執行限定範圍的隨機
+        if (mode === 'local' && currentNote) {
+            setIsAnimating(true);
+            setTimeout(() => {
+                const targetSuper = currentNote.superCategory || "其他";
+                // 1. 找出所有屬於該總分類的筆記索引
+                const candidateIndices = notes
+                    .map((n, i) => ({ ...n, originalIndex: i }))
+                    .filter(n => (n.superCategory || "其他") === targetSuper)
+                    .map(n => n.originalIndex);
+
+                if (candidateIndices.length > 0) {
+                    // 2. 隨機選取一個索引
+                    const rand = Math.floor(Math.random() * candidateIndices.length);
+                    const nextIndex = candidateIndices[rand];
+
+                    // 3. 更新歷史堆疊 (讓上一張功能正常運作)
+                    setRecentIndices(prev => {
+                        let currentHistory = [...prev];
+                        // 確保歷史紀錄有當前這張作為錨點
+                        if (currentIndex !== -1) {
+                            if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
+                                currentHistory.unshift(currentIndex);
+                            }
+                        }
+                        const updated = [nextIndex, ...currentHistory];
+                        if (updated.length > 50) updated.pop();
+                        return updated;
+                    });
+                    
+                    // 4. 清空未來堆疊 (因為打破了線性路徑) 並跳轉
+                    setFutureIndices([]);
+                    setCurrentIndex(nextIndex);
+                } else {
+                    showNotification("此分類無其他筆記");
+                }
+                
+                setIsAnimating(false);
+                window.scrollTo(0,0);
+            }, 300);
+            return; // [關鍵] 結束函式，不執行下方的全域洗牌邏輯
+        }
         
         setIsAnimating(true);
         setTimeout(() => {
@@ -3338,6 +3383,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

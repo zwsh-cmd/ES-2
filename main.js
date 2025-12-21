@@ -2217,7 +2217,17 @@ function EchoScriptApp() {
             setDeckPointer(currentPointer + 1);
 
             setRecentIndices(prev => {
-                const updated = [newIndex, ...prev];
+                // [修正] 確保當前卡片被記錄在歷史中 (錨點邏輯)
+                // 如果歷史是空的，或者歷史最新的不是當前這張 (代表我們是跳轉過來的，歷史有斷層)
+                // 我們都必須先把「當前這張 (currentIndex)」補進去，作為返回的基點
+                let currentHistory = [...prev];
+                if (currentIndex !== -1) {
+                    if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
+                        currentHistory.unshift(currentIndex);
+                    }
+                }
+                
+                const updated = [newIndex, ...currentHistory];
                 if (updated.length > 50) updated.pop();
                 return updated;
             });
@@ -3313,6 +3323,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

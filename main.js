@@ -2943,7 +2943,7 @@ function EchoScriptApp() {
                                     </div>
 
                                     {/* 內文區域 - 這裡強制使用深色字體以確保 Markdown 在淺色底的卡片上可讀，若為深色模式則自動調整 */ }
-                                    <div className={`-mt-5 text-lg leading-loose font-sans text-justify whitespace-pre-wrap ${currentThemeId === 'dark' ? 'text-slate-200' : 'text-stone-700'}`}>
+                                    <div className={`-mt-2 text-lg leading-loose font-sans text-justify whitespace-pre-wrap ${currentThemeId === 'dark' ? 'text-slate-200' : 'text-stone-700'}`}>
                                         <MarkdownRenderer content={currentNote.content} />
                                     </div>
                                 </div>
@@ -3311,6 +3311,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

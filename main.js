@@ -104,6 +104,8 @@ const Calendar = (props) => <IconBase d={["M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 
 const GripVertical = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>;
 const Pin = (props) => <IconBase d={["M2 12h10", "M9 4v16", "M3 7l3 3", "M3 17l3-3", "M12 2l3 3", "M12 22l3-3"]} d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" {...props} d={["M12 17v5", "M9 2h6v2l-1 1v8l4 4H6l4-4V5l-1-1V2z"]} />; // 使用 Pushpin 樣式
 const MoveRight = (props) => <IconBase d={["M13 5l7 7-7 7", "M5 12h14"]} {...props} />;
+// [新增] 隨機翻頁圖示
+const Shuffle = (props) => <IconBase d={["M16 3h5v5", "M4 20L21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"]} {...props} />;
 
 
 // === 2. 初始筆記資料庫 (確保有完整分類) ===
@@ -3029,12 +3031,20 @@ function EchoScriptApp() {
                 )}
             </main>
             
-            {/* [UI調整] 左下角導航操作區：由下而上分別是 首頁 -> 釘選 -> 資料庫 */}
-            <div className="fixed bottom-6 left-6 z-20 flex flex-col gap-3 items-start">
+            {/* [UI調整] 左下角導航操作區：改為橫向排列 (首頁 -> 釘選 -> 隨機) */}
+            <div className="fixed bottom-6 left-6 z-20 flex gap-3 items-center">
                 
-                {/* [已移除] 我的資料庫按鈕已移至右上角 */}
+                {/* 1. 首頁按鈕 (最左邊) */}
+                <button 
+                    onClick={handleGoHome} 
+                    disabled={isAnimating || notes.length === 0} 
+                    className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
+                    title="回到最後編輯 (首頁)"
+                >
+                    <Home className="w-6 h-6"/>
+                </button>
 
-                {/* 2. 釘選按鈕 (中間) - 專門負責「釘選筆記」 */}
+                {/* 2. 釘選按鈕 (中間) */}
                 <button 
                     onClick={handleGoToPin} 
                     disabled={isAnimating || notes.length === 0} 
@@ -3044,14 +3054,13 @@ function EchoScriptApp() {
                     <Pin className="w-6 h-6" />
                 </button>
 
-                {/* 1. 首頁按鈕 (最下方，功能：回到最後編輯的卡片) */}
+                {/* 3. [新增] 隨機翻頁按鈕 (右邊) - 配色同「新增筆記」 */}
                 <button 
-                    onClick={handleGoHome} 
-                    disabled={isAnimating || notes.length === 0} 
-                    className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
-                    title="回到最後編輯 (首頁)"
+                    onClick={() => showNotification("隨機翻頁功能開發中...")} 
+                    className={`${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
+                    title="隨機翻頁"
                 >
-                    <Home className="w-6 h-6"/>
+                    <Shuffle className="w-6 h-6" />
                 </button>
             </div>
 
@@ -3323,6 +3332,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

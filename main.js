@@ -1715,7 +1715,7 @@ function EchoScriptApp() {
             // === C. AllNotesModal 歷史同步與返回邏輯 ===
             const state = event.state || {};
 
-            // 情況 1: 歷史紀錄指示我們應該在「列表模式」
+            // 情況 1: 歷史紀錄指示我們應該在「列表模式」 (包含從筆記閱讀返回、或列表內層級跳轉)
             if (state.page === 'modal') {
                 if (!showAllNotesModal) {
                     isRestoringHistoryRef.current = true;
@@ -1736,8 +1736,8 @@ function EchoScriptApp() {
                     setCategorySearchTerm(""); // 清空搜尋
                     setAllNotesViewLevel('superCategories'); // 確保畫面在總分類
                     
-                    // [重要] 把歷史紀錄「推回去」 (Trap)，讓使用者看起來像是退了一步但還在 Modal 內
-                    // 這樣 stack 變成 [Home, Modal(Super)]，下次按返回時才會真的關閉 Modal
+                    // [Trap] 把歷史紀錄「推回去」，讓使用者看起來像是退了一步但還在 Modal 內
+                    // 這樣 stack 變成 [Home, Modal(Super)]，下次按返回時才會執行下方的關閉邏輯
                     window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
                     return;
                 }
@@ -1751,8 +1751,12 @@ function EchoScriptApp() {
                     setCurrentIndex(preModalIndexRef.current);
                 }
 
-                // 這裡直接 return (不 pushState)，因為瀏覽器已經退回到了 Home 狀態
-                // 等待下一次按返回鍵觸發下方的 E 區塊 (退出檢查)
+                // [關鍵修正] 這裡必須再次推入一個 'home_trap'
+                // 因為我們剛剛從 Modal 退回到了 Root (Home)，這是一個 pop 動作。
+                // 如果不手動再 push 一層 Trap，下一次按返回鍵時，瀏覽器會因為已經在最底層而直接關閉 APP，
+                // 無法觸發下方的 Section E 進行確認。
+                window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
+
                 return;
             }
 
@@ -1777,12 +1781,11 @@ function EchoScriptApp() {
                     setShowMenuModal(true);
                     setActiveTab('settings');
                     setHasDataChangedInSession(false); 
-                    return; // 使用者選擇去備份，留在 App 內
+                    return;
                 }
-                // 如果使用者選擇「取消」(不備份)，則繼續執行下方的退出確認
             }
 
-            // 3. [新增] 退出確認提示 (所有首頁狀態下的返回都會觸發)
+            // 3. 退出確認提示
             if (confirm("確定退出EchoScript?")) {
                 // 使用者確認要退出
                 isExitingRef.current = true; // 標記為正在退出，防止遞迴攔截
@@ -3174,6 +3177,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

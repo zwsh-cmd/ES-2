@@ -872,13 +872,13 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                     ) : (
                         <button onClick={() => setSearchTerm("")} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"><IconBase d="M15 18l-6-6 6-6" /></button>
                     )}
-                    {/* [修正] 標題顯示格式與配色 (加入總分類/次分類後綴，並使用 theme.accent 配色) */}
-                    <h2 className={`font-bold text-lg flex items-center gap-2 px-3 py-1.5 rounded-lg shadow-sm ${theme.accent} ${theme.accentText}`}>
+                    {/* [修正] 標題顯示格式：改為路徑顯示 (Breadcrumbs) 並移除強調色 */}
+                    <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text} overflow-hidden text-ellipsis whitespace-nowrap`}>
                         {searchTerm ? "搜尋結果" : 
                          viewLevel === 'superCategories' ? "總分類" : 
-                         viewLevel === 'categories' ? `${selectedSuper} | 總分類` : 
-                         viewLevel === 'subcategories' ? `${selectedCategory} | 大分類` : 
-                         `${selectedSubcategory} | 次分類`}
+                         viewLevel === 'categories' ? selectedSuper : 
+                         viewLevel === 'subcategories' ? `${selectedSuper} > ${selectedCategory}` : 
+                         `${selectedSuper} > ${selectedCategory} > ${selectedSubcategory}`}
                     </h2>
                 </div>
             </div>
@@ -2877,6 +2877,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

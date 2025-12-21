@@ -106,8 +106,8 @@ const Pin = (props) => <IconBase d={["M2 12h10", "M9 4v16", "M3 7l3 3", "M3 17l3
 const MoveRight = (props) => <IconBase d={["M13 5l7 7-7 7", "M5 12h14"]} {...props} />;
 // [新增] 隨機翻頁圖示
 const Shuffle = (props) => <IconBase d={["M16 3h5v5", "M4 20L21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"]} {...props} />;
-// [新增] 抽卡圖示 (疊卡效果)
-const Cards = (props) => <IconBase d={["M8 2h13v13", "M12 22H5a2 2 0 0 1-2-2V7", "M12 22l3-3", "M12 22l3 3", "M8 7h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"]} {...props} />;
+// [修改] 抽卡圖示 (改為經典疊牌樣式)
+const Cards = (props) => <IconBase d={["M6 2c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H6zm12 14H6V4h12v12z", "M2 6h2v14h14v2H4c-1.1 0-2-.9-2-2V6z"]} {...props} />;
 
 
 // === 2. 初始筆記資料庫 (確保有完整分類) ===
@@ -3388,6 +3388,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

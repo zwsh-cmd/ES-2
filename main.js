@@ -1742,12 +1742,12 @@ function EchoScriptApp() {
                     setShowAllNotesModal(true);
                 }
                 
-                // [關鍵修正] 根據歷史狀態決定是否顯示搜尋內容
+                // 根據歷史狀態決定是否顯示搜尋內容
                 // 如果歷史狀態沒有 search 標記，但 UI 有搜尋文字 -> 代表使用者按了返回鍵想退出搜尋
                 if (!state.search && categorySearchTermRef.current) {
                     setCategorySearchTerm("");
                     categorySearchTermRef.current = "";
-                    isSearchHistoryPushed.current = false; // 同步狀態
+                    isSearchHistoryPushed.current = false;
                 }
 
                 if (state.level) {
@@ -1758,10 +1758,6 @@ function EchoScriptApp() {
 
             // 情況 2: 歷史紀錄已離開列表 (例如退到了 Home)，但視窗還開著 -> 這是使用者按了返回鍵
             if (showAllNotesModal && state.page !== 'modal') {
-                
-                // [關鍵修正] 新邏輯下，這裡不需要再做複雜的 pushState 補救
-                // 因為我們在搜尋開始時已經建立了歷史層級。
-                // 如果跑到這裡，代表使用者已經退出了 'modal_search' 並且也退出了 'modal' 層級
                 
                 // 1. 關閉視窗
                 setShowAllNotesModal(false);
@@ -1779,9 +1775,12 @@ function EchoScriptApp() {
                     setCurrentIndex(preModalIndexRef.current);
                 }
                 
-                // 4. [建立首頁防護網]
-                // 為了確保回到首頁後，再按一次返回能觸發確認視窗，我們在這裡補一個 Trap
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                // 4. [建立首頁防護網] (關鍵修改：使用 setTimeout)
+                // 使用 setTimeout 確保「關閉視窗」的動作完成後，才佈置下一次的防護網
+                // 這能確保回到首頁後，再按一次返回鍵時，一定會觸發下方的 Section E
+                setTimeout(() => {
+                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                }, 0);
 
                 return;
             }
@@ -1789,7 +1788,10 @@ function EchoScriptApp() {
             // === D. 正常關閉其他視窗 ===
             const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal;
             if (isAnyOtherModalOpen) {
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                // 同樣使用 setTimeout 建立防護網
+                setTimeout(() => {
+                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                }, 0);
                 
                 setShowMenuModal(false);
                 setShowEditModal(false);
@@ -3204,6 +3206,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

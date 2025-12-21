@@ -1700,7 +1700,6 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // 把歷史紀錄「塞回去」，防止瀏覽器真的退回上一頁
                 window.history.pushState({ page: 'modal_trap', id: Math.random() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1709,7 +1708,6 @@ function EchoScriptApp() {
             // === B. 視窗內導航 (編輯回應 -> 列表) ===
             if (showResponseModal && responseViewModeRef.current === 'edit') {
                 setResponseViewMode('list');
-                // 補回一個歷史狀態，保持在 Modal 內
                 setTimeout(() => window.history.pushState({ page: 'modal', time: Date.now() }, '', ''), 0);
                 return;
             }
@@ -1719,44 +1717,42 @@ function EchoScriptApp() {
 
             // 情況 1: 歷史紀錄指示我們應該在「列表模式」
             if (state.page === 'modal') {
-                // 如果列表視窗目前是關閉的 (例如剛從閱讀畫面返回)，我們需要重新打開它
                 if (!showAllNotesModal) {
-                    // [關鍵] 標記這是「還原操作」，通知 useEffect 不要亂推歷史紀錄
                     isRestoringHistoryRef.current = true;
                     setShowAllNotesModal(true);
                 }
-                
-                // 根據歷史紀錄恢復到正確的層級 (筆記 > 次分類 > 大分類...)
                 if (state.level) {
                     setAllNotesViewLevel(state.level);
                 }
                 return;
             }
 
-            // 情況 2: 歷史紀錄已離開列表 (例如退到了 Home)，但視窗還開著 -> 執行關閉
+            // 情況 2: 歷史紀錄已離開列表 (例如退到了 Home)，但視窗還開著 -> 執行關閉或層級回退
             if (showAllNotesModal && state.page !== 'modal') {
                 
-                // [關鍵修正] 如果正在搜尋中，按返回鍵應「清空搜尋並回到總分類」，而不是直接關閉視窗
+                // [關鍵修正] 1. 搜尋狀態下的返回處理
+                // 如果正在搜尋中，按返回鍵應「清空搜尋並留在總分類」，而不是關閉視窗
                 if (categorySearchTermRef.current) {
                     setCategorySearchTerm(""); // 清空搜尋
-                    setAllNotesViewLevel('superCategories'); // 回到總分類頁面
+                    setAllNotesViewLevel('superCategories'); // 確保畫面在總分類
                     
-                    // 把歷史紀錄推回去 (Trap)，讓使用者留在 Modal 內
+                    // [重要] 把歷史紀錄「推回去」 (Trap)，讓使用者看起來像是退了一步但還在 Modal 內
+                    // 這樣下次按返回時，categorySearchTermRef 為空，才會執行下方的關閉邏輯
                     window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
                     return;
                 }
 
+                // 2. 正常關閉視窗 (回到筆記卡片)
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
                 
-                // [關鍵修正] 退出列表時，還原到開啟前的卡片 (首頁/釘選/隨機)
+                // 還原到開啟前的卡片
                 if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
                     setCurrentIndex(preModalIndexRef.current);
                 }
 
-                if (hasDataChangedInSessionRef.current) {
-                    window.history.pushState({ page: 'home_trap', changed: true, time: Date.now() }, '', '');
-                }
+                // 關閉後，為了讓「退出 APP」的邏輯能生效，我們需要確保歷史堆疊是乾淨的
+                // 這裡不需額外 pushState，因為已經處於 Home 狀態
                 return;
             }
 
@@ -1767,22 +1763,34 @@ function EchoScriptApp() {
                 setShowEditModal(false);
                 setShowResponseModal(false);
                 setResponseViewMode('list');
-                
-                if (hasDataChangedInSessionRef.current) {
-                    window.history.pushState({ page: 'home_trap', changed: true, time: Date.now() }, '', '');
-                }
+                // 關閉後回到首頁，不需額外處理，等待下一次返回觸發 E
                 return;
             }
 
-            // === E. 首頁退出檢查 ===
+            // === E. 首頁退出檢查 (攔截所有退出動作) ===
+            
+            // 1. 先把人留住 (Trap)：這行會讓瀏覽器以為還有下一頁，所以不會關閉 APP
+            window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
+
+            // 2. 檢查資料變更
             if (hasDataChangedInSessionRef.current) {
-                window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
                 if (confirm("您本次使用已更動過資料，離開前是否前往備份？")) {
                     setShowMenuModal(true);
                     setActiveTab('settings');
                     setHasDataChangedInSession(false); 
+                    return;
                 }
-                return;
+                // 如果選「取消」，則繼續執行下方的退出確認
+            }
+
+            // 3. [新增] 退出確認提示
+            if (confirm("確定退出EchoScript?")) {
+                // 使用者確認要退出
+                isExitingRef.current = true; // 標記為正在退出，防止遞迴攔截
+                
+                // 因為我們在第 1 步 push 了一個 trap，現在要真正離開，需要「回退兩步」
+                // (一步抵銷 trap，一步是原本使用者按的那次返回)
+                window.history.go(-2);
             }
         };
 
@@ -3167,6 +3175,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -676,9 +676,83 @@ const AllNotesModal = ({
     selectedSubcategory, setSelectedSubcategory, 
     categorySearchTerm, setCategorySearchTerm, 
     categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, 
-    setHasDataChangedInSession, theme 
+    setHasDataChangedInSession, theme,
+    onAddNote // [新增] 接收新增筆記的 callback
 }) => {
     
+    // [新增] 處理新增分類或筆記的邏輯
+    const handleAdd = async () => {
+        if (viewLevel === 'notes') {
+            // 新增筆記：呼叫主程式開啟編輯器，並預填當前分類路徑
+            onAddNote({
+                superCategory: selectedSuper,
+                category: selectedCategory,
+                subcategory: selectedSubcategory
+            });
+            return;
+        }
+
+        const typeName = viewLevel === 'superCategories' ? '總分類' : 
+                         viewLevel === 'categories' ? '大分類' : '次分類';
+        
+        const newName = prompt(`請輸入新的${typeName}名稱`);
+        if (!newName || !newName.trim()) return;
+
+        const name = newName.trim();
+        const updates = [];
+
+        if (viewLevel === 'superCategories') {
+            if (superCategoryMap[name]) { alert("該總分類已存在"); return; }
+            
+            const newMap = { ...superCategoryMap, [name]: [] };
+            setSuperCategoryMap(newMap);
+            
+            if (window.fs && window.db) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+                    { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+            }
+        } 
+        else if (viewLevel === 'categories') {
+            if (categoryMap[name]) { alert("該大分類已存在"); return; }
+            
+            // 1. 更新大分類地圖 (建立空陣列)
+            const newCatMap = { ...categoryMap, [name]: [] };
+            setCategoryMap(newCatMap);
+
+            // 2. 更新總分類地圖 (將新大分類加入目前選定的總分類中)
+            const newSuperMap = { ...superCategoryMap };
+            if (!newSuperMap[selectedSuper]) newSuperMap[selectedSuper] = [];
+            if (!newSuperMap[selectedSuper].includes(name)) newSuperMap[selectedSuper].push(name);
+            setSuperCategoryMap(newSuperMap);
+
+            if (window.fs && window.db) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+                    { 
+                        categoryMapJSON: JSON.stringify(newCatMap),
+                        superCategoryMapJSON: JSON.stringify(newSuperMap)
+                    }, { merge: true }));
+            }
+        } 
+        else if (viewLevel === 'subcategories') {
+            const currentSubs = categoryMap[selectedCategory] || [];
+            if (currentSubs.includes(name)) { alert("該次分類已存在"); return; }
+
+            // 更新大分類地圖 (將新次分類加入目前選定的大分類中)
+            const newCatMap = { ...categoryMap };
+            if (!newCatMap[selectedCategory]) newCatMap[selectedCategory] = [];
+            newCatMap[selectedCategory].push(name);
+            setCategoryMap(newCatMap);
+
+            if (window.fs && window.db) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+                    { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
+            }
+        }
+
+        if (updates.length > 0) try { await Promise.all(updates); } catch(e) { console.error(e); }
+        if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+    };
+
     const [draggingIndex, setDraggingIndex] = useState(null);
     const [dragOverIndex, setDragOverIndex] = useState(null);
     const dragItem = useRef(null);
@@ -1058,6 +1132,17 @@ const AllNotesModal = ({
                          viewLevel === 'subcategories' ? `${selectedSuper} > ${selectedCategory}` : 
                          `${selectedSuper} > ${selectedCategory} > ${selectedSubcategory}`}
                     </h2>
+                    
+                    {/* [新增] 只有在非搜尋模式下，才顯示新增按鈕 */}
+                    {!categorySearchTerm && (
+                        <button 
+                            onClick={handleAdd}
+                            className={`ml-3 p-1 rounded-full hover:bg-stone-200 transition-colors ${theme.subtext}`}
+                            title={viewLevel === 'notes' ? "新增筆記" : "新增分類"}
+                        >
+                            <Plus className="w-6 h-6" />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1337,6 +1422,8 @@ function EchoScriptApp() {
     const [showAllNotesModal, setShowAllNotesModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [isCreatingNew, setIsCreatingNew] = useState(false);
+    // [新增] 用於儲存新增筆記時的預設模板 (從列表按+時會帶入分類)
+    const [newNoteTemplate, setNewNoteTemplate] = useState(null);
     const [showResponseModal, setShowResponseModal] = useState(false);
     const [activeTab, setActiveTab] = useState('favorites');
     const [notification, setNotification] = useState(null);
@@ -3083,11 +3170,12 @@ function EchoScriptApp() {
 
             {showEditModal && (
                 <MarkdownEditorModal 
-                    note={isCreatingNew ? null : currentNote} 
+                    // [修正] 如果是新增模式，優先使用模板資料(若有)，否則為 null
+                    note={isCreatingNew ? (newNoteTemplate || null) : currentNote} 
                     existingNotes={notes}
                     isNew={isCreatingNew}
-                    onClose={() => setShowEditModal(false)} 
-                    onSave={(data) => { handleSaveNote(data); setHasUnsavedChanges(false); }} 
+                    onClose={() => { setShowEditModal(false); setNewNoteTemplate(null); }} // 關閉時重置模板
+                    onSave={(data) => { handleSaveNote(data); setHasUnsavedChanges(false); setNewNoteTemplate(null); }} 
                     onDelete={() => { handleDeleteNote(currentNote?.id); setHasUnsavedChanges(false); }}
                     setHasUnsavedChanges={setHasUnsavedChanges}
                     theme={theme}
@@ -3136,6 +3224,13 @@ function EchoScriptApp() {
                     viewLevel={allNotesViewLevel}
                     setViewLevel={setAllNotesViewLevel}
                     theme={theme}
+                    // [新增] 處理從列表新增筆記的動作
+                    onAddNote={(template) => {
+                        setNewNoteTemplate(template); // 設定預填分類
+                        setIsCreatingNew(true);
+                        setShowEditModal(true); // 開啟編輯器
+                        // 這裡不關閉 AllNotesModal，讓使用者新增完後回來還在列表
+                    }}
                 />
             )}
 
@@ -3206,6 +3301,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

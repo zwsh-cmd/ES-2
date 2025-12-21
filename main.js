@@ -12,11 +12,12 @@ const THEMES = {
         subtext: 'text-stone-400', activeTab: 'bg-[#2c3e50] text-white'
     },
     dark: { 
-        id: 'dark', name: '深邃夜空', hex: '#020617', // bg-slate-950
+        id: 'dark', name: '都市夜空', hex: '#020617', // bg-slate-950
         bg: 'bg-slate-950', text: 'text-slate-200', 
         card: 'bg-slate-900', border: 'border-slate-800', 
-        accent: 'bg-sky-600', accentText: 'text-white',
-        subtext: 'text-slate-500', activeTab: 'bg-sky-600 text-white'
+        // [修改] 按鈕改為低調的都市灰藍色 (Slate-600)
+        accent: 'bg-slate-600', accentText: 'text-white',
+        subtext: 'text-slate-500', activeTab: 'bg-slate-600 text-white'
     },
     morandi: { 
         id: 'morandi', name: '莫蘭迪花園', hex: '#F2E6D8',
@@ -2936,8 +2937,8 @@ function EchoScriptApp() {
                                         <span className="flex items-center gap-1"><Edit className="w-3 h-3"/> 修改: {currentNote.modifiedDate ? new Date(currentNote.modifiedDate).toLocaleDateString() : (currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設')}</span>
                                     </div>
 
-                                    {/* 內文區域 - 這裡強制使用深色字體以確保 Markdown 在淺色底的卡片上可讀，若為深色模式則自動調整 */}
-                                    <div className={`-mt-5 text-lg leading-loose font-sans text-justify whitespace-pre-wrap ${currentThemeId === 'dark' ? 'text-slate-300' : 'text-stone-700'}`}>
+                                    {/* 內文區域 - 這裡強制使用深色字體以確保 Markdown 在淺色底的卡片上可讀，若為深色模式則自動調整 */ }
+                                    <div className={`-mt-5 text-lg leading-loose font-sans text-justify whitespace-pre-wrap ${currentThemeId === 'dark' ? 'text-slate-500' : 'text-stone-700'}`}>
                                         <MarkdownRenderer content={currentNote.content} />
                                     </div>
                                 </div>
@@ -3305,6 +3306,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

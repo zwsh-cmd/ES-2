@@ -1700,7 +1700,7 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // [優先鎖定] 先推入歷史紀錄，再顯示警告
+                // [歷史優先] 先鎖定堆疊
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1708,10 +1708,7 @@ function EchoScriptApp() {
 
             // === B. 視窗內導航 (編輯回應 -> 列表) ===
             if (showResponseModal && responseViewModeRef.current === 'edit') {
-                // [優先鎖定] 先推入歷史紀錄
                 window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
-                
-                // 再更新畫面
                 setResponseViewMode('list');
                 return;
             }
@@ -1734,28 +1731,31 @@ function EchoScriptApp() {
             // 情況 2: 歷史紀錄已離開列表 (例如退到了 Home)，但視窗還開著 -> 這是使用者按了返回鍵
             if (showAllNotesModal && state.page !== 'modal') {
                 
-                // [關鍵修正] 2-1. 搜尋狀態下的返回處理
+                // [關鍵修正] 2-1. 搜尋狀態下的返回處理 (搜尋 -> 總分類)
                 if (categorySearchTermRef.current) {
-                    // [優先鎖定] 1. 立刻推入歷史紀錄，確保 Stack 不會因為 React 渲染延遲而懸空
+                    // [歷史優先] 立刻推入歷史紀錄，確保 Stack 穩固
                     window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
                     
-                    // 2. 更新 React 狀態與 Ref
+                    // [UI 更新]
                     setCategorySearchTerm(""); 
                     categorySearchTermRef.current = ""; // 手動同步 Ref
                     setAllNotesViewLevel('superCategories'); 
                     return;
                 }
 
-                // [關鍵修正] 2-2. 正常關閉視窗 (回到筆記卡片)
-                // [優先鎖定] 1. 立刻補上 HomeTrap，確保下一次按返回時能觸發 Section E 的確認對話框
+                // [關鍵修正] 2-2. 正常關閉視窗 (總分類 -> 首頁卡片)
+                // [歷史優先] 絕對優先執行 pushState，建立首頁防護網
                 window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
-                // 2. 更新 React 狀態 (關閉視窗、還原卡片)
-                setShowAllNotesModal(false);
-                setAllNotesViewLevel('superCategories');
-                if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
-                    setCurrentIndex(preModalIndexRef.current);
-                }
+                // [UI 延後] 將繁重的畫面更新 (關閉 Modal、還原卡片、DOM 重繪) 移至下一個事件循環
+                // 這樣可以避免 React 的同步渲染搶佔資源，導致瀏覽器忽略了上面的 pushState
+                setTimeout(() => {
+                    setShowAllNotesModal(false);
+                    setAllNotesViewLevel('superCategories');
+                    if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
+                        setCurrentIndex(preModalIndexRef.current);
+                    }
+                }, 0);
 
                 return;
             }
@@ -1763,10 +1763,10 @@ function EchoScriptApp() {
             // === D. 正常關閉其他視窗 ===
             const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal;
             if (isAnyOtherModalOpen) {
-                // [優先鎖定] 先推入 Trap
+                // [歷史優先]
                 window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
                 
-                // 再關閉視窗
+                // [UI 更新]
                 setShowMenuModal(false);
                 setShowEditModal(false);
                 setShowResponseModal(false);
@@ -1775,9 +1775,9 @@ function EchoScriptApp() {
             }
 
             // === E. 首頁退出檢查 (攔截所有退出動作) ===
-            // 當堆疊已經退無可退 (或退到了 trap 之前)，觸發此處
+            // 當堆疊已經退無可退，觸發此處
             
-            // 1. 先把人留住 (Trap)
+            // 1. [歷史優先] 先把人留住 (Trap)
             window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
             // 2. 檢查資料變更
@@ -1791,11 +1791,14 @@ function EchoScriptApp() {
             }
 
             // 3. 退出確認提示
-            if (confirm("確定退出EchoScript?")) {
-                isExitingRef.current = true;
-                // 回退兩步：一步是剛剛 push 的 trap，一步是原本的返回
-                window.history.go(-2);
-            }
+            // 使用 setTimeout 確保 confirm 對話框不會阻擋 history 操作的完成
+            setTimeout(() => {
+                if (confirm("確定退出EchoScript?")) {
+                    isExitingRef.current = true;
+                    // 回退兩步：一步是剛剛 push 的 trap，一步是原本的返回
+                    window.history.go(-2);
+                }
+            }, 10);
         };
 
         window.addEventListener('popstate', handlePopState);
@@ -3179,6 +3182,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

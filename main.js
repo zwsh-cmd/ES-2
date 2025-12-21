@@ -1582,23 +1582,27 @@ function EchoScriptApp() {
                 return;
             }
 
-            // === C. AllNotesModal 歷史同步邏輯 (正向堆疊版) ===
-            if (showAllNotesModal) {
-                const state = event.state || {};
-                
-                // 1. 如果歷史紀錄中還有 level 標記，代表我們還在分類層級中
-                // 我們直接讀取這個 level，並更新畫面
-                if (state.page === 'modal' && state.level) {
-                    setAllNotesViewLevel(state.level);
-                    return;
+            // === C. AllNotesModal 歷史同步與返回邏輯 ===
+            const state = event.state || {};
+
+            // 情況 1: 歷史紀錄指示我們應該在「列表模式」 (包含從筆記返回、或列表內層級跳轉)
+            if (state.page === 'modal') {
+                // 如果列表視窗被關閉了 (例如剛從筆記閱讀畫面返回)，重新打開它
+                if (!showAllNotesModal) {
+                    setShowAllNotesModal(true);
                 }
-                
-                // 2. 如果沒有 level 了 (或是 level 是 root)，代表退回到了 Modal 的最上層或之外
-                // 我們統一關閉 Modal，回到首頁
+                // 恢復到正確的層級
+                if (state.level) {
+                    setAllNotesViewLevel(state.level);
+                }
+                return;
+            }
+
+            // 情況 2: 歷史紀錄已離開列表 (例如退到了 Home)，但視窗還開著 -> 執行關閉
+            if (showAllNotesModal && state.page !== 'modal') {
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
                 
-                // [防護網] 回到首頁後，如果有未存資料，需補上攔截紀錄
                 if (hasDataChangedInSessionRef.current) {
                     window.history.pushState({ page: 'home_trap', changed: true, time: Date.now() }, '', '');
                 }
@@ -2914,7 +2918,11 @@ function EchoScriptApp() {
                         if(idx !== -1) {
                             setCurrentIndex(idx);
                             setShowAllNotesModal(false);
-                            setAllNotesViewLevel('superCategories');
+                            
+                            // [關鍵修改] 點擊筆記時，推入一個「閱讀狀態」到歷史紀錄
+                            // 這樣當使用者按「返回」時，會退回到上一個狀態 (即 page: 'modal')，進而觸發重新開啟列表
+                            window.history.pushState({ page: 'reading_from_list', noteId: item.id }, '', '');
+                            
                             window.scrollTo(0,0);
                         }
                     }}
@@ -2992,6 +3000,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

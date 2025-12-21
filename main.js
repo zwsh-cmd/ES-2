@@ -834,7 +834,122 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         }
     };
     
-    const handleRename = () => { if (!contextMenu) return; alert("暫不支援直接重新命名，請建立新分類後將筆記移動過去。"); setContextMenu(null); };
+    // [修正] 實作完整的重新命名邏輯 (含重複檢查與連動更新)
+    const handleRename = async () => {
+        if (!contextMenu) return;
+        const { type, item } = contextMenu;
+        
+        if (type === 'note') { 
+            alert("筆記請直接點擊進入編輯模式修改。"); 
+            setContextMenu(null); 
+            return; 
+        }
+
+        const newName = prompt(`請輸入新的名稱`, item);
+        if (!newName || newName === item) {
+            setContextMenu(null);
+            return;
+        }
+
+        // 1. 檢查名稱是否重複
+        let isDuplicate = false;
+        if (type === 'superCategory' && superCategoryMap[newName]) isDuplicate = true;
+        else if (type === 'category' && categoryMap[newName]) isDuplicate = true;
+        else if (type === 'subcategory') {
+            const subs = categoryMap[selectedCategory] || [];
+            if (subs.includes(newName)) isDuplicate = true;
+        }
+
+        if (isDuplicate) {
+            alert("新名稱已存在，請使用其他名稱。");
+            return;
+        }
+
+        // 2. 執行資料更新
+        const updates = [];
+        let updatedNotes = [...notes];
+
+        if (type === 'superCategory') {
+            // 更新 Map Key
+            const newMap = { ...superCategoryMap };
+            newMap[newName] = newMap[item];
+            delete newMap[item];
+            setSuperCategoryMap(newMap);
+            if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+
+            // 更新筆記
+            updatedNotes = notes.map(n => {
+                if ((n.superCategory || "其他") === item) {
+                    const newNote = { ...n, superCategory: newName };
+                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { superCategory: newName }, { merge: true }));
+                    return newNote;
+                }
+                return n;
+            });
+
+        } else if (type === 'category') {
+            // 更新 CategoryMap Key
+            const newCatMap = { ...categoryMap };
+            newCatMap[newName] = newCatMap[item];
+            delete newCatMap[item];
+            setCategoryMap(newCatMap);
+
+            // 更新 SuperCategoryMap 中的參照
+            const newSuperMap = { ...superCategoryMap };
+            Object.keys(newSuperMap).forEach(k => {
+                const idx = newSuperMap[k].indexOf(item);
+                if (idx !== -1) newSuperMap[k][idx] = newName;
+            });
+            setSuperCategoryMap(newSuperMap);
+
+            if (window.fs && window.db) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { 
+                    categoryMapJSON: JSON.stringify(newCatMap),
+                    superCategoryMapJSON: JSON.stringify(newSuperMap)
+                }, { merge: true }));
+            }
+
+            // 更新筆記
+            updatedNotes = notes.map(n => {
+                if ((n.category || "未分類") === item) {
+                    const newNote = { ...n, category: newName };
+                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { category: newName }, { merge: true }));
+                    return newNote;
+                }
+                return n;
+            });
+
+        } else if (type === 'subcategory') {
+            // 更新 CategoryMap 中的值
+            const newCatMap = { ...categoryMap };
+            const subs = newCatMap[selectedCategory] || [];
+            const idx = subs.indexOf(item);
+            if (idx !== -1) {
+                subs[idx] = newName;
+                newCatMap[selectedCategory] = subs;
+            }
+            setCategoryMap(newCatMap);
+            if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
+
+            // 更新筆記
+            updatedNotes = notes.map(n => {
+                if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
+                    const newNote = { ...n, subcategory: newName };
+                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { subcategory: newName }, { merge: true }));
+                    return newNote;
+                }
+                return n;
+            });
+        }
+
+        setNotes(updatedNotes);
+        setContextMenu(null);
+        if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+
+        if (updates.length > 0) {
+            try { await Promise.all(updates); console.log("✅ 重新命名同步完成"); } catch(e) { console.error(e); }
+        }
+    };
 
     const handleBack = () => {
         window.history.back();
@@ -2877,6 +2992,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

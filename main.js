@@ -667,7 +667,7 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 };
 
 // === 6. 所有筆記列表 Modal (支援分類顯示) ===
-// [修改] 接收 superCategoryMap 以支援總分類，並新增 handleMove 邏輯
+// [修改] 修正 viewLevel 類型判定，確保移動功能可用
 const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLevel, setViewLevel, categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, setHasDataChangedInSession, theme }) => {
     // 狀態管理：目前選中的層級
     const [selectedSuper, setSelectedSuper] = useState(null);
@@ -683,6 +683,14 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
     
     // 選單狀態
     const [contextMenu, setContextMenu] = useState(null);
+
+    // [新增] 類型對照表 (解決 slice 切字串導致的錯誤)
+    const viewLevelToType = {
+        'superCategories': 'superCategory',
+        'categories': 'category',
+        'subcategories': 'subcategory',
+        'notes': 'note'
+    };
 
     // 取得目前的資料列表 (根據不同層級)
     const currentList = useMemo(() => {
@@ -765,7 +773,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         }
     };
 
-    // [新增] 處理移動邏輯
+    // [核心] 處理移動邏輯
     const handleMove = async () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
@@ -904,7 +912,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
         } else if (type === 'subcategory') {
             hasNotes = notes.some(n => (n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item);
         } else if (type === 'note') {
-            // 筆記直接刪除
             onDelete(item.id);
             setContextMenu(null);
             return;
@@ -944,7 +951,6 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
          if (!contextMenu) return;
          const { type, item } = contextMenu;
          if (type === 'note') { alert("筆記請直接點擊進入編輯模式修改。"); return; }
-
          alert("暫不支援直接重新命名，請建立新分類後將筆記移動過去。");
          setContextMenu(null);
     };
@@ -1049,7 +1055,8 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                             <div key={isNote ? item.id : item} 
                                  data-index={index}
                                  {...bindLongPress(
-                                     (x, y) => setContextMenu({ visible: true, x, y, type: isNote ? 'note' : viewLevel.slice(0, -1), item }),
+                                     // [修正] 使用 viewLevelToType 確保正確的類型名稱
+                                     (x, y) => setContextMenu({ visible: true, x, y, type: viewLevelToType[viewLevel], item }),
                                      () => {
                                          if (isNote) onItemClick(item);
                                          else {
@@ -1069,7 +1076,7 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                                     {!isNote && count === 0 && <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full ml-2">空</span>}
                                     {isNote && <p className={`text-sm ${theme.subtext} line-clamp-1`}>{item.content}</p>}
                                 </div>
-                                {/* 拖曳手把 (僅分類層級顯示) */}
+                                {/* 拖曳手把 */}
                                 {!isNote && (
                                     <div className="p-2 -mr-2 text-stone-300 hover:text-stone-500 cursor-grab touch-none"
                                          onTouchStart={(e) => handleTouchStart(e, index)} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
@@ -1092,9 +1099,12 @@ const AllNotesModal = ({ notes, setNotes, onClose, onItemClick, onDelete, viewLe
                     <div className="fixed inset-0 z-[60]" onClick={() => setContextMenu(null)} />
                     <div className={`fixed z-[70] ${theme.card} rounded-xl shadow-xl border ${theme.border} min-w-[160px] flex flex-col overflow-hidden`}
                          style={{ top: Math.min(contextMenu.y, window.innerHeight - 150), left: Math.min(contextMenu.x, window.innerWidth - 160) }}>
-                        <button onClick={handleMove} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border} flex items-center gap-2`}>
-                            <MoveRight className="w-4 h-4"/> 移動
-                        </button>
+                        {/* [優化] 只有非總分類時才顯示移動選項 */}
+                        {contextMenu.type !== 'superCategory' && (
+                            <button onClick={handleMove} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border} flex items-center gap-2`}>
+                                <MoveRight className="w-4 h-4"/> 移動
+                            </button>
+                        )}
                         <button onClick={handleRename} className={`w-full text-left px-4 py-3 hover:bg-stone-50 ${theme.text} font-bold text-sm border-b ${theme.border} flex items-center gap-2`}>
                             <Edit className="w-4 h-4"/> 重新命名
                         </button>
@@ -3010,6 +3020,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

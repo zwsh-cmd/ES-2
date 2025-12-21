@@ -1125,7 +1125,8 @@ const AllNotesModal = ({
                         // [修正] 搜尋模式下的返回按鈕：點擊後清空搜尋並回到總分類 (強制重置)
                         <button onClick={handleSearchBack} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"><IconBase d="M15 18l-6-6 6-6" /></button>
                     )}
-                    <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text} overflow-hidden text-ellipsis whitespace-nowrap`}>
+                    {/* [UI修正] 標題加上 flex-1，讓標題佔據中間空間，並把右邊的按鈕推到底 */}
+                    <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text} overflow-hidden text-ellipsis whitespace-nowrap flex-1`}>
                         {categorySearchTerm ? "搜尋結果" : 
                          viewLevel === 'superCategories' ? "總分類" : 
                          viewLevel === 'categories' ? selectedSuper : 
@@ -1137,7 +1138,8 @@ const AllNotesModal = ({
                     {!categorySearchTerm && (
                         <button 
                             onClick={handleAdd}
-                            className={`ml-3 p-1 rounded-full hover:bg-stone-200 transition-colors ${theme.subtext}`}
+                            // [UI修正] 移除 ml-3，按鈕會靠右對齊
+                            className={`p-1 rounded-full hover:bg-stone-200 transition-colors ${theme.subtext}`}
                             title={viewLevel === 'notes' ? "新增筆記" : "新增分類"}
                         >
                             <Plus className="w-6 h-6" />
@@ -3301,6 +3303,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

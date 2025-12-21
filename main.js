@@ -3056,9 +3056,15 @@ function EchoScriptApp() {
 
                 {/* 3. [新增] 隨機翻頁按鈕 (右邊) - 配色同「新增筆記」 */}
                 <button 
-                    onClick={() => showNotification("隨機翻頁功能開發中...")} 
+                    onClick={() => {
+                        // [修正] 呼叫 handleNextNote 並傳入 'local' 參數，執行同分類隨機
+                        handleNextNote('local');
+                        if (currentNote?.superCategory) {
+                            showNotification(`隨機探索：${currentNote.superCategory}`);
+                        }
+                    }} 
                     className={`${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
-                    title="隨機翻頁"
+                    title="隨機翻頁 (同總分類)"
                 >
                     <Shuffle className="w-6 h-6" />
                 </button>
@@ -3332,6 +3338,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

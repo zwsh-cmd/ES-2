@@ -784,19 +784,56 @@ const AllNotesModal = ({
             setNotes(newNotes);
         } else if (type === 'subcategory') {
              const newCat = target;
+             
+             // 1. 更新 CategoryMap (將次分類移到新大分類)
              const newCatMap = { ...categoryMap };
              newCatMap[selectedCategory] = newCatMap[selectedCategory].filter(s => s !== item);
              if (!newCatMap[newCat]) newCatMap[newCat] = [];
              newCatMap[newCat].push(item);
              setCategoryMap(newCatMap);
-             if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
+
+             // 2. [關鍵修正] 檢查目標大分類是否屬於某個總分類，若是孤兒則歸入「其他」
              let newSuper = null;
-             Object.entries(superCategoryMap).forEach(([sKey, cats]) => { if (cats.includes(newCat)) newSuper = sKey; });
+             let superMapChanged = false;
+             const newSuperMap = { ...superCategoryMap };
+
+             // 遍歷尋找該大分類屬於哪個總分類
+             Object.entries(newSuperMap).forEach(([sKey, cats]) => { 
+                 if (cats.includes(newCat)) newSuper = sKey; 
+             });
+
+             // 如果找不到歸屬 (孤兒分類)，強制歸入「其他」
+             if (!newSuper) {
+                 newSuper = "其他";
+                 if (!newSuperMap["其他"]) newSuperMap["其他"] = [];
+                 if (!newSuperMap["其他"].includes(newCat)) {
+                     newSuperMap["其他"].push(newCat);
+                     superMapChanged = true;
+                 }
+                 setSuperCategoryMap(newSuperMap);
+                 console.log(`🔧 修復孤兒分類: 將「${newCat}」歸入「其他」`);
+             }
+
+             // 3. 準備雲端更新 (Layout)
+             if (window.fs && window.db) {
+                 const layoutUpdates = { categoryMapJSON: JSON.stringify(newCatMap) };
+                 if (superMapChanged) {
+                     layoutUpdates.superCategoryMapJSON = JSON.stringify(newSuperMap);
+                 }
+                 updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), layoutUpdates, { merge: true }));
+             }
+
+             // 4. 更新相關筆記 (同步更新 category 與 superCategory)
              const newNotes = notes.map(n => {
                 if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
                     const updateData = { category: newCat };
+                    // 即使原本有 superCategory，也要強制更新為新大分類所屬的 superCategory
+                    // 這樣才能確保筆記出現在正確的路徑下
                     if (newSuper) updateData.superCategory = newSuper;
-                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), updateData, { merge: true }));
+
+                    if (window.fs && window.db) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), updateData, { merge: true }));
+                    }
                     return { ...n, ...updateData };
                 }
                 return n;
@@ -3044,6 +3081,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

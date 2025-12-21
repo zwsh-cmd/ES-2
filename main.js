@@ -1731,26 +1731,26 @@ function EchoScriptApp() {
             if (showAllNotesModal && state.page !== 'modal') {
                 
                 // [關鍵修正] 2-1. 搜尋狀態下的返回處理 (搜尋 -> 總分類)
-                // 必須使用 Ref 來判斷，因為閉包內的 State 可能是舊的
                 if (categorySearchTermRef.current) {
-                    // 1. 立即同步推入歷史紀錄，把使用者「關」在視窗內
-                    // 這一步至關重要，它抵銷了使用者的「返回」動作
+                    // [歷史錨點策略]
+                    // 當瀏覽器執行 Pop 回到這裡時，我們所處的底層狀態可能是 null (如果是 App 入口)。
+                    // 1. 先用 replaceState 打地基，將當前狀態定錨為 'home_anchor'
+                    window.history.replaceState({ page: 'home_anchor', id: Date.now() }, '', '');
+                    
+                    // 2. 再同步推入 Modal 狀態，讓使用者視覺上覺得還在視窗內
                     window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
                     
-                    // 2. 清除搜尋狀態，回到總分類介面
+                    // 3. 清除搜尋，回到總分類
                     setCategorySearchTerm(""); 
-                    categorySearchTermRef.current = ""; // 手動同步 Ref，確保下一次邏輯正確
+                    categorySearchTermRef.current = ""; 
                     setAllNotesViewLevel('superCategories'); 
                     return;
                 }
 
                 // [關鍵修正] 2-2. 正常關閉視窗 (總分類 -> 首頁卡片)
-                // 這裡發生了閃退，因為瀏覽器認為歷史紀錄沒了。
-                // 我們必須強制建立一個「首頁防護網 (Home Trap)」。
+                // 此時我們從 Modal 退回到了 'home_anchor' (因為上面 2-1 已經鋪墊過)
                 
-                // 1. [歷史優先] 同步推入 HomeTrap。
-                // 這樣堆疊變成 [Home (popped to), HomeTrap (new)]
-                // 下一次按返回時，瀏覽器會 Pop 這個 HomeTrap，進而觸發下方的 Section E。
+                // 1. [建立防護網] 再次推入一個 Trap，確保下次按返回時有東西可以 Pop
                 window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
                 // 2. 關閉視窗 UI
@@ -1768,7 +1768,7 @@ function EchoScriptApp() {
             // === D. 正常關閉其他視窗 ===
             const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal;
             if (isAnyOtherModalOpen) {
-                // 同樣建立防護網
+                // 關閉後補上防護網
                 window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
                 
                 setShowMenuModal(false);
@@ -1779,9 +1779,9 @@ function EchoScriptApp() {
             }
 
             // === E. 首頁退出檢查 (攔截所有退出動作) ===
-            // 當堆疊已經退無可退 (或退到了 trap 之前)，觸發此處
+            // 當堆疊已經退無可退 (Pop 到了 home_trap 或 home_anchor)，觸發此處
             
-            // 1. [最後防線] 先把人留住 (Trap)
+            // 1. 先把人留住 (Trap)
             window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
             // 2. 檢查資料變更
@@ -1795,14 +1795,14 @@ function EchoScriptApp() {
             }
 
             // 3. 退出確認提示
-            // 使用 setTimeout 0ms 確保 confirm 不會阻擋歷史紀錄的寫入
+            // 使用 setTimeout 確保 confirm 不會阻擋歷史紀錄的寫入
             setTimeout(() => {
                 if (confirm("確定退出EchoScript?")) {
                     isExitingRef.current = true;
                     // 回退兩步：一步是剛剛 push 的 trap，一步是原本的返回
                     window.history.go(-2);
                 }
-            }, 0);
+            }, 10);
         };
 
         window.addEventListener('popstate', handlePopState);
@@ -3186,6 +3186,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

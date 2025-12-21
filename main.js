@@ -257,7 +257,8 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
             } else if (line.startsWith('> ')) {
                 className += "italic text-stone-400 border-l-4 border-stone-300 pl-2";
             } else {
-                className += "text-gray-800"; // 一般文字顏色
+                // [修正] 改用 theme.text 以適應深色模式 (原本寫死 text-gray-800)
+                className += ` ${theme.text}`;
             }
 
             // 處理行內樣式：粗體、刪除線、斜體、底線
@@ -298,9 +299,10 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
             </div>
 
             {/* 上層：負責輸入 (Transparent Textarea) */}
+            {/* [修正] Caret 顏色隨主題變換，確保深色模式下可見 */}
             <textarea
                 ref={textareaRef}
-                className="absolute inset-0 w-full h-full p-3 bg-transparent text-transparent caret-stone-800 resize-none outline-none whitespace-pre-wrap break-words overflow-y-auto"
+                className={`absolute inset-0 w-full h-full p-3 bg-transparent text-transparent resize-none outline-none whitespace-pre-wrap break-words overflow-y-auto ${theme.id === 'dark' ? 'caret-white' : 'caret-stone-800'}`}
                 style={{ fontFamily: 'inherit', lineHeight: '1.6', fontSize: '1rem' }}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
@@ -310,7 +312,7 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
             />
         </div>
     );
-};
+};;
 
 // === 4. Markdown 編輯器組件 (整合高亮編輯器) ===
 // 修改：加入 setHasUnsavedChanges 參數，並監聽內容變更
@@ -3311,6 +3313,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

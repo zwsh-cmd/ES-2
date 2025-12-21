@@ -1700,7 +1700,7 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // [同步鎖定] 編輯狀態下必須同步攔截，防止資料遺失
+                // [同步鎖定] 編輯狀態下必須同步攔截
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1733,31 +1733,38 @@ function EchoScriptApp() {
                 
                 // [關鍵修正] 2-1. 搜尋狀態下的返回處理 (搜尋 -> 總分類)
                 if (categorySearchTermRef.current) {
-                    // 1. 清除搜尋與同步狀態
+                    // [堆疊加固]
+                    // 當我們從搜尋(Modal)退回首頁(Pop)時，我們現在處於 index 0 (或上一層)。
+                    // 1. 先用 replaceState 把目前的底層(Home)替換成一個明確的 Trap，防止它是空的或無效的
+                    window.history.replaceState({ page: 'home_trap', id: Date.now() }, '', '');
+                    
+                    // 2. 再推入新的 Modal 狀態，讓使用者回到總分類
+                    // 這樣堆疊變成了 [HomeTrap, Modal(Super)]
+                    window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
+                    
+                    // 3. 更新 UI 狀態
                     setCategorySearchTerm(""); 
                     categorySearchTermRef.current = ""; 
                     setAllNotesViewLevel('superCategories'); 
-                    
-                    // 2. [同步推入] 這裡必須是同步的，因為我們仍在 Modal 內部導航
-                    // 這讓使用者感覺像是「回到了上一頁」，但其實還在 Modal 裡
-                    window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
                     return;
                 }
 
                 // [關鍵修正] 2-2. 正常關閉視窗 (總分類 -> 首頁卡片)
-                // 1. 先關閉 UI，讓使用者看到首頁
+                // 此時我們從 Modal(Super) 退回到了 HomeTrap (因為上面 2-1 已經加固過，或者是正常的 Push)
+                
+                // 1. 關閉 UI
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
                 if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
                     setCurrentIndex(preModalIndexRef.current);
                 }
 
-                // 2. [延遲推入] 這是解決閃退的關鍵！
-                // 我們延遲 50ms 再推入 HomeTrap。這確保了瀏覽器已經完全處理完「Pop」動作
-                // 並且準備好接受新的「Push」。如果不延遲，連續的 Pop-Push 容易被忽略。
-                setTimeout(() => {
-                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
-                }, 50);
+                // 2. [補強防護網]
+                // 雖然我們退回到了 HomeTrap，但為了讓「下一次」按返回鍵能觸發 Section E 的 popstate 事件，
+                // 我們必須確保還有東西可以 Pop。所以我們再次推入一個 Trap。
+                // 這樣堆疊變成 [HomeTrap, HomeTrap(New)]。
+                // 下一次按返回 -> Pop -> 回到第一個 HomeTrap -> 觸發 Section E。
+                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
                 return;
             }
@@ -1770,15 +1777,13 @@ function EchoScriptApp() {
                 setShowResponseModal(false);
                 setResponseViewMode('list');
                 
-                // 同樣使用延遲推入，確保防護網建立成功
-                setTimeout(() => {
-                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
-                }, 50);
+                // 關閉後同樣需要補一個 trap
+                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
                 return;
             }
 
             // === E. 首頁退出檢查 (攔截所有退出動作) ===
-            // 當堆疊已經退無可退，觸發此處
+            // 當堆疊已經退無可退 (回到最底層的 Trap)，觸發此處
             
             // 1. 先把人留住 (Trap)
             window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
@@ -1794,7 +1799,7 @@ function EchoScriptApp() {
             }
 
             // 3. 退出確認提示
-            // 使用 setTimeout 確保 confirm 不會阻擋 history 寫入
+            // 使用 setTimeout 確保 confirm 不會阻擋 history 寫入 (雖然這裡是最後一步，但為了保險)
             setTimeout(() => {
                 if (confirm("確定退出EchoScript?")) {
                     isExitingRef.current = true;
@@ -3185,6 +3190,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

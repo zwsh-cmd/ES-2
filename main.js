@@ -1700,7 +1700,6 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // [同步鎖定] 編輯狀態下必須同步攔截
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1732,39 +1731,36 @@ function EchoScriptApp() {
             if (showAllNotesModal && state.page !== 'modal') {
                 
                 // [關鍵修正] 2-1. 搜尋狀態下的返回處理 (搜尋 -> 總分類)
+                // 必須使用 Ref 來判斷，因為閉包內的 State 可能是舊的
                 if (categorySearchTermRef.current) {
-                    // [堆疊加固]
-                    // 當我們從搜尋(Modal)退回首頁(Pop)時，我們現在處於 index 0 (或上一層)。
-                    // 1. 先用 replaceState 把目前的底層(Home)替換成一個明確的 Trap，防止它是空的或無效的
-                    window.history.replaceState({ page: 'home_trap', id: Date.now() }, '', '');
-                    
-                    // 2. 再推入新的 Modal 狀態，讓使用者回到總分類
-                    // 這樣堆疊變成了 [HomeTrap, Modal(Super)]
+                    // 1. 立即同步推入歷史紀錄，把使用者「關」在視窗內
+                    // 這一步至關重要，它抵銷了使用者的「返回」動作
                     window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
                     
-                    // 3. 更新 UI 狀態
+                    // 2. 清除搜尋狀態，回到總分類介面
                     setCategorySearchTerm(""); 
-                    categorySearchTermRef.current = ""; 
+                    categorySearchTermRef.current = ""; // 手動同步 Ref，確保下一次邏輯正確
                     setAllNotesViewLevel('superCategories'); 
                     return;
                 }
 
                 // [關鍵修正] 2-2. 正常關閉視窗 (總分類 -> 首頁卡片)
-                // 此時我們從 Modal(Super) 退回到了 HomeTrap (因為上面 2-1 已經加固過，或者是正常的 Push)
+                // 這裡發生了閃退，因為瀏覽器認為歷史紀錄沒了。
+                // 我們必須強制建立一個「首頁防護網 (Home Trap)」。
                 
-                // 1. 關閉 UI
+                // 1. [歷史優先] 同步推入 HomeTrap。
+                // 這樣堆疊變成 [Home (popped to), HomeTrap (new)]
+                // 下一次按返回時，瀏覽器會 Pop 這個 HomeTrap，進而觸發下方的 Section E。
+                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+
+                // 2. 關閉視窗 UI
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
+                
+                // 3. 還原到開啟前的卡片
                 if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
                     setCurrentIndex(preModalIndexRef.current);
                 }
-
-                // 2. [補強防護網]
-                // 雖然我們退回到了 HomeTrap，但為了讓「下一次」按返回鍵能觸發 Section E 的 popstate 事件，
-                // 我們必須確保還有東西可以 Pop。所以我們再次推入一個 Trap。
-                // 這樣堆疊變成 [HomeTrap, HomeTrap(New)]。
-                // 下一次按返回 -> Pop -> 回到第一個 HomeTrap -> 觸發 Section E。
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
                 return;
             }
@@ -1772,20 +1768,20 @@ function EchoScriptApp() {
             // === D. 正常關閉其他視窗 ===
             const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal;
             if (isAnyOtherModalOpen) {
+                // 同樣建立防護網
+                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                
                 setShowMenuModal(false);
                 setShowEditModal(false);
                 setShowResponseModal(false);
                 setResponseViewMode('list');
-                
-                // 關閉後同樣需要補一個 trap
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
                 return;
             }
 
             // === E. 首頁退出檢查 (攔截所有退出動作) ===
-            // 當堆疊已經退無可退 (回到最底層的 Trap)，觸發此處
+            // 當堆疊已經退無可退 (或退到了 trap 之前)，觸發此處
             
-            // 1. 先把人留住 (Trap)
+            // 1. [最後防線] 先把人留住 (Trap)
             window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
             // 2. 檢查資料變更
@@ -1799,14 +1795,14 @@ function EchoScriptApp() {
             }
 
             // 3. 退出確認提示
-            // 使用 setTimeout 確保 confirm 不會阻擋 history 寫入 (雖然這裡是最後一步，但為了保險)
+            // 使用 setTimeout 0ms 確保 confirm 不會阻擋歷史紀錄的寫入
             setTimeout(() => {
                 if (confirm("確定退出EchoScript?")) {
                     isExitingRef.current = true;
                     // 回退兩步：一步是剛剛 push 的 trap，一步是原本的返回
                     window.history.go(-2);
                 }
-            }, 10);
+            }, 0);
         };
 
         window.addEventListener('popstate', handlePopState);
@@ -3190,6 +3186,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

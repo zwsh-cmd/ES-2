@@ -1533,6 +1533,10 @@ function EchoScriptApp() {
     const responseViewModeRef = useRef(responseViewMode);
     const exitLockRef = useRef(false); 
     const isExitingRef = useRef(false); // [新增] 標記是否正在執行退出程序
+    
+    // [關鍵修正] 新增旗標：用來判斷 Modal 開啟是否源自於「返回鍵」(History Restore)
+    // 如果是 True，則 useEffect 不應該再推入新的歷史紀錄
+    const isRestoringHistoryRef = useRef(false);
 
     // [新增] 追蹤本次會話是否有資料變更 (用於離線備份提示)
     const [hasDataChangedInSession, setHasDataChangedInSession] = useState(false);
@@ -1556,17 +1560,21 @@ function EchoScriptApp() {
         }
     }, [hasDataChangedInSession]);
     
-    // 1. 僅在開啟視窗時推入歷史紀錄 (移除首頁強制鎖定，解決無法退出問題)
+    // 1. 僅在開啟視窗時推入歷史紀錄
     useEffect(() => {
-        // 只有當視窗開啟時，我們才需要介入歷史紀錄 (這會讓編輯頁面有路可退，從而觸發攔截)
         const isAnyModalOpen = showMenuModal || showAllNotesModal || showEditModal || showResponseModal;
         if (isAnyModalOpen) {
-            // [優化] 為 AllNotesModal 建立明確的歷史層級
-            // 只有當視窗「開啟」時才推入歷史，確保攔截機制啟動
+            // [關鍵修正] 如果這次開啟是因為使用者按了「返回鍵」(isRestoringHistoryRef 為 true)
+            // 代表瀏覽器已經在正確的歷史位置上了，我們「不應該」再 pushState，否則會覆蓋掉原本的層級路徑
+            if (isRestoringHistoryRef.current) {
+                isRestoringHistoryRef.current = false; // 重置旗標
+                return;
+            }
+
             if (showAllNotesModal) {
+                // 只有在「主動點擊按鈕開啟」時，才推入新的歷史紀錄 (預設從總分類開始)
                 window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
             } else if (showMenuModal || showEditModal || showResponseModal) {
-                // 其他視窗也需要攔截
                 window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
             }
         }
@@ -1597,13 +1605,16 @@ function EchoScriptApp() {
             // === C. AllNotesModal 歷史同步與返回邏輯 ===
             const state = event.state || {};
 
-            // 情況 1: 歷史紀錄指示我們應該在「列表模式」 (包含從筆記返回、或列表內層級跳轉)
+            // 情況 1: 歷史紀錄指示我們應該在「列表模式」
             if (state.page === 'modal') {
-                // 如果列表視窗被關閉了 (例如剛從筆記閱讀畫面返回)，重新打開它
+                // 如果列表視窗目前是關閉的 (例如剛從閱讀畫面返回)，我們需要重新打開它
                 if (!showAllNotesModal) {
+                    // [關鍵] 標記這是「還原操作」，通知 useEffect 不要亂推歷史紀錄
+                    isRestoringHistoryRef.current = true;
                     setShowAllNotesModal(true);
                 }
-                // 恢復到正確的層級
+                
+                // 根據歷史紀錄恢復到正確的層級 (筆記 > 次分類 > 大分類...)
                 if (state.level) {
                     setAllNotesViewLevel(state.level);
                 }
@@ -3016,6 +3027,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

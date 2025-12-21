@@ -1160,8 +1160,8 @@ const AllNotesModal = ({
                             if (item.type === 'note') {
                                 const noteData = item.data;
                                 return (
-                                    // [修正] 筆記項目：使用 App 底色 (theme.bg) + 左側強調邊框 (border-l-4)
-                                    <div key={noteData.id} className={`${theme.bg} border-l-4 ${theme.border} p-4 rounded-xl shadow-sm mb-3 cursor-pointer select-none transition-all`} onClick={() => handleSearchResultClick(item)}>
+                                    // [配色調整] 筆記項目：改用卡片底色 (theme.card) + 左側強調邊框
+                                    <div key={noteData.id} className={`${theme.card} border-l-4 ${theme.border} p-4 rounded-xl shadow-sm mb-3 cursor-pointer select-none transition-all`} onClick={() => handleSearchResultClick(item)}>
                                         <div className="text-xs text-stone-400 mb-1 font-mono">
                                             {noteData.category} <span className="opacity-40">|</span> {noteData.subcategory}
                                         </div>
@@ -1172,9 +1172,9 @@ const AllNotesModal = ({
                             } else {
                                 // 分類項目 (總/大/次)
                                 return (
-                                    // [修正] 分類項目：使用卡片底色 (theme.card)
+                                    // [配色調整] 分類項目：改用 APP 底色 (theme.bg)
                                     <div key={`${item.type}-${item.id}`} 
-                                         className={`${theme.card} ${theme.border} p-4 rounded-xl shadow-sm mb-3 flex items-center cursor-pointer hover:border-stone-300 select-none transition-all`}
+                                         className={`${theme.bg} border ${theme.border} p-4 rounded-xl shadow-sm mb-3 flex items-center cursor-pointer hover:border-stone-300 select-none transition-all`}
                                          onClick={() => handleSearchResultClick(item)}>
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
@@ -1245,9 +1245,11 @@ const AllNotesModal = ({
                                          }
                                      }
                                  )}
+                                 // [配色調整] 分類用 theme.bg (APP底色)，筆記用 theme.card (卡片色)
+                                 // isNote ? theme.card : theme.bg
                                  className={`
                                     ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : 
-                                      `${isNote ? theme.bg : theme.card} ${theme.border} ${isNote ? 'border-l-4' : ''}`
+                                      `${isNote ? theme.card : theme.bg} ${theme.border} ${isNote ? 'border-l-4' : ''}`
                                     } 
                                     ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2' : ''} 
                                     p-4 rounded-xl shadow-sm border mb-3 flex items-center cursor-pointer select-none transition-all
@@ -3303,6 +3305,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1625,6 +1625,9 @@ function EchoScriptApp() {
     
     // [新增] 將搜尋關鍵字狀態提升至主程式，確保點擊筆記返回後，搜尋結果依然存在
     const [categorySearchTerm, setCategorySearchTerm] = useState("");
+    // [新增] Ref 用於在 handlePopState 中讀取最新的搜尋狀態
+    const categorySearchTermRef = useRef(categorySearchTerm);
+    useEffect(() => { categorySearchTermRef.current = categorySearchTerm; }, [categorySearchTerm]);
 
     // 新增 Ref 以解決 EventListener 閉包狀態不同步導致的導航錯誤
     const allNotesViewLevelRef = useRef(allNotesViewLevel);
@@ -1732,11 +1735,21 @@ function EchoScriptApp() {
 
             // 情況 2: 歷史紀錄已離開列表 (例如退到了 Home)，但視窗還開著 -> 執行關閉
             if (showAllNotesModal && state.page !== 'modal') {
+                
+                // [關鍵修正] 如果正在搜尋中，按返回鍵應「清空搜尋並回到總分類」，而不是直接關閉視窗
+                if (categorySearchTermRef.current) {
+                    setCategorySearchTerm(""); // 清空搜尋
+                    setAllNotesViewLevel('superCategories'); // 回到總分類頁面
+                    
+                    // 把歷史紀錄推回去 (Trap)，讓使用者留在 Modal 內
+                    window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
+                    return;
+                }
+
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
                 
                 // [關鍵修正] 退出列表時，還原到開啟前的卡片 (首頁/釘選/隨機)
-                // 這樣使用者就不會因為在列表中點過其他筆記，而回不到原本的地方
                 if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
                     setCurrentIndex(preModalIndexRef.current);
                 }
@@ -3154,6 +3167,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

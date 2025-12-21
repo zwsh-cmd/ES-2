@@ -777,6 +777,24 @@ const AllNotesModal = ({
     const [contextMenu, setContextMenu] = useState(null);
     const [moveConfig, setMoveConfig] = useState(null);
 
+    // [新增] 處理移動視窗的歷史紀錄與返回鍵
+    useEffect(() => {
+        if (moveConfig) {
+            // 1. 開啟移動視窗時，推入一筆歷史紀錄
+            window.history.pushState({ page: 'modal_move', id: Date.now() }, '', '');
+
+            // 2. 定義返回鍵處理函式
+            const handlePopState = () => {
+                // 當使用者按返回鍵 (觸發 popstate) 時，關閉移動視窗
+                // 此時瀏覽器已經退回上一頁 (即原本的列表頁面)，我們只需更新 UI 狀態
+                setMoveConfig(null);
+            };
+
+            window.addEventListener('popstate', handlePopState);
+            return () => window.removeEventListener('popstate', handlePopState);
+        }
+    }, [moveConfig]);
+
     const viewLevelToType = {
         'superCategories': 'superCategory',
         'categories': 'category',
@@ -3395,6 +3413,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

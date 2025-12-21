@@ -1174,6 +1174,8 @@ const NoteListItem = ({ item, isHistory, allResponses, theme }) => {
 function EchoScriptApp() {
     const [notes, setNotes] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
+    // [關鍵修正] 記錄開啟列表前的卡片索引，用於退出列表時還原
+    const preModalIndexRef = useRef(0);
     const [isAnimating, setIsAnimating] = useState(false);
     
     const [favorites, setFavorites] = useState([]);
@@ -1626,6 +1628,12 @@ function EchoScriptApp() {
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
                 
+                // [關鍵修正] 退出列表時，還原到開啟前的卡片 (首頁/釘選/隨機)
+                // 這樣使用者就不會因為在列表中點過其他筆記，而回不到原本的地方
+                if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
+                    setCurrentIndex(preModalIndexRef.current);
+                }
+
                 if (hasDataChangedInSessionRef.current) {
                     window.history.pushState({ page: 'home_trap', changed: true, time: Date.now() }, '', '');
                 }
@@ -2602,7 +2610,12 @@ function EchoScriptApp() {
                     </button>
                     {/* [UI調整] 筆記分類按鈕移至右上角 */}
                     <button 
-                        onClick={() => { setShowAllNotesModal(true); setAllNotesViewLevel('superCategories'); }} 
+                        onClick={() => { 
+                            // [關鍵] 開啟前先記住現在的位置
+                            preModalIndexRef.current = currentIndex;
+                            setShowAllNotesModal(true); 
+                            setAllNotesViewLevel('superCategories'); 
+                        }} 
                         className={`${theme.card} border ${theme.border} ${theme.subtext} p-2 rounded-full shadow-sm active:opacity-80`} 
                         title="筆記分類"
                     >
@@ -2940,7 +2953,11 @@ function EchoScriptApp() {
                     onClose={() => { 
                         setShowAllNotesModal(false); 
                         setAllNotesViewLevel('superCategories'); 
-                        // 關閉視窗時可以選擇是否要重置選取狀態，這裡保留狀態以防使用者是不小心關閉的
+                        
+                        // [關鍵修正] 手動關閉視窗時，也要還原卡片
+                        if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
+                            setCurrentIndex(preModalIndexRef.current);
+                        }
                     }}
                     onItemClick={(item) => {
                         const idx = notes.findIndex(n => n.id === item.id);
@@ -3027,6 +3044,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

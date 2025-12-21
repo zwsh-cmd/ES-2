@@ -1700,7 +1700,7 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // [修正] 改回同步推入，確保攔截生效 (加入唯一 ID 防止瀏覽器合併狀態)
+                // 使用同步推入，確保攔截生效 (加入唯一 ID 防止瀏覽器合併狀態)
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1709,8 +1709,8 @@ function EchoScriptApp() {
             // === B. 視窗內導航 (編輯回應 -> 列表) ===
             if (showResponseModal && responseViewModeRef.current === 'edit') {
                 setResponseViewMode('list');
-                // 這裡保留 setTimeout 避免與 React 渲染衝突 (非關鍵路徑)
-                setTimeout(() => window.history.pushState({ page: 'modal', time: Date.now() }, '', ''), 0);
+                // 這裡使用同步推入，確保狀態一致
+                window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
                 return;
             }
 
@@ -1737,17 +1737,17 @@ function EchoScriptApp() {
                 // 如果正在搜尋中，按返回鍵應「清空搜尋並回到總分類」，而不是直接關閉視窗
                 if (categorySearchTermRef.current) {
                     setCategorySearchTerm(""); // 清空搜尋 State
-                    categorySearchTermRef.current = ""; // [手動同步] 立即更新 Ref，確保後續邏輯判斷正確
+                    categorySearchTermRef.current = ""; // [手動同步] 立即更新 Ref，確保後續邏輯不會誤判
                     
-                    setAllNotesViewLevel('superCategories'); // 確保畫面在總分類
+                    setAllNotesViewLevel('superCategories'); // 確保畫面切換到總分類
                     
-                    // [Trap] 重新推入一個 modal 狀態，把使用者「關」在視窗內
-                    // [重要] 使用同步 pushState，確保在瀏覽器處理完本次返回前，堆疊已經補上
+                    // [Trap 1] 重新推入一個 modal 狀態，把使用者「關」在視窗內 (停留在總分類)
+                    // 使用同步 pushState，這樣歷史堆疊變成 [Home, Modal]，下次按返回時才會 Pop 這個 Modal
                     window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
                     return;
                 }
 
-                // 2-2. 正常關閉視窗 (回到筆記卡片)
+                // 2-2. 正常關閉視窗 (從總分類回到筆記卡片/首頁)
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
                 
@@ -1756,9 +1756,9 @@ function EchoScriptApp() {
                     setCurrentIndex(preModalIndexRef.current);
                 }
 
-                // [關鍵修正] 建立首頁防護網 (同步推入)
+                // [Trap 2] 建立首頁防護網
                 // 當我們從 Modal (Pop) 回到 Root 時，必須立刻補上一個 HomeTrap
-                // 這樣下一次按返回時，瀏覽器才會 Pop 這個 Trap，進而觸發下方的 Section E
+                // 這樣歷史堆疊變成 [Home, HomeTrap]，下次按返回時才會 Pop 這個 Trap，進而觸發下方的 Section E
                 window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
                 return;
@@ -1771,7 +1771,7 @@ function EchoScriptApp() {
                 setShowEditModal(false);
                 setShowResponseModal(false);
                 setResponseViewMode('list');
-                // 關閉後同樣需要補一個 trap
+                // 關閉後同樣需要補一個 trap，確保回到首頁後按返回能觸發確認
                 window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
                 return;
             }
@@ -3181,6 +3181,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

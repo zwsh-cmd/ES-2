@@ -1700,7 +1700,7 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // 使用同步推入，確保攔截生效 (加入唯一 ID 防止瀏覽器合併狀態)
+                // [優先鎖定] 先推入歷史紀錄，再顯示警告
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1708,9 +1708,11 @@ function EchoScriptApp() {
 
             // === B. 視窗內導航 (編輯回應 -> 列表) ===
             if (showResponseModal && responseViewModeRef.current === 'edit') {
-                setResponseViewMode('list');
-                // 這裡使用同步推入，確保狀態一致
+                // [優先鎖定] 先推入歷史紀錄
                 window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
+                
+                // 再更新畫面
+                setResponseViewMode('list');
                 return;
             }
 
@@ -1718,7 +1720,6 @@ function EchoScriptApp() {
             const state = event.state || {};
 
             // 情況 1: 歷史紀錄指示我們應該在「列表模式」
-            // (這通常發生在我們從「筆記閱讀」按返回，或是用 JS 做了 history.forward)
             if (state.page === 'modal') {
                 if (!showAllNotesModal) {
                     isRestoringHistoryRef.current = true;
@@ -1734,32 +1735,27 @@ function EchoScriptApp() {
             if (showAllNotesModal && state.page !== 'modal') {
                 
                 // [關鍵修正] 2-1. 搜尋狀態下的返回處理
-                // 如果正在搜尋中，按返回鍵應「清空搜尋並回到總分類」，而不是直接關閉視窗
                 if (categorySearchTermRef.current) {
-                    setCategorySearchTerm(""); // 清空搜尋 State
-                    categorySearchTermRef.current = ""; // [手動同步] 立即更新 Ref，確保後續邏輯不會誤判
-                    
-                    setAllNotesViewLevel('superCategories'); // 確保畫面切換到總分類
-                    
-                    // [Trap 1] 重新推入一個 modal 狀態，把使用者「關」在視窗內 (停留在總分類)
-                    // 使用同步 pushState，這樣歷史堆疊變成 [Home, Modal]，下次按返回時才會 Pop 這個 Modal
+                    // [優先鎖定] 1. 立刻推入歷史紀錄，確保 Stack 不會因為 React 渲染延遲而懸空
                     window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
+                    
+                    // 2. 更新 React 狀態與 Ref
+                    setCategorySearchTerm(""); 
+                    categorySearchTermRef.current = ""; // 手動同步 Ref
+                    setAllNotesViewLevel('superCategories'); 
                     return;
                 }
 
-                // 2-2. 正常關閉視窗 (從總分類回到筆記卡片/首頁)
+                // [關鍵修正] 2-2. 正常關閉視窗 (回到筆記卡片)
+                // [優先鎖定] 1. 立刻補上 HomeTrap，確保下一次按返回時能觸發 Section E 的確認對話框
+                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+
+                // 2. 更新 React 狀態 (關閉視窗、還原卡片)
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
-                
-                // 還原到開啟前的卡片
                 if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
                     setCurrentIndex(preModalIndexRef.current);
                 }
-
-                // [Trap 2] 建立首頁防護網
-                // 當我們從 Modal (Pop) 回到 Root 時，必須立刻補上一個 HomeTrap
-                // 這樣歷史堆疊變成 [Home, HomeTrap]，下次按返回時才會 Pop 這個 Trap，進而觸發下方的 Section E
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
                 return;
             }
@@ -1767,12 +1763,14 @@ function EchoScriptApp() {
             // === D. 正常關閉其他視窗 ===
             const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal;
             if (isAnyOtherModalOpen) {
+                // [優先鎖定] 先推入 Trap
+                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                
+                // 再關閉視窗
                 setShowMenuModal(false);
                 setShowEditModal(false);
                 setShowResponseModal(false);
                 setResponseViewMode('list');
-                // 關閉後同樣需要補一個 trap，確保回到首頁後按返回能觸發確認
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
                 return;
             }
 
@@ -3181,6 +3179,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

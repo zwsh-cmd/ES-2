@@ -1700,8 +1700,8 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // 使用 setTimeout 確保 pushState 在 pop 之後執行
-                setTimeout(() => window.history.pushState({ page: 'modal_trap', id: Math.random() }, '', ''), 0);
+                // [修正] 改回同步推入，確保攔截生效
+                window.history.pushState({ page: 'modal_trap', id: Math.random() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
             }
@@ -1709,6 +1709,7 @@ function EchoScriptApp() {
             // === B. 視窗內導航 (編輯回應 -> 列表) ===
             if (showResponseModal && responseViewModeRef.current === 'edit') {
                 setResponseViewMode('list');
+                // 這裡保留 setTimeout 避免與 React 渲染衝突 (非關鍵路徑)
                 setTimeout(() => window.history.pushState({ page: 'modal', time: Date.now() }, '', ''), 0);
                 return;
             }
@@ -1717,7 +1718,6 @@ function EchoScriptApp() {
             const state = event.state || {};
 
             // 情況 1: 歷史紀錄指示我們應該在「列表模式」
-            // 這通常發生在歷史導航（前進/後退）到達了一個標記為 modal 的點
             if (state.page === 'modal') {
                 if (!showAllNotesModal) {
                     isRestoringHistoryRef.current = true;
@@ -1739,10 +1739,8 @@ function EchoScriptApp() {
                     setAllNotesViewLevel('superCategories'); // 確保畫面在總分類
                     
                     // [Trap] 重新推入一個 modal 狀態，把使用者「關」在視窗內
-                    // 使用 setTimeout (0ms) 是關鍵！這能確保在瀏覽器完成 pop 動作後才 push，避免被忽略
-                    setTimeout(() => {
-                        window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
-                    }, 0);
+                    // [重要] 使用同步 pushState，確保在瀏覽器處理完本次返回前，堆疊已經補上
+                    window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
                     return;
                 }
 
@@ -1756,11 +1754,9 @@ function EchoScriptApp() {
                 }
 
                 // [關鍵修正] 建立首頁防護網
-                // 這裡也使用 setTimeout，確保這個 "Home Trap" 確實被寫入歷史堆疊
-                // 這樣下一次按返回時，瀏覽器會 pop 這個 trap，觸發下方的 Section E
-                setTimeout(() => {
-                    window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
-                }, 0);
+                // 當我們從 Modal (Pop) 回到 Root 時，必須立刻補上一個 HomeTrap
+                // 這樣下一次按返回時，瀏覽器才會 Pop 這個 Trap，進而觸發下方的 Section E
+                window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
 
                 return;
             }
@@ -1773,9 +1769,7 @@ function EchoScriptApp() {
                 setShowResponseModal(false);
                 setResponseViewMode('list');
                 // 關閉後同樣需要補一個 trap
-                setTimeout(() => {
-                    window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
-                }, 0);
+                window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
                 return;
             }
 
@@ -3184,6 +3178,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

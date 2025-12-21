@@ -1805,7 +1805,8 @@ function EchoScriptApp() {
     
     // 1. 僅在開啟視窗時推入歷史紀錄
     useEffect(() => {
-        const isAnyModalOpen = showMenuModal || showAllNotesModal || showEditModal || showResponseModal;
+        // [修改] 加入 showShuffleMenu
+        const isAnyModalOpen = showMenuModal || showAllNotesModal || showEditModal || showResponseModal || showShuffleMenu;
         if (isAnyModalOpen) {
             // [關鍵修正] 如果這次開啟是因為使用者按了「返回鍵」(isRestoringHistoryRef 為 true)
             // 代表瀏覽器已經在正確的歷史位置上了，我們「不應該」再 pushState，否則會覆蓋掉原本的層級路徑
@@ -1817,11 +1818,11 @@ function EchoScriptApp() {
             if (showAllNotesModal) {
                 // 只有在「主動點擊按鈕開啟」時，才推入新的歷史紀錄 (預設從總分類開始)
                 window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
-            } else if (showMenuModal || showEditModal || showResponseModal) {
+            } else if (showMenuModal || showEditModal || showResponseModal || showShuffleMenu) { // [修改] 加入 showShuffleMenu
                 window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
             }
         }
-    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal]);
+    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu]); // [修改] 加入依賴
 
     // 2. 攔截返回鍵 (核心：真實歷史堆疊 + 狀態同步)
     useEffect(() => {
@@ -1897,7 +1898,8 @@ function EchoScriptApp() {
             }
 
             // === D. 正常關閉其他視窗 ===
-            const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal;
+            // [修改] 加入 showShuffleMenu
+            const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal || showShuffleMenu;
             if (isAnyOtherModalOpen) {
                 // 同樣使用 setTimeout 建立防護網
                 setTimeout(() => {
@@ -1907,6 +1909,7 @@ function EchoScriptApp() {
                 setShowMenuModal(false);
                 setShowEditModal(false);
                 setShowResponseModal(false);
+                setShowShuffleMenu(false); // [新增] 關閉抽卡設定
                 setResponseViewMode('list');
                 return;
             }
@@ -1938,7 +1941,7 @@ function EchoScriptApp() {
 
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
-    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal]);
+    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu]); // [修改] 加入依賴
     
     // === 雲端版資料監聽 (取代原本的 LocalStorage 初始化) ===
     useEffect(() => {
@@ -3347,7 +3350,7 @@ function EchoScriptApp() {
                     <div className={`${theme.card} rounded-xl shadow-2xl border ${theme.border} w-full max-w-xs overflow-hidden flex flex-col animate-in zoom-in-95`}>
                         <div className={`p-4 border-b ${theme.border} flex justify-between items-center`}>
                             <h3 className={`font-bold ${theme.text} flex items-center gap-2`}>
-                                <Cards className="w-5 h-5" /> 設定抽卡目標
+                                <Shuffle className="w-5 h-5" /> 設定抽卡目標
                             </h3>
                             {shuffleTarget && (
                                 <button onClick={() => { setShuffleTarget(null); setShowShuffleMenu(false); showNotification("已取消鎖定，改為隨當前筆記"); }} className="text-xs text-red-500 font-bold hover:underline">
@@ -3392,6 +3395,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

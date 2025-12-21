@@ -877,7 +877,7 @@ const AllNotesModal = ({
         }
     };
     
-    // [修正] 實作完整的重新命名邏輯 (含重複檢查與連動更新)
+    // [修正] 實作完整的重新命名邏輯 (含重複檢查、連動更新與狀態同步)
     const handleRename = async () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
@@ -913,6 +913,9 @@ const AllNotesModal = ({
         let updatedNotes = [...notes];
 
         if (type === 'superCategory') {
+            // [關鍵修正] 如果正在瀏覽該分類，同步更新選取狀態，避免畫面變空
+            if (selectedSuper === item) setSelectedSuper(newName);
+
             // 更新 Map Key
             const newMap = { ...superCategoryMap };
             newMap[newName] = newMap[item];
@@ -931,6 +934,9 @@ const AllNotesModal = ({
             });
 
         } else if (type === 'category') {
+            // [關鍵修正] 同步更新選取狀態
+            if (selectedCategory === item) setSelectedCategory(newName);
+
             // 更新 CategoryMap Key
             const newCatMap = { ...categoryMap };
             newCatMap[newName] = newCatMap[item];
@@ -963,6 +969,9 @@ const AllNotesModal = ({
             });
 
         } else if (type === 'subcategory') {
+            // [關鍵修正] 同步更新選取狀態
+            if (selectedSubcategory === item) setSelectedSubcategory(newName);
+
             // 更新 CategoryMap 中的值
             const newCatMap = { ...categoryMap };
             const subs = newCatMap[selectedCategory] || [];
@@ -1049,7 +1058,10 @@ const AllNotesModal = ({
                 {searchTerm ? (
                     notes.filter(n => n.title.includes(searchTerm) || n.content.includes(searchTerm)).map(item => (
                         <div key={item.id} className={`${theme.card} p-4 rounded-xl shadow-sm border ${theme.border} mb-3`} onClick={() => onItemClick(item)}>
-                            <div className="text-xs text-stone-400 mb-1">{item.superCategory} / {item.category}</div>
+                            {/* [修正] 搜尋結果顯示完整分類：大分類 | 次分類 */}
+                            <div className="text-xs text-stone-400 mb-1 font-mono">
+                                {item.category} <span className="opacity-40">|</span> {item.subcategory}
+                            </div>
                             <h4 className={`font-bold ${theme.text}`}>{item.title}</h4>
                         </div>
                     ))
@@ -1100,13 +1112,21 @@ const AllNotesModal = ({
                                  )}
                                  className={`
                                     ${isDragging ? 'bg-stone-100 border-stone-400 scale-[1.02] z-20' : 
-                                      // [修正] 筆記項目使用不同樣式：使用 theme.bg (較平坦) 並加上左側強調邊框
                                       `${isNote ? theme.bg : theme.card} ${theme.border} ${isNote ? 'border-l-4' : ''}`
                                     } 
                                     ${isDragOver ? 'border-t-[3px] border-t-[#2c3e50] mt-2' : ''} 
                                     p-4 rounded-xl shadow-sm border mb-3 flex items-center cursor-pointer select-none transition-all
                                  `}>
                                 <div className="flex-1">
+                                    {/* [修正] 在筆記卡片上方顯示「大分類 | 次分類」標籤 */}
+                                    {isNote && (
+                                        <div className="mb-1">
+                                             <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded tracking-wide">
+                                                {item.category} <span className="opacity-40">|</span> {item.subcategory}
+                                             </span>
+                                        </div>
+                                    )}
+                                    
                                     <h4 className={`font-bold text-lg ${theme.text}`}>{isNote ? item.title : item}</h4>
                                     {!isNote && count === 0 && <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full ml-2">空</span>}
                                     {isNote && <p className={`text-sm ${theme.subtext} line-clamp-1`}>{item.content}</p>}
@@ -3081,6 +3101,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

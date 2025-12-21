@@ -1700,6 +1700,7 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
+                // 把歷史紀錄「塞回去」，防止瀏覽器真的退回上一頁
                 window.history.pushState({ page: 'modal_trap', id: Math.random() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1716,33 +1717,37 @@ function EchoScriptApp() {
             const state = event.state || {};
 
             // 情況 1: 歷史紀錄指示我們應該在「列表模式」
+            // (這通常發生在我們從「筆記閱讀」按返回，或是用 JS 做了 history.forward)
             if (state.page === 'modal') {
                 if (!showAllNotesModal) {
                     isRestoringHistoryRef.current = true;
                     setShowAllNotesModal(true);
                 }
+                // 恢復到正確的層級 (但不影響搜尋狀態，搜尋狀態由下方的 Case 2 處理)
                 if (state.level) {
                     setAllNotesViewLevel(state.level);
                 }
                 return;
             }
 
-            // 情況 2: 歷史紀錄已離開列表 (例如退到了 Home)，但視窗還開著 -> 執行關閉或層級回退
+            // 情況 2: 歷史紀錄已離開列表 (state.page !== 'modal')，但視窗還開著
+            // 這代表使用者按了「返回鍵」，試圖離開 Modal
             if (showAllNotesModal && state.page !== 'modal') {
                 
-                // [關鍵修正] 1. 搜尋狀態下的返回處理
+                // [關鍵修正] 2-1. 搜尋狀態下的返回處理
                 // 如果正在搜尋中，按返回鍵應「清空搜尋並回到總分類」，而不是直接關閉視窗
                 if (categorySearchTermRef.current) {
                     setCategorySearchTerm(""); // 清空搜尋
                     setAllNotesViewLevel('superCategories'); // 確保畫面在總分類
                     
-                    // [Trap] 把歷史紀錄「推回去」，讓使用者看起來像是退了一步但還在 Modal 內
-                    // 這樣 stack 變成 [Home, Modal(Super)]，下次按返回時才會執行下方的關閉邏輯
+                    // [Trap] 重新推入一個 modal 狀態，把使用者「關」在視窗內
+                    // 這樣 Stack 變成 [..., Home, Modal(Super)]
+                    // 下一次按返回時，才會進入下方的 2-2 關閉邏輯
                     window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
                     return;
                 }
 
-                // 2. 正常關閉視窗 (回到筆記卡片)
+                // 2-2. 正常關閉視窗 (回到筆記卡片)
                 setShowAllNotesModal(false);
                 setAllNotesViewLevel('superCategories');
                 
@@ -1753,8 +1758,8 @@ function EchoScriptApp() {
 
                 // [關鍵修正] 這裡必須再次推入一個 'home_trap'
                 // 因為我們剛剛從 Modal 退回到了 Root (Home)，這是一個 pop 動作。
-                // 如果不手動再 push 一層 Trap，下一次按返回鍵時，瀏覽器會因為已經在最底層而直接關閉 APP，
-                // 無法觸發下方的 Section E 進行確認。
+                // 如果不手動再 push 一層 Trap，下一次按返回鍵時，瀏覽器會因為已經在最底層而直接關閉 APP。
+                // 這裡的 push 確保了下一次返回會觸發下方的 Section E。
                 window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
 
                 return;
@@ -1767,10 +1772,13 @@ function EchoScriptApp() {
                 setShowEditModal(false);
                 setShowResponseModal(false);
                 setResponseViewMode('list');
+                // 關閉其他視窗後，同樣需要確保有 Trap
+                window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
                 return;
             }
 
             // === E. 首頁退出檢查 (攔截所有退出動作) ===
+            // 當所有視窗都關閉，且使用者再次按返回鍵時觸發
             
             // 1. 先把人留住 (Trap)：這行會讓瀏覽器以為還有下一頁，所以不會關閉 APP
             window.history.pushState({ page: 'home_trap', time: Date.now() }, '', '');
@@ -3177,6 +3185,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1113,39 +1113,39 @@ const AllNotesModal = ({
     return (
         <div className={`fixed inset-0 z-40 ${theme.bg} flex flex-col animate-in slide-in-from-right duration-300`}>
              <div className={`p-4 border-b ${theme.border} ${theme.card} flex justify-between items-center sticky top-0 z-10`}>
-                <div className="flex items-center gap-2">
+                {/* 左側區域：返回按鈕 + 標題 (使用 overflow-hidden 確保標題過長時會截斷) */}
+                <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                     {(!categorySearchTerm) ? (
                         <button 
                             onClick={viewLevel === 'superCategories' ? onClose : handleBack} 
-                            className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"
+                            className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1 shrink-0"
                         >
                             {viewLevel === 'superCategories' ? <X className="w-5 h-5" /> : <IconBase d="M15 18l-6-6 6-6" />}
                         </button>
                     ) : (
                         // [修正] 搜尋模式下的返回按鈕：點擊後清空搜尋並回到總分類 (強制重置)
-                        <button onClick={handleSearchBack} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1"><IconBase d="M15 18l-6-6 6-6" /></button>
+                        <button onClick={handleSearchBack} className="p-1 -ml-2 text-stone-500 hover:bg-stone-100 rounded-full mr-1 shrink-0"><IconBase d="M15 18l-6-6 6-6" /></button>
                     )}
-                    {/* [UI修正] 標題加上 flex-1，讓標題佔據中間空間，並把右邊的按鈕推到底 */}
-                    <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text} overflow-hidden text-ellipsis whitespace-nowrap flex-1`}>
+                    
+                    <h2 className={`font-bold text-lg flex items-center gap-2 ${theme.text} overflow-hidden text-ellipsis whitespace-nowrap`}>
                         {categorySearchTerm ? "搜尋結果" : 
                          viewLevel === 'superCategories' ? "總分類" : 
                          viewLevel === 'categories' ? selectedSuper : 
                          viewLevel === 'subcategories' ? `${selectedSuper} > ${selectedCategory}` : 
                          `${selectedSuper} > ${selectedCategory} > ${selectedSubcategory}`}
                     </h2>
-                    
-                    {/* [新增] 只有在非搜尋模式下，才顯示新增按鈕 */}
-                    {!categorySearchTerm && (
-                        <button 
-                            onClick={handleAdd}
-                            // [UI修正] 移除 ml-3，按鈕會靠右對齊
-                            className={`p-1 rounded-full hover:bg-stone-200 transition-colors ${theme.subtext}`}
-                            title={viewLevel === 'notes' ? "新增筆記" : "新增分類"}
-                        >
-                            <Plus className="w-6 h-6" />
-                        </button>
-                    )}
                 </div>
+                
+                {/* 右側區域：新增按鈕 (獨立出來，靠右對齊) */}
+                {!categorySearchTerm && (
+                    <button 
+                        onClick={handleAdd}
+                        className={`p-2 rounded-full hover:bg-stone-200 transition-colors ${theme.subtext} shrink-0`}
+                        title={viewLevel === 'notes' ? "新增筆記" : "新增分類"}
+                    >
+                        <Plus className="w-6 h-6" />
+                    </button>
+                )}
             </div>
 
             <div className={`p-4 ${theme.bg} sticky top-[69px] z-10`}>
@@ -3303,6 +3303,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

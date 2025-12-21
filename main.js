@@ -1564,9 +1564,9 @@ function EchoScriptApp() {
         // 只有當視窗開啟時，我們才需要介入歷史紀錄 (這會讓編輯頁面有路可退，從而觸發攔截)
         const isAnyModalOpen = showMenuModal || showAllNotesModal || showEditModal || showResponseModal;
         if (isAnyModalOpen) {
-            // [優化] 為 AllNotesModal 建立明確的歷史層級 'categories'
+            // [優化] 為 AllNotesModal 建立明確的歷史層級 'superCategories'
             const state = showAllNotesModal 
-                ? { page: 'modal', level: 'categories', time: Date.now() }
+                ? { page: 'modal', level: 'superCategories', time: Date.now() }
                 : { page: 'modal', time: Date.now() };
             window.history.pushState(state, '', '');
         }
@@ -1597,40 +1597,38 @@ function EchoScriptApp() {
                 return;
             }
 
-            // === C. AllNotesModal 的三層導航邏輯 ===
+            // === C. AllNotesModal 的四層導航邏輯 (修正版：層層返回) ===
             if (showAllNotesModal) {
-                const destState = event.state || {};
                 const currentLevel = allNotesViewLevelRef.current;
 
-                // 1. 內部導航 (優先權最高)
-                // 只要歷史紀錄裡有 level 標籤，代表我們還是在視窗內部的移動
-                if (destState.level === 'notes') {
-                    setAllNotesViewLevel('notes');
-                    return;
-                }
-                if (destState.level === 'subcategories') {
+                // 強制執行層級向上返回邏輯：notes -> subcategories -> categories -> superCategories -> Exit
+                // 原理：當用戶按返回鍵 (PopState) 時，我們攔截並檢查目前在哪一層
+                // 如果不是最上層，我們就手動切換到上一層，並且「再次 PushState」把歷史紀錄補回來
+                // 這樣瀏覽器看起來像是退了一步，但實際上我們把使用者留在了 App 裡的上一層選單
+                
+                if (currentLevel === 'notes') {
                     setAllNotesViewLevel('subcategories');
+                    window.history.pushState({ page: 'modal', level: 'subcategories', time: Date.now() }, '', '');
                     return;
                 }
-                if (destState.level === 'categories') {
-                    setAllNotesViewLevel('categories');
-                    return;
-                }
-
-                // 2. 外部導航 (當歷史紀錄沒有 level 時，代表要退出了)
                 
-                // [防呆] 如果人還在深層 (次分類/筆記)，但歷史紀錄卻直接跳到了外面 (Root/Home)
-                // 我們不直接關閉，而是先退回「大分類」，給使用者一種「返回上一層」的感覺
-                if (currentLevel !== 'categories') {
+                if (currentLevel === 'subcategories') {
                     setAllNotesViewLevel('categories');
+                    window.history.pushState({ page: 'modal', level: 'categories', time: Date.now() }, '', '');
                     return;
                 }
 
-                // [正常退出] 人在「大分類」，且沒有更上一層的 level 了 -> 關閉視窗回到首頁
+                if (currentLevel === 'categories') {
+                    setAllNotesViewLevel('superCategories');
+                    window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
+                    return;
+                }
+
+                // 如果已經在總分類 (superCategories)，則允許正常退出 (不 pushState，讓它自然回到首頁)
                 setShowAllNotesModal(false);
-                setAllNotesViewLevel('categories');
+                setAllNotesViewLevel('superCategories'); // 重置為預設
                 
-                // [關鍵修復] 如果資料已變更，關閉視窗回到首頁後，需立刻補上一個歷史紀錄，防止下次按返回直接退出 App
+                // [關鍵修復] 退出後若有未存資料，需補防護網
                 if (hasDataChangedInSessionRef.current) {
                     window.history.pushState({ page: 'home_trap', changed: true, time: Date.now() }, '', '');
                 }
@@ -3038,6 +3036,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

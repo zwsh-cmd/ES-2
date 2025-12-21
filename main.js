@@ -1715,7 +1715,7 @@ function EchoScriptApp() {
             // === C. AllNotesModal 歷史同步與返回邏輯 ===
             const state = event.state || {};
 
-            // 情況 1: 歷史紀錄指示我們應該在「列表模式」 (包含從筆記閱讀返回、或列表內層級跳轉)
+            // 情況 1: 歷史紀錄指示我們應該在「列表模式」
             if (state.page === 'modal') {
                 if (!showAllNotesModal) {
                     isRestoringHistoryRef.current = true;
@@ -3177,6 +3177,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

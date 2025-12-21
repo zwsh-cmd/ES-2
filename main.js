@@ -141,32 +141,37 @@ const MarkdownRenderer = ({ content }) => {
         const parts = text.split(/(\*\*.*?\*\*|~~.*?~~|\*.*?\*|<u>.*?<\/u>)/g);
         return parts.map((part, index) => {
             if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={index} className="text-stone-900 font-extrabold">{part.slice(2, -2)}</strong>;
+                // [修正] 移除寫死的 text-stone-900，改為繼承顏色
+                return <strong key={index} className="font-extrabold">{part.slice(2, -2)}</strong>;
             }
             if (part.startsWith('~~') && part.endsWith('~~')) {
-                return <del key={index} className="text-stone-400">{part.slice(2, -2)}</del>;
+                return <del key={index} className="opacity-50">{part.slice(2, -2)}</del>;
             }
             if (part.startsWith('*') && part.endsWith('*')) {
-                return <em key={index} className="italic text-stone-600">{part.slice(1, -1)}</em>;
+                // [修正] 移除 text-stone-600
+                return <em key={index} className="italic opacity-80">{part.slice(1, -1)}</em>;
             }
             if (part.startsWith('<u>') && part.endsWith('</u>')) {
-                return <u key={index} className="underline decoration-stone-400 underline-offset-4">{part.slice(3, -4)}</u>;
+                // [修正] 裝飾線改為 current color
+                return <u key={index} className="underline decoration-current underline-offset-4">{part.slice(3, -4)}</u>;
             }
             return part;
         });
     };
 
     return (
-        <div className="text-base leading-loose text-stone-700 font-sans text-justify whitespace-pre-wrap">
+        // [修正] 移除外層 div 寫死的 text-stone-700
+        <div className="text-base leading-loose font-sans text-justify whitespace-pre-wrap">
             {content.split('\n').map((line, i) => {
-                if (line.startsWith('# ')) return <h1 key={i} className="text-xl font-bold mt-5 mb-3 text-stone-900">{parseInline(line.slice(2))}</h1>;
-                if (line.startsWith('## ')) return <h2 key={i} className="text-lg font-bold mt-4 mb-2 text-stone-600">{parseInline(line.slice(3))}</h2>;
-                if (line.startsWith('> ')) return <blockquote key={i} className="border-l-4 border-stone-300 pl-4 italic text-stone-500 my-2">{parseInline(line.slice(2))}</blockquote>;
+                // [修正] 標題與引用移除寫死顏色，改用 opacity 區分層次
+                if (line.startsWith('# ')) return <h1 key={i} className="text-xl font-bold mt-5 mb-3">{parseInline(line.slice(2))}</h1>;
+                if (line.startsWith('## ')) return <h2 key={i} className="text-lg font-bold mt-4 mb-2 opacity-90">{parseInline(line.slice(3))}</h2>;
+                if (line.startsWith('> ')) return <blockquote key={i} className="border-l-4 border-current pl-4 italic opacity-70 my-2">{parseInline(line.slice(2))}</blockquote>;
                 // [新增] 處理清單符號：將 "- " 轉換為縮排 + 圓點
                 if (line.startsWith('- ')) {
                     return (
                         <div key={i} className="flex items-start gap-2 ml-4 mb-1">
-                            <span className="text-stone-400 font-bold mt-[0.4em] text-[0.6em]">•</span>
+                            <span className="opacity-50 font-bold mt-[0.4em] text-[0.6em]">•</span>
                             <span className="flex-1">{parseInline(line.slice(2))}</span>
                         </div>
                     );
@@ -2938,7 +2943,7 @@ function EchoScriptApp() {
                                     </div>
 
                                     {/* 內文區域 - 這裡強制使用深色字體以確保 Markdown 在淺色底的卡片上可讀，若為深色模式則自動調整 */ }
-                                    <div className={`-mt-5 text-lg leading-loose font-sans text-justify whitespace-pre-wrap ${currentThemeId === 'dark' ? 'text-slate-500' : 'text-stone-700'}`}>
+                                    <div className={`-mt-5 text-lg leading-loose font-sans text-justify whitespace-pre-wrap ${currentThemeId === 'dark' ? 'text-slate-200' : 'text-stone-700'}`}>
                                         <MarkdownRenderer content={currentNote.content} />
                                     </div>
                                 </div>
@@ -3306,6 +3311,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

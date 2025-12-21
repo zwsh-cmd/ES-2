@@ -106,6 +106,8 @@ const Pin = (props) => <IconBase d={["M2 12h10", "M9 4v16", "M3 7l3 3", "M3 17l3
 const MoveRight = (props) => <IconBase d={["M13 5l7 7-7 7", "M5 12h14"]} {...props} />;
 // [新增] 隨機翻頁圖示
 const Shuffle = (props) => <IconBase d={["M16 3h5v5", "M4 20L21 3", "M21 16v5h-5", "M15 15l6 6", "M4 4l5 5"]} {...props} />;
+// [新增] 抽卡圖示 (疊卡效果)
+const Cards = (props) => <IconBase d={["M8 2h13v13", "M12 22H5a2 2 0 0 1-2-2V7", "M12 22l3-3", "M12 22l3 3", "M8 7h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"]} {...props} />;
 
 
 // === 2. 初始筆記資料庫 (確保有完整分類) ===
@@ -1442,6 +1444,10 @@ function EchoScriptApp() {
     const [activeTab, setActiveTab] = useState('favorites');
     const [notification, setNotification] = useState(null);
     
+    // [新增] 抽卡功能狀態：選單顯示與目標總分類
+    const [showShuffleMenu, setShowShuffleMenu] = useState(false);
+    const [shuffleTarget, setShuffleTarget] = useState(null);
+
     // [新增] 分類結構地圖 { "大分類": ["次分類1", "次分類2"] }
     const [categoryMap, setCategoryMap] = useState({});
     // [新增] 總分類結構地圖 { "總分類": ["大分類1", "大分類2"] }
@@ -2161,52 +2167,94 @@ function EchoScriptApp() {
             }
 
             // === 2. 核心邏輯：強制同分類隨機 (Strict Category Shuffle) ===
-            // 如果當前有筆記，就鎖定它的分類；如果沒有(極少見)，就全域隨機
-            if (currentNote) {
-                const targetSuper = String(currentNote.superCategory || "其他").trim();
-                
-                // 找出所有同分類的候選筆記
-                let candidates = notes
-                    .map((n, i) => ({ ...n, originalIndex: i }))
-                    .filter(n => String(n.superCategory || "其他").trim() === targetSuper);
+            // [新增] 如果使用者有設定 shuffleTarget，優先使用該目標；否則使用當前筆記的分類
+            // 這樣可以確保左滑時，始終在使用者選定的「抽卡目標」中循環
+            let targetSuper = "其他";
+            if (shuffleTarget) {
+                targetSuper = shuffleTarget;
+            } else if (currentNote) {
+                targetSuper = String(currentNote.superCategory || "其他").trim();
+            }
 
-                // [優化] 強制排除當前正在看的這張 (確保一定會換頁)
-                if (candidates.length > 1) {
-                    candidates = candidates.filter(n => n.originalIndex !== currentIndex);
-                }
+            // 找出所有同分類的候選筆記
+            let candidates = notes
+                .map((n, i) => ({ ...n, originalIndex: i }))
+                .filter(n => String(n.superCategory || "其他").trim() === targetSuper);
 
-                if (candidates.length > 0) {
-                    // 隨機抽選
-                    const rand = Math.floor(Math.random() * candidates.length);
-                    const nextIndex = candidates[rand].originalIndex;
+            // [優化] 強制排除當前正在看的這張 (確保一定會換頁)
+            if (candidates.length > 1) {
+                candidates = candidates.filter(n => n.originalIndex !== currentIndex);
+            }
 
-                    // 更新歷史堆疊
-                    setRecentIndices(prev => {
-                        let currentHistory = [...prev];
-                        if (currentIndex !== -1) {
-                            if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
-                                currentHistory.unshift(currentIndex);
-                            }
+            if (candidates.length > 0) {
+                // 隨機抽選
+                const rand = Math.floor(Math.random() * candidates.length);
+                const nextIndex = candidates[rand].originalIndex;
+
+                // 更新歷史堆疊
+                setRecentIndices(prev => {
+                    let currentHistory = [...prev];
+                    if (currentIndex !== -1) {
+                        if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
+                            currentHistory.unshift(currentIndex);
                         }
-                        const updated = [nextIndex, ...currentHistory];
-                        if (updated.length > 50) updated.pop();
-                        return updated;
-                    });
-                    
-                    setFutureIndices([]);
-                    setCurrentIndex(nextIndex);
+                    }
+                    const updated = [nextIndex, ...currentHistory];
+                    if (updated.length > 50) updated.pop();
+                    return updated;
+                });
+                
+                setFutureIndices([]);
+                setCurrentIndex(nextIndex);
+            } else {
+                if (shuffleTarget) {
+                    showNotification(`目標分類「${targetSuper}」無筆記`);
+                    setShuffleTarget(null); // 重置無效的目標
                 } else {
                     showNotification(`「${targetSuper}」分類無其他筆記`);
                 }
-            } else {
-                // Fallback: 如果當前沒筆記 (例如初始空狀態)，隨機挑一張來啟動
-                const rand = Math.floor(Math.random() * notes.length);
-                setCurrentIndex(rand);
             }
             
             setIsAnimating(false);
             window.scrollTo(0,0);
         }, 300);
+    };
+
+    // [新增] 執行抽卡目標設定與立即跳轉
+    const handleSetShuffleTarget = (target) => {
+        setShuffleTarget(target);
+        setShowShuffleMenu(false);
+
+        // 立即執行一次跳轉，讓使用者馬上看到結果
+        const candidates = notes
+            .map((n, i) => ({ ...n, originalIndex: i }))
+            .filter(n => String(n.superCategory || "其他").trim() === target);
+
+        if (candidates.length > 0) {
+            setIsAnimating(true);
+            setTimeout(() => {
+                const rand = Math.floor(Math.random() * candidates.length);
+                const nextIndex = candidates[rand].originalIndex;
+                
+                setRecentIndices(prev => {
+                    let currentHistory = [...prev];
+                    if (currentIndex !== -1) {
+                        if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
+                            currentHistory.unshift(currentIndex);
+                        }
+                    }
+                    return [nextIndex, ...currentHistory];
+                });
+                
+                setFutureIndices([]);
+                setCurrentIndex(nextIndex);
+                setIsAnimating(false);
+                window.scrollTo(0,0);
+                showNotification(`抽卡目標：${target}`);
+            }, 300);
+        } else {
+            showNotification(`分類「${target}」目前沒有筆記`);
+        }
     };
 
     // [新增] 獨立的「回到釘選」邏輯 (完全與首頁脫鉤)
@@ -3021,19 +3069,15 @@ function EchoScriptApp() {
                     <Pin className="w-6 h-6" />
                 </button>
 
-                {/* 3. [新增] 隨機翻頁按鈕 (右邊) - 配色同「新增筆記」 */}
+                {/* 3. [修改] 抽卡設定按鈕 (右邊) - 改為圖示「抽卡」，點擊設定目標 */}
                 <button 
-                    onClick={() => {
-                        // [修正] 呼叫 handleNextNote 並傳入 'local' 參數，執行同分類隨機
-                        handleNextNote('local');
-                        if (currentNote?.superCategory) {
-                            showNotification(`隨機探索：${currentNote.superCategory}`);
-                        }
-                    }} 
-                    className={`${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
-                    title="隨機翻頁 (同總分類)"
+                    onClick={() => setShowShuffleMenu(true)} 
+                    className={`${theme.card} border ${theme.border} ${theme.subtext} p-3 rounded-full shadow-lg active:scale-95 transition-transform relative`} 
+                    title="設定抽卡目標"
                 >
-                    <Shuffle className="w-6 h-6" />
+                    <Cards className="w-6 h-6" />
+                    {/* 如果有設定目標，顯示一個小紅點提示 */}
+                    {shuffleTarget && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}
                 </button>
             </div>
 
@@ -3293,6 +3337,45 @@ function EchoScriptApp() {
                 </div>
             )}
 
+            {/* [新增] 抽卡目標選擇選單 */}
+            {showShuffleMenu && (
+                <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowShuffleMenu(false); }}>
+                    <div className={`${theme.card} rounded-xl shadow-2xl border ${theme.border} w-full max-w-xs overflow-hidden flex flex-col animate-in zoom-in-95`}>
+                        <div className={`p-4 border-b ${theme.border} flex justify-between items-center`}>
+                            <h3 className={`font-bold ${theme.text} flex items-center gap-2`}>
+                                <Cards className="w-5 h-5" /> 設定抽卡目標
+                            </h3>
+                            {shuffleTarget && (
+                                <button onClick={() => { setShuffleTarget(null); setShowShuffleMenu(false); showNotification("已取消鎖定，改為隨當前筆記"); }} className="text-xs text-red-500 font-bold hover:underline">
+                                    取消鎖定
+                                </button>
+                            )}
+                        </div>
+                        <div className="p-2 overflow-y-auto max-h-[60vh] custom-scrollbar">
+                            {Object.keys(superCategoryMap).map(sup => (
+                                <button 
+                                    key={sup} 
+                                    onClick={() => handleSetShuffleTarget(sup)}
+                                    className={`w-full text-left px-4 py-3 rounded-lg font-bold text-sm mb-1 transition-colors flex justify-between items-center ${
+                                        shuffleTarget === sup 
+                                        ? `${theme.accent} ${theme.accentText}` 
+                                        : `hover:bg-stone-100 ${theme.text}`
+                                    }`}
+                                >
+                                    {sup}
+                                    {shuffleTarget === sup && <IconBase d="M20 6 9 17l-5-5" className="w-4 h-4"/>}
+                                </button>
+                            ))}
+                        </div>
+                        <div className={`p-2 border-t ${theme.border}`}>
+                            <button onClick={() => setShowShuffleMenu(false)} className="w-full py-2 text-stone-400 font-bold text-xs hover:text-stone-600">
+                                關閉
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {notification && (
                 // [修正] 顏色改為 theme.accent 與 theme.accentText，隨主題變色 (與「我的資料庫」按鈕一致)
                 <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 ${theme.accent} ${theme.accentText} text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 z-50`}>
@@ -3305,6 +3388,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

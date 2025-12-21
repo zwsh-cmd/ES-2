@@ -1700,7 +1700,7 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // [歷史優先] 先鎖定堆疊
+                // [同步鎖定] 編輯狀態下必須同步攔截，防止資料遺失
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -1733,29 +1733,31 @@ function EchoScriptApp() {
                 
                 // [關鍵修正] 2-1. 搜尋狀態下的返回處理 (搜尋 -> 總分類)
                 if (categorySearchTermRef.current) {
-                    // [歷史優先] 立刻推入歷史紀錄，確保 Stack 穩固
-                    window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
-                    
-                    // [UI 更新]
+                    // 1. 清除搜尋與同步狀態
                     setCategorySearchTerm(""); 
-                    categorySearchTermRef.current = ""; // 手動同步 Ref
+                    categorySearchTermRef.current = ""; 
                     setAllNotesViewLevel('superCategories'); 
+                    
+                    // 2. [同步推入] 這裡必須是同步的，因為我們仍在 Modal 內部導航
+                    // 這讓使用者感覺像是「回到了上一頁」，但其實還在 Modal 裡
+                    window.history.pushState({ page: 'modal', level: 'superCategories', id: Date.now() }, '', '');
                     return;
                 }
 
                 // [關鍵修正] 2-2. 正常關閉視窗 (總分類 -> 首頁卡片)
-                // [歷史優先] 絕對優先執行 pushState，建立首頁防護網
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                // 1. 先關閉 UI，讓使用者看到首頁
+                setShowAllNotesModal(false);
+                setAllNotesViewLevel('superCategories');
+                if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
+                    setCurrentIndex(preModalIndexRef.current);
+                }
 
-                // [UI 延後] 將繁重的畫面更新 (關閉 Modal、還原卡片、DOM 重繪) 移至下一個事件循環
-                // 這樣可以避免 React 的同步渲染搶佔資源，導致瀏覽器忽略了上面的 pushState
+                // 2. [延遲推入] 這是解決閃退的關鍵！
+                // 我們延遲 50ms 再推入 HomeTrap。這確保了瀏覽器已經完全處理完「Pop」動作
+                // 並且準備好接受新的「Push」。如果不延遲，連續的 Pop-Push 容易被忽略。
                 setTimeout(() => {
-                    setShowAllNotesModal(false);
-                    setAllNotesViewLevel('superCategories');
-                    if (preModalIndexRef.current !== null && preModalIndexRef.current !== -1) {
-                        setCurrentIndex(preModalIndexRef.current);
-                    }
-                }, 0);
+                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                }, 50);
 
                 return;
             }
@@ -1763,21 +1765,22 @@ function EchoScriptApp() {
             // === D. 正常關閉其他視窗 ===
             const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal;
             if (isAnyOtherModalOpen) {
-                // [歷史優先]
-                window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
-                
-                // [UI 更新]
                 setShowMenuModal(false);
                 setShowEditModal(false);
                 setShowResponseModal(false);
                 setResponseViewMode('list');
+                
+                // 同樣使用延遲推入，確保防護網建立成功
+                setTimeout(() => {
+                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                }, 50);
                 return;
             }
 
             // === E. 首頁退出檢查 (攔截所有退出動作) ===
             // 當堆疊已經退無可退，觸發此處
             
-            // 1. [歷史優先] 先把人留住 (Trap)
+            // 1. 先把人留住 (Trap)
             window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
             // 2. 檢查資料變更
@@ -1791,7 +1794,7 @@ function EchoScriptApp() {
             }
 
             // 3. 退出確認提示
-            // 使用 setTimeout 確保 confirm 對話框不會阻擋 history 操作的完成
+            // 使用 setTimeout 確保 confirm 不會阻擋 history 寫入
             setTimeout(() => {
                 if (confirm("確定退出EchoScript?")) {
                     isExitingRef.current = true;
@@ -3182,6 +3185,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

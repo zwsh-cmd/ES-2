@@ -936,91 +936,178 @@ const AllNotesModal = ({
     const resetDrag = () => { dragItem.current = null; dragOverItem.current = null; setDraggingIndex(null); setDragOverIndex(null); };
     const syncToCloud = (docName, data) => { if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", docName), data, { merge: true }); };
 
+    // [修改] 啟動移動流程：初始化狀態，不再預先計算目標
     const handleMove = () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
-        let targetList = [];
-        if (type === 'category') targetList = Object.keys(superCategoryMap).filter(k => k !== selectedSuper);
-        else if (type === 'subcategory') targetList = Object.keys(categoryMap).filter(k => k !== selectedCategory);
-        else if (type === 'note') targetList = (categoryMap[selectedCategory] || []).filter(s => s !== selectedSubcategory);
-
-        if (targetList.length === 0) { alert("沒有其他可移動的目標分類"); setContextMenu(null); return; }
-        setMoveConfig({ type, item, targets: targetList });
+        
+        // 初始化移動設定，統一從「選擇總分類」開始，確保邏輯一致
+        setMoveConfig({ 
+            type, 
+            item, 
+            step: 'super', 
+            targetSuper: null, 
+            targetCategory: null 
+        });
         setContextMenu(null);
     };
 
-    const executeMove = async (target) => {
+    // [新增] 分階段移動邏輯
+    const handleMoveSelect = async (selection) => {
         if (!moveConfig) return;
-        const { type, item } = moveConfig;
+        const { type, item, step, targetSuper, targetCategory } = moveConfig;
         const updates = [];
-        
-        if (type === 'category') {
-             const newSuper = target;
-             const newSuperMap = { ...superCategoryMap };
-             newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== item);
-             if (!newSuperMap[newSuper]) newSuperMap[newSuper] = [];
-             newSuperMap[newSuper].push(item);
-             setSuperCategoryMap(newSuperMap);
-             if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
-             const newNotes = notes.map(n => {
-                if ((n.category || "未分類") === item) {
-                     if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { superCategory: newSuper }, { merge: true }));
-                    return { ...n, superCategory: newSuper };
+
+        // === 階段 1: 選擇總分類 ===
+        if (step === 'super') {
+            const nextSuper = selection;
+
+            if (type === 'category') {
+                // [終點] 移動「大分類」
+                if (superCategoryMap[nextSuper]?.includes(item)) {
+                    alert(`總分類「${nextSuper}」下已存在相同名稱的大分類`);
+                    return;
                 }
-                return n;
-            });
-            setNotes(newNotes);
-        } else if (type === 'subcategory') {
-             const newCat = target;
-             const newCatMap = { ...categoryMap };
-             newCatMap[selectedCategory] = newCatMap[selectedCategory].filter(s => s !== item);
-             if (!newCatMap[newCat]) newCatMap[newCat] = [];
-             newCatMap[newCat].push(item);
-             setCategoryMap(newCatMap);
 
-             let newSuper = null;
-             let superMapChanged = false;
-             const newSuperMap = { ...superCategoryMap };
-             Object.entries(newSuperMap).forEach(([sKey, cats]) => { if (cats.includes(newCat)) newSuper = sKey; });
+                // 1. 更新結構 (從舊移除，加入新)
+                const newSuperMap = { ...superCategoryMap };
+                newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== item);
+                if (!newSuperMap[nextSuper]) newSuperMap[nextSuper] = [];
+                newSuperMap[nextSuper].push(item);
+                setSuperCategoryMap(newSuperMap);
 
-             if (!newSuper) {
-                 newSuper = "其他";
-                 if (!newSuperMap["其他"]) newSuperMap["其他"] = [];
-                 if (!newSuperMap["其他"].includes(newCat)) { newSuperMap["其他"].push(newCat); superMapChanged = true; }
-                 setSuperCategoryMap(newSuperMap);
-             }
-
-             if (window.fs && window.db) {
-                 const layoutUpdates = { categoryMapJSON: JSON.stringify(newCatMap) };
-                 if (superMapChanged) layoutUpdates.superCategoryMapJSON = JSON.stringify(newSuperMap);
-                 updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), layoutUpdates, { merge: true }));
-             }
-
-             const newNotes = notes.map(n => {
-                if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
-                    const updateData = { category: newCat };
-                    if (newSuper) updateData.superCategory = newSuper;
-                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), updateData, { merge: true }));
-                    return { ...n, ...updateData };
+                // 2. 寫入資料庫 (Layout)
+                if (window.fs && window.db) {
+                    updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+                        { superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
                 }
-                return n;
-            });
-            setNotes(newNotes);
-        } else if (type === 'note') {
-             const newSub = target;
-             const newNotes = notes.map(n => {
-                if (n.id === item.id) {
-                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { subcategory: newSub }, { merge: true }));
-                    return { ...n, subcategory: newSub };
+
+                // 3. 更新旗下所有筆記
+                const newNotes = notes.map(n => {
+                    if ((n.category || "未分類") === item && (n.superCategory || "其他") === selectedSuper) {
+                        const updatedNote = { ...n, superCategory: nextSuper };
+                        if (window.fs && window.db) {
+                            updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), 
+                                { superCategory: nextSuper }, { merge: true }));
+                        }
+                        return updatedNote;
+                    }
+                    return n;
+                });
+                setNotes(newNotes);
+
+                // 4. 完成與跳轉
+                try { await Promise.all(updates); } catch(e) {}
+                setSelectedSuper(nextSuper); // 跳轉到新總分類
+                // setSelectedCategory(item); // 保持選中該大分類
+                // setViewLevel('categories'); 
+                setMoveConfig(null);
+                if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+
+            } else {
+                // [過場] 移動次分類或筆記 -> 下一步：選擇大分類
+                const cats = superCategoryMap[nextSuper] || [];
+                if (cats.length === 0) {
+                    alert(`總分類「${nextSuper}」下沒有大分類，無法移動至此。`);
+                    return;
                 }
-                return n;
-            });
-            setNotes(newNotes);
+                setMoveConfig({ ...moveConfig, step: 'category', targetSuper: nextSuper });
+            }
         }
-        if (updates.length > 0) try { await Promise.all(updates); } catch(e) {}
         
-        setMoveConfig(null);
-        if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+        // === 階段 2: 選擇大分類 ===
+        else if (step === 'category') {
+            const nextCategory = selection;
+
+            if (type === 'subcategory') {
+                // [終點] 移動「次分類」
+                const currentSubs = categoryMap[nextCategory] || [];
+                if (currentSubs.includes(item)) {
+                    alert(`大分類「${nextCategory}」下已存在相同名稱的次分類`);
+                    return;
+                }
+
+                // 1. 更新結構
+                const newCatMap = { ...categoryMap };
+                newCatMap[selectedCategory] = newCatMap[selectedCategory].filter(s => s !== item);
+                if (!newCatMap[nextCategory]) newCatMap[nextCategory] = [];
+                newCatMap[nextCategory].push(item);
+                setCategoryMap(newCatMap);
+
+                // 2. 寫入資料庫
+                if (window.fs && window.db) {
+                    updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+                        { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
+                }
+
+                // 3. 更新旗下所有筆記 (同時更新 superCategory 與 category)
+                const newNotes = notes.map(n => {
+                    if ((n.subcategory || "一般") === item && (n.category || "未分類") === selectedCategory) {
+                        const updatedNote = { ...n, superCategory: targetSuper, category: nextCategory };
+                        if (window.fs && window.db) {
+                            updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), 
+                                { superCategory: targetSuper, category: nextCategory }, { merge: true }));
+                        }
+                        return updatedNote;
+                    }
+                    return n;
+                });
+                setNotes(newNotes);
+
+                // 4. 完成與跳轉
+                try { await Promise.all(updates); } catch(e) {}
+                setSelectedSuper(targetSuper);
+                setSelectedCategory(nextCategory);
+                setViewLevel('subcategories'); // 跳轉到新地點的次分類列表
+                
+                setMoveConfig(null);
+                if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+
+            } else {
+                // [過場] 移動筆記 -> 下一步：選擇次分類
+                // 若該大分類無次分類，系統稍後會自動提供「一般」或允許移動
+                setMoveConfig({ ...moveConfig, step: 'subcategory', targetCategory: nextCategory });
+            }
+        }
+
+        // === 階段 3: 選擇次分類 ===
+        else if (step === 'subcategory') {
+            const nextSubcategory = selection;
+            
+            // [終點] 移動「筆記」
+            const newNotes = notes.map(n => {
+                if (n.id === item.id) {
+                    const updatedNote = { 
+                        ...n, 
+                        superCategory: targetSuper, 
+                        category: targetCategory, 
+                        subcategory: nextSubcategory 
+                    };
+                    if (window.fs && window.db) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), 
+                            { 
+                                superCategory: targetSuper, 
+                                category: targetCategory, 
+                                subcategory: nextSubcategory 
+                            }, { merge: true }));
+                    }
+                    return updatedNote;
+                }
+                return n;
+            });
+            setNotes(newNotes);
+
+            try { await Promise.all(updates); } catch(e) {}
+
+            // 跳轉到新筆記的位置
+            setSelectedSuper(targetSuper);
+            setSelectedCategory(targetCategory);
+            setSelectedSubcategory(nextSubcategory);
+            setViewLevel('notes');
+
+            setMoveConfig(null);
+            if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+        }
     };
 
     const handleDelete = () => {
@@ -1340,11 +1427,45 @@ const AllNotesModal = ({
             {moveConfig && (
                 <div className="fixed inset-0 z-[80] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setMoveConfig(null); }}>
                     <div className={`${theme.card} rounded-xl shadow-2xl border ${theme.border} w-full max-w-xs overflow-hidden flex flex-col max-h-[60vh] animate-in zoom-in-95`}>
-                        <div className={`p-4 border-b ${theme.border} font-bold text-center ${theme.text}`}>移動「{moveConfig.item.title || moveConfig.item}」至...</div>
+                        <div className={`p-4 border-b ${theme.border} font-bold text-center ${theme.text}`}>
+                            {moveConfig.step === 'super' ? `移動至哪個總分類？` : 
+                             moveConfig.step === 'category' ? `移動至「${moveConfig.targetSuper}」的哪個大分類？` :
+                             `移動至「${moveConfig.targetCategory}」的哪個次分類？`}
+                        </div>
                         <div className="overflow-y-auto p-2 custom-scrollbar">
-                            {moveConfig.targets.map(target => (
-                                <button key={target} onClick={() => executeMove(target)} className={`w-full text-left px-4 py-3 rounded-lg hover:bg-stone-100 ${theme.text} font-bold text-sm mb-1 transition-colors`}>{target}</button>
-                            ))}
+                            {(() => {
+                                let options = [];
+                                // 根據當前步驟決定顯示什麼清單
+                                if (moveConfig.step === 'super') {
+                                    options = Object.keys(superCategoryMap);
+                                    // 若移動大分類，排除自己所在的總分類
+                                    if (moveConfig.type === 'category') {
+                                        options = options.filter(k => k !== selectedSuper);
+                                    }
+                                } else if (moveConfig.step === 'category') {
+                                    options = superCategoryMap[moveConfig.targetSuper] || [];
+                                    // 若移動次分類且目標總分類沒變，排除自己所在的大分類
+                                    if (moveConfig.type === 'subcategory' && moveConfig.targetSuper === selectedSuper) {
+                                        options = options.filter(k => k !== selectedCategory);
+                                    }
+                                } else if (moveConfig.step === 'subcategory') {
+                                    options = categoryMap[moveConfig.targetCategory] || [];
+                                    // 若無次分類，提供「一般」選項
+                                    if (options.length === 0) options = ["一般"];
+                                    // 若移動筆記且路徑沒變，排除自己所在的次分類
+                                    if (moveConfig.type === 'note' && moveConfig.targetSuper === selectedSuper && moveConfig.targetCategory === selectedCategory) {
+                                        options = options.filter(k => k !== selectedSubcategory);
+                                    }
+                                }
+
+                                if (options.length === 0) {
+                                    return <div className="p-4 text-center text-stone-400 text-sm">沒有可用的選項</div>;
+                                }
+
+                                return options.map(opt => (
+                                    <button key={opt} onClick={() => handleMoveSelect(opt)} className={`w-full text-left px-4 py-3 rounded-lg hover:bg-stone-100 ${theme.text} font-bold text-sm mb-1 transition-colors`}>{opt}</button>
+                                ));
+                            })()}
                         </div>
                         <div className={`p-2 border-t ${theme.border}`}><button onClick={() => setMoveConfig(null)} className="w-full py-2 text-stone-400 font-bold text-xs hover:text-stone-600">取消</button></div>
                     </div>
@@ -3502,6 +3623,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

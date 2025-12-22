@@ -2458,6 +2458,8 @@ function EchoScriptApp() {
 
         setHasDataChangedInSession(true); 
         setShowEditModal(false);
+        // [關鍵修正] 強制關閉分類列表 (確保若從列表新增，儲存後會看到卡片而不是回到列表)
+        setShowAllNotesModal(false);
     };
 
     // [新增] 復原筆記功能
@@ -3402,6 +3404,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

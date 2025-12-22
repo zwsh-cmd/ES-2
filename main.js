@@ -1505,6 +1505,10 @@ function EchoScriptApp() {
         const localPinnedId = localStorage.getItem('echoScript_PinnedId');
         if (localPinnedId) setPinnedNoteId(localPinnedId);
 
+        // [新增] 讀取本地抽卡目標
+        const localShuffleTarget = localStorage.getItem('echoScript_ShuffleTarget');
+        if (localShuffleTarget) setShuffleTarget(localShuffleTarget);
+
         // 2. 監聽雲端
         if (!window.fs || !window.db) return;
         const unsubscribe = window.fs.onSnapshot(
@@ -1528,6 +1532,13 @@ function EchoScriptApp() {
                     if (data.resumeNoteId !== undefined) {
                         if (data.resumeNoteId) localStorage.setItem('echoScript_ResumeNoteId', data.resumeNoteId);
                         else localStorage.removeItem('echoScript_ResumeNoteId');
+                    }
+
+                    // [新增] 同步抽卡目標
+                    if (data.shuffleTarget !== undefined) {
+                        setShuffleTarget(data.shuffleTarget);
+                        if (data.shuffleTarget) localStorage.setItem('echoScript_ShuffleTarget', data.shuffleTarget);
+                        else localStorage.removeItem('echoScript_ShuffleTarget');
                     }
                 }
             }
@@ -2241,6 +2252,16 @@ function EchoScriptApp() {
         setShuffleTarget(target);
         setShowShuffleMenu(false);
 
+        // [新增] 同步寫入雲端與本地
+        localStorage.setItem('echoScript_ShuffleTarget', target);
+        if (window.fs && window.db) {
+            window.fs.setDoc(
+                window.fs.doc(window.db, "settings", "preferences"), 
+                { shuffleTarget: target }, 
+                { merge: true }
+            ).catch(e => console.error("抽卡目標同步失敗", e));
+        }
+
         // 立即執行一次跳轉，讓使用者馬上看到結果
         const candidates = notes
             .map((n, i) => ({ ...n, originalIndex: i }))
@@ -2270,6 +2291,23 @@ function EchoScriptApp() {
             }, 300);
         } else {
             showNotification(`分類「${target}」目前沒有筆記`);
+        }
+    };
+
+    // [新增] 清除抽卡目標
+    const handleClearShuffleTarget = () => {
+        setShuffleTarget(null);
+        setShowShuffleMenu(false);
+        showNotification("已取消鎖定，改為隨當前筆記");
+
+        // [新增] 同步清除雲端與本地
+        localStorage.removeItem('echoScript_ShuffleTarget');
+        if (window.fs && window.db) {
+            window.fs.setDoc(
+                window.fs.doc(window.db, "settings", "preferences"), 
+                { shuffleTarget: null }, 
+                { merge: true }
+            ).catch(e => console.error("清除抽卡目標失敗", e));
         }
     };
 
@@ -3422,7 +3460,7 @@ function EchoScriptApp() {
                                 <Shuffle className="w-5 h-5" /> 設定抽卡目標
                             </h3>
                             {shuffleTarget && (
-                                <button onClick={() => { setShuffleTarget(null); setShowShuffleMenu(false); showNotification("已取消鎖定，改為隨當前筆記"); }} className="text-xs text-red-500 font-bold hover:underline">
+                                <button onClick={handleClearShuffleTarget} className="text-xs text-red-500 font-bold hover:underline">
                                     取消鎖定
                                 </button>
                             )}
@@ -3464,6 +3502,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

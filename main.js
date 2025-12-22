@@ -3163,7 +3163,22 @@ function EchoScriptApp() {
         fullText += `匯出日期: ${new Date().toLocaleString()}\n`;
         fullText += `筆記總數: ${notes.length}\n\n`;
 
-        notes.forEach((note, index) => {
+        // [修正] 改為依照分類層級排序 (總分類 -> 大分類 -> 次分類)
+        const sortedNotes = [...notes].sort((a, b) => {
+            const superA = a.superCategory || "其他";
+            const superB = b.superCategory || "其他";
+            if (superA !== superB) return superA.localeCompare(superB, "zh-Hant");
+
+            const catA = a.category || "未分類";
+            const catB = b.category || "未分類";
+            if (catA !== catB) return catA.localeCompare(catB, "zh-Hant");
+
+            const subA = a.subcategory || "一般";
+            const subB = b.subcategory || "一般";
+            return subA.localeCompare(subB, "zh-Hant");
+        });
+
+        sortedNotes.forEach((note, index) => {
             fullText += "================================================================\n";
             fullText += `【${index + 1}】${note.title}\n`;
             fullText += `分類: ${note.superCategory || "其他"} > ${note.category || "未分類"} > ${note.subcategory || "一般"}\n`;
@@ -3763,6 +3778,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

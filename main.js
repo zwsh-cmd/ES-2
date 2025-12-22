@@ -2457,9 +2457,17 @@ function EchoScriptApp() {
         if (savedIndex !== -1) setCurrentIndex(savedIndex);
 
         setHasDataChangedInSession(true); 
+        
+        // [修正] 計算歷史紀錄回退步數
+        // 如果 showAllNotesModal 為 true，表示我們是從「分類列表 -> 新增筆記」進來的 (Stack: List -> Edit)，需要退 2 步回到卡片
+        // 如果只是單純修改或從首頁新增 (Stack: Edit)，只需退 1 步
+        const stepsBack = showAllNotesModal ? -2 : -1;
+
         setShowEditModal(false);
-        // [關鍵修正] 強制關閉分類列表 (確保若從列表新增，儲存後會看到卡片而不是回到列表)
         setShowAllNotesModal(false);
+
+        // [關鍵修正] 主動清除歷史堆疊，防止按返回鍵時重新打開 Modal
+        window.history.go(stepsBack);
     };
 
     // [新增] 復原筆記功能
@@ -2772,6 +2780,11 @@ function EchoScriptApp() {
         // [修正] 編輯/新增回應後，關閉視窗並回到卡片
         setShowResponseModal(false);
         setResponseViewMode('list'); 
+        // [關鍵修正] 確保分類列表也被關閉 (防止跳回列表)
+        setShowAllNotesModal(false);
+
+        // [關鍵修正] 主動清除歷史堆疊 (移除 Response Modal 的紀錄)，讓按返回鍵時不會發生鬼打牆
+        window.history.back();
     };
 
     const handleDeleteResponse = (responseId) => {
@@ -3404,6 +3417,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

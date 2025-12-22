@@ -1942,7 +1942,8 @@ function EchoScriptApp() {
             setTimeout(() => {
                 if (confirm("確定退出EchoScript?")) {
                     isExitingRef.current = true;
-                    window.history.go(-2);
+                    // [修正] 改為 -3，解決儲存後因補入歷史紀錄導致堆疊變深，無法一次退出的問題
+                    window.history.go(-3);
                 }
             }, 10);
         };
@@ -3430,6 +3431,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

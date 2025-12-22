@@ -3271,19 +3271,19 @@ function EchoScriptApp() {
                                         <button onClick={handleBackup} className="w-full bg-stone-100 text-stone-800 text-sm font-bold py-2 rounded-lg border border-stone-200">下載 JSON 檔案</button>
                                     </div>
 
-                                    {/* [新增] 資料存檔區塊 */}
-                                    <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
-                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><FileText className="w-4 h-4"/> 資料存檔 (TXT)</h3>
-                                        <p className={`text-xs ${theme.subtext} mb-3`}>將所有筆記與回應轉為純文字，可貼入 Word 或保存閱讀。</p>
-                                        <button onClick={handleExportText} className="w-full bg-stone-100 text-stone-800 text-sm font-bold py-2 rounded-lg border border-stone-200">下載 TXT 檔案</button>
-                                    </div>
-
                                     <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
                                         <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><Upload className="w-4 h-4"/> 匯入備份</h3>
                                         <label className="block w-full bg-[#2c3e50] text-white text-center text-sm font-bold py-2 rounded-lg cursor-pointer">
                                             選擇 JSON 檔案
                                             <input type="file" accept=".json" className="hidden" onChange={handleRestore} />
                                         </label>
+                                    </div>
+
+                                    {/* [新增] 資料存檔區塊 */}
+                                    <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
+                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><FileText className="w-4 h-4"/> 資料存檔 (TXT)</h3>
+                                        <p className={`text-xs ${theme.subtext} mb-3`}>將所有筆記與回應轉為純文字，可貼入 Word 或保存閱讀。</p>
+                                        <button onClick={handleExportText} className="w-full bg-stone-100 text-stone-800 text-sm font-bold py-2 rounded-lg border border-stone-200">下載 TXT 檔案</button>
                                     </div>
                                 </div>
                             )}
@@ -3464,6 +3464,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

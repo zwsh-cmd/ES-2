@@ -2469,6 +2469,11 @@ function EchoScriptApp() {
         // 設定旗標：告訴 handlePopState 這次的返回是程式控制的，不要觸發「退出 APP」的提示
         ignoreNextPopState.current = true;
         window.history.go(stepsBack);
+
+        // [關鍵修正] 補回「防護網」：確保回到卡片後，下一次按返回鍵能觸發退出確認，而不是直接關閉 App
+        setTimeout(() => {
+            window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+        }, 100);
     };
 
     // [新增] 復原筆記功能
@@ -2788,6 +2793,11 @@ function EchoScriptApp() {
         // 設定旗標：忽略這次的 popstate
         ignoreNextPopState.current = true;
         window.history.back();
+
+        // [關鍵修正] 補回「防護網」：確保回到卡片後，下一次按返回鍵能觸發退出確認
+        setTimeout(() => {
+            window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+        }, 100);
     };
 
     const handleDeleteResponse = (responseId) => {
@@ -3420,6 +3430,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

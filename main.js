@@ -1794,6 +1794,7 @@ function EchoScriptApp() {
     const responseViewModeRef = useRef(responseViewMode);
     const exitLockRef = useRef(false); 
     const isExitingRef = useRef(false); // [新增] 標記是否正在執行退出程序
+    const ignoreNextPopState = useRef(false); // [新增] 忽略下一次的歷史紀錄變更 (用於儲存後自動返回)
     
     // [關鍵修正] 新增旗標：用來判斷 Modal 開啟是否源自於「返回鍵」(History Restore)
     // 如果是 True，則 useEffect 不應該再推入新的歷史紀錄
@@ -1813,14 +1814,6 @@ function EchoScriptApp() {
 
     // === 原地滯留導航控制器 (Stay-On-Page Logic) ===
 
-    // [新增] 當資料變更時，立刻推入歷史紀錄以攔截退出 (解決新增筆記後直接退出沒反應的問題)
-    useEffect(() => {
-        if (hasDataChangedInSession) {
-            // 建立一個 "trap" 狀態，確保使用者按返回鍵時會觸發 popstate 事件，而不是直接關閉 App
-            window.history.pushState({ page: 'home_trap', changed: true, time: Date.now() }, '', '');
-        }
-    }, [hasDataChangedInSession]);
-    
     // 1. 僅在開啟視窗時推入歷史紀錄
     useEffect(() => {
         // [修改] 加入 showShuffleMenu
@@ -1845,6 +1838,12 @@ function EchoScriptApp() {
     // 2. 攔截返回鍵 (核心：真實歷史堆疊 + 狀態同步)
     useEffect(() => {
         const handlePopState = (event) => {
+            // [新增] 如果標記為忽略 (例如儲存後的自動返回)，則不執行任何攔截邏輯
+            if (ignoreNextPopState.current) {
+                ignoreNextPopState.current = false;
+                return;
+            }
+
             // 如果已經確認要退出，就不再攔截任何返回動作
             if (isExitingRef.current) return;
 
@@ -2467,6 +2466,8 @@ function EchoScriptApp() {
         setShowAllNotesModal(false);
 
         // [關鍵修正] 主動清除歷史堆疊，防止按返回鍵時重新打開 Modal
+        // 設定旗標：告訴 handlePopState 這次的返回是程式控制的，不要觸發「退出 APP」的提示
+        ignoreNextPopState.current = true;
         window.history.go(stepsBack);
     };
 
@@ -2784,6 +2785,8 @@ function EchoScriptApp() {
         setShowAllNotesModal(false);
 
         // [關鍵修正] 主動清除歷史堆疊 (移除 Response Modal 的紀錄)，讓按返回鍵時不會發生鬼打牆
+        // 設定旗標：忽略這次的 popstate
+        ignoreNextPopState.current = true;
         window.history.back();
     };
 
@@ -3417,6 +3420,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

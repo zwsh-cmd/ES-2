@@ -693,7 +693,8 @@ const AllNotesModal = ({
     categorySearchTerm, setCategorySearchTerm, 
     categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, 
     setHasDataChangedInSession, theme,
-    onAddNote // [新增] 接收新增筆記的 callback
+    onAddNote, // [新增] 接收新增筆記的 callback
+    onDeleteCategory // [新增] 接收分類刪除功能
 }) => {
     
     // [新增] 處理新增分類或筆記的邏輯
@@ -3642,6 +3643,7 @@ function EchoScriptApp() {
                         }
                     }}
                     onDelete={handleDeleteNote}
+                    onDeleteCategory={handleDeleteCategory} // [新增] 傳入分類刪除函式
                     viewLevel={allNotesViewLevel}
                     setViewLevel={setAllNotesViewLevel}
                     theme={theme}
@@ -3761,6 +3763,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

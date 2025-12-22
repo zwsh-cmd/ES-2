@@ -2871,6 +2871,41 @@ function EchoScriptApp() {
         URL.revokeObjectURL(url);
     };
 
+    // [新增] 匯出為純文字檔 (可讀性高，可貼入 Word)
+    const handleExportText = () => {
+        let fullText = "=== EchoScript 資料存檔 ===\n\n";
+        fullText += `匯出日期: ${new Date().toLocaleString()}\n`;
+        fullText += `筆記總數: ${notes.length}\n\n`;
+
+        notes.forEach((note, index) => {
+            fullText += "================================================================\n";
+            fullText += `【${index + 1}】${note.title}\n`;
+            fullText += `分類: ${note.superCategory || "其他"} > ${note.category || "未分類"} > ${note.subcategory || "一般"}\n`;
+            fullText += `建立: ${new Date(note.createdDate).toLocaleDateString()} | 修改: ${new Date(note.modifiedDate).toLocaleDateString()}\n`;
+            fullText += "----------------------------------------------------------------\n";
+            fullText += `${note.content}\n`;
+
+            // 處理回應
+            const responses = allResponses[note.id] || [];
+            if (responses.length > 0) {
+                fullText += "\n   --- 回應紀錄 ---\n";
+                responses.forEach(r => {
+                    fullText += `   [${new Date(r.timestamp).toLocaleString()}] ${r.text}\n`;
+                });
+            }
+            fullText += "\n\n";
+        });
+
+        const blob = new Blob([fullText], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `EchoScript_Archive_${new Date().toISOString().slice(0, 10)}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const handleRestore = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -3231,14 +3266,22 @@ function EchoScriptApp() {
                                     </div>
 
                                     <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
-                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><Download className="w-4 h-4"/> 匯出資料</h3>
-                                        <p className={`text-xs ${theme.subtext} mb-3`}>包含所有新增的筆記與回應。</p>
-                                        <button onClick={handleBackup} className="w-full bg-stone-100 text-stone-800 text-sm font-bold py-2 rounded-lg border border-stone-200">下載 JSON</button>
+                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><Download className="w-4 h-4"/> 匯出備份 (JSON)</h3>
+                                        <p className={`text-xs ${theme.subtext} mb-3`}>包含完整資料結構，用於還原 App。</p>
+                                        <button onClick={handleBackup} className="w-full bg-stone-100 text-stone-800 text-sm font-bold py-2 rounded-lg border border-stone-200">下載 JSON 檔案</button>
                                     </div>
+
+                                    {/* [新增] 資料存檔區塊 */}
                                     <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
-                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><Upload className="w-4 h-4"/> 匯入資料</h3>
+                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><FileText className="w-4 h-4"/> 資料存檔 (TXT)</h3>
+                                        <p className={`text-xs ${theme.subtext} mb-3`}>將所有筆記與回應轉為純文字，可貼入 Word 或保存閱讀。</p>
+                                        <button onClick={handleExportText} className="w-full bg-stone-100 text-stone-800 text-sm font-bold py-2 rounded-lg border border-stone-200">下載 TXT 檔案</button>
+                                    </div>
+
+                                    <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
+                                        <h3 className={`font-bold mb-2 flex items-center gap-2 ${theme.text}`}><Upload className="w-4 h-4"/> 匯入備份</h3>
                                         <label className="block w-full bg-[#2c3e50] text-white text-center text-sm font-bold py-2 rounded-lg cursor-pointer">
-                                            選擇檔案
+                                            選擇 JSON 檔案
                                             <input type="file" accept=".json" className="hidden" onChange={handleRestore} />
                                         </label>
                                     </div>
@@ -3421,6 +3464,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

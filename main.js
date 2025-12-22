@@ -1938,16 +1938,7 @@ function EchoScriptApp() {
             // 1. 先把人留住 (Trap)
             window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
-            // 2. 檢查資料變更
-            if (hasDataChangedInSessionRef.current) {
-                if (confirm("您本次使用已更動過資料，離開前是否前往備份？")) {
-                    setShowMenuModal(true);
-                    setActiveTab('settings');
-                    setHasDataChangedInSession(false); 
-                    return;
-                }
-            }
-
+            
             // 3. 退出確認提示
             setTimeout(() => {
                 if (confirm("確定退出EchoScript?")) {
@@ -3411,6 +3402,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

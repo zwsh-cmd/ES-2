@@ -1862,6 +1862,23 @@ function EchoScriptApp() {
                 return;
             }
 
+            // === D. 正常關閉其他視窗 (優先權調高：先檢查是否要關閉一般視窗) ===
+            // [修改] 加入 showShuffleMenu
+            const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal || showShuffleMenu;
+            if (isAnyOtherModalOpen) {
+                // 同樣使用 setTimeout 建立防護網
+                setTimeout(() => {
+                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                }, 0);
+                
+                setShowMenuModal(false);
+                setShowEditModal(false);
+                setShowResponseModal(false);
+                setShowShuffleMenu(false); // [新增] 關閉抽卡設定
+                setResponseViewMode('list');
+                return;
+            }
+
             // === C. AllNotesModal 歷史同步與返回邏輯 ===
             const state = event.state || {};
 
@@ -1912,23 +1929,6 @@ function EchoScriptApp() {
                     window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
                 }, 0);
 
-                return;
-            }
-
-            // === D. 正常關閉其他視窗 ===
-            // [修改] 加入 showShuffleMenu
-            const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal || showShuffleMenu;
-            if (isAnyOtherModalOpen) {
-                // 同樣使用 setTimeout 建立防護網
-                setTimeout(() => {
-                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
-                }, 0);
-                
-                setShowMenuModal(false);
-                setShowEditModal(false);
-                setShowResponseModal(false);
-                setShowShuffleMenu(false); // [新增] 關閉抽卡設定
-                setResponseViewMode('list');
                 return;
             }
 
@@ -3411,6 +3411,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

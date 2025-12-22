@@ -1951,11 +1951,13 @@ function EchoScriptApp() {
                 return;
             }
 
-            if (showAllNotesModal) {
-                // 只有在「主動點擊按鈕開啟」時，才推入新的歷史紀錄 (預設從總分類開始)
-                window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
-            } else if (showMenuModal || showEditModal || showResponseModal || showShuffleMenu) { // [修改] 加入 showShuffleMenu
+            // [關鍵修正] 調整優先順序：如果上層視窗 (編輯/選單) 開啟，優先推入通用 Modal 狀態
+            // 這避免了在「列表模式」下開啟「新增筆記」時，錯誤地推入「總分類」狀態
+            if (showMenuModal || showEditModal || showResponseModal || showShuffleMenu) { 
                 window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
+            } else if (showAllNotesModal) {
+                // 只有在單純開啟列表 (且沒有上層視窗) 時，才推入列表專用紀錄
+                window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
             }
         }
     }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu]); // [修改] 加入依賴
@@ -1990,10 +1992,16 @@ function EchoScriptApp() {
             // [修改] 加入 showShuffleMenu
             const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal || showShuffleMenu;
             if (isAnyOtherModalOpen) {
-                // 同樣使用 setTimeout 建立防護網
-                setTimeout(() => {
-                    window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
-                }, 0);
+                // [關鍵修正] 防止 useEffect 再次推入歷史紀錄 (造成死循環)
+                isRestoringHistoryRef.current = true;
+
+                // [關鍵修正] 只有當「筆記列表」沒開的時候，才推入防護網 (Trap)
+                // 如果列表還開著，我們只是退回到列表層級，不應該推入 Trap，否則下次按返回會誤判為退出 APP
+                if (!showAllNotesModal) {
+                    setTimeout(() => {
+                        window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
+                    }, 0);
+                }
                 
                 setShowMenuModal(false);
                 setShowEditModal(false);
@@ -3778,6 +3786,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

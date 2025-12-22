@@ -1113,22 +1113,14 @@ const AllNotesModal = ({
     const handleDelete = () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
-        if (type === 'note') { onDelete(item.id); setContextMenu(null); return; }
         
-        if (confirm(`確定要刪除「${item}」嗎？`)) {
-             if (type === 'superCategory') {
-                const newMap = { ...superCategoryMap }; delete newMap[item]; setSuperCategoryMap(newMap);
-                syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
-             } else if (type === 'category') {
-                const newMap = { ...superCategoryMap }; newMap[selectedSuper] = newMap[selectedSuper].filter(i => i !== item); setSuperCategoryMap(newMap);
-                syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
-             } else if (type === 'subcategory') {
-                const newMap = { ...categoryMap }; newMap[selectedCategory] = newMap[selectedCategory].filter(i => i !== item); setCategoryMap(newMap);
-                syncToCloud('layout', { categoryMapJSON: JSON.stringify(newMap) });
-             }
-             setContextMenu(null);
-             if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+        if (type === 'note') {
+            onDelete(item.id);
+        } else {
+            // 呼叫主程式傳入的分類刪除函式
+            onDeleteCategory(type, item);
         }
+        setContextMenu(null);
     };
     
     const handleRename = async () => {
@@ -2631,62 +2623,104 @@ function EchoScriptApp() {
         window.history.go(stepsBack);
     };
 
-    // [新增] 復原筆記功能
-    const handleRestoreNote = async (noteId) => {
-        const noteToRestore = trash.find(n => String(n.id) === String(noteId));
-        if (!noteToRestore) return;
+    // [新增] 通用復原功能 (支援筆記與分類資料夾)
+    const handleRestoreFromTrash = async (itemId) => {
+        const itemToRestore = trash.find(n => String(n.id) === String(itemId));
+        if (!itemToRestore) return;
 
-        if (confirm(`確定要復原「${noteToRestore.title}」嗎？`)) {
+        const isFolder = itemToRestore.isFolder === true;
+        const displayName = isFolder ? itemToRestore.title : itemToRestore.title;
+
+        if (confirm(`確定要復原「${displayName}」${isFolder ? '及其所有內容' : ''}嗎？`)) {
             // 1. 從垃圾桶移除
-            const newTrash = trash.filter(n => String(n.id) !== String(noteId));
+            const newTrash = trash.filter(n => String(n.id) !== String(itemId));
             setTrash(newTrash);
 
-            // 2. 準備復原的筆記物件 (移除刪除標記)
-            const { deletedAt, ...restoredNote } = noteToRestore;
-            const newNotes = [restoredNote, ...notes];
-            setNotes(newNotes);
+            const promises = [];
+            let newNotes = [...notes];
+            let newCatMap = { ...categoryMap };
+            let newSuperMap = { ...superCategoryMap };
+            let layoutChanged = false;
 
-            // 3. [關鍵] 檢查並修復分類 (如果原分類已不存在，自動重建)
-            const cat = restoredNote.category || "未分類";
-            const sub = restoredNote.subcategory || "一般";
-            let newMap = { ...categoryMap };
-            let mapChanged = false;
+            // 輔助函式：確保分類存在
+            const ensureStructure = (sup, cat, sub) => {
+                let changed = false;
+                // 檢查總分類
+                if (sup && sup !== "其他") {
+                    if (!newSuperMap[sup]) { newSuperMap[sup] = []; changed = true; }
+                    if (cat && !newSuperMap[sup].includes(cat)) { newSuperMap[sup].push(cat); changed = true; }
+                }
+                // 檢查大分類
+                if (cat && cat !== "未分類") {
+                    if (!newCatMap[cat]) { newCatMap[cat] = []; changed = true; }
+                    if (sub && !newCatMap[cat].includes(sub)) { newCatMap[cat].push(sub); changed = true; }
+                }
+                if (changed) layoutChanged = true;
+            };
 
-            if (!newMap[cat]) {
-                newMap[cat] = [];
-                mapChanged = true;
-            }
-            if (!newMap[cat].includes(sub)) {
-                newMap[cat].push(sub);
-                mapChanged = true;
-            }
+            if (isFolder) {
+                // === A. 復原資料夾 ===
+                // 1. 還原結構 (即使資料夾是空的也要還原)
+                const { level, title: name, context } = itemToRestore;
+                if (level === 'superCategory') {
+                    if (!newSuperMap[name]) { newSuperMap[name] = []; layoutChanged = true; }
+                } else if (level === 'category') {
+                    ensureStructure(context.super, name, null);
+                } else if (level === 'subcategory') {
+                    ensureStructure(context.super, context.category, name);
+                }
 
-            if (mapChanged) {
-                setCategoryMap(newMap);
-                console.log("♻️ 復原筆記：自動重建遺失的分類結構");
-            }
+                // 2. 還原內含的筆記
+                if (itemToRestore.notes && itemToRestore.notes.length > 0) {
+                    itemToRestore.notes.forEach(note => {
+                        // 移除刪除標記
+                        const { deletedAt, ...restoredNote } = note;
+                        newNotes.unshift(restoredNote);
+                        // 確保該筆記的分類結構存在 (雙重保險)
+                        ensureStructure(note.superCategory, note.category, note.subcategory);
+                        
+                        // 加入寫入排程
+                        if (window.fs && window.db) {
+                            promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(restoredNote.id)), restoredNote));
+                        }
+                    });
+                }
+                showNotification(`已復原分類「${name}」`);
 
-            // 4. 同步所有變更到雲端 (原子化操作概念)
-            if (window.fs && window.db) {
-                try {
-                    const promises = [];
-                    
-                    // A. 寫回 Notes 集合
+            } else {
+                // === B. 復原單一筆記 ===
+                const { deletedAt, ...restoredNote } = itemToRestore;
+                newNotes.unshift(restoredNote);
+                ensureStructure(restoredNote.superCategory, restoredNote.category, restoredNote.subcategory);
+                
+                if (window.fs && window.db) {
                     promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(restoredNote.id)), restoredNote));
-                    
-                    // B. 更新 Settings/Trash
-                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "trash"), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
-                    
-                    // C. 如果分類有變，更新 Settings/Layout
-                    if (mapChanged) {
-                        promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
-                    }
+                }
+                showNotification("筆記已復原");
+            }
 
+            // 更新狀態
+            setNotes(newNotes);
+            if (layoutChanged) {
+                setCategoryMap(newCatMap);
+                setSuperCategoryMap(newSuperMap);
+                console.log("♻️ 復原：自動重建遺失的分類結構");
+            }
+
+            // 同步 Trash 與 Layout
+            if (window.fs && window.db) {
+                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "trash"), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
+                if (layoutChanged) {
+                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { 
+                        categoryMapJSON: JSON.stringify(newCatMap),
+                        superCategoryMapJSON: JSON.stringify(newSuperMap)
+                    }, { merge: true }));
+                }
+                try {
                     await Promise.all(promises);
-                    showNotification("筆記已復原");
                 } catch (e) {
                     console.error("復原同步失敗", e);
-                    showNotification("⚠️ 復原失敗，請檢查網路");
+                    showNotification("⚠️ 復原部分失敗，請檢查網路");
                 }
             }
             
@@ -2820,6 +2854,98 @@ function EchoScriptApp() {
             localStorage.setItem('echoScript_AllNotes', JSON.stringify(newNotes));
             setHasDataChangedInSession(true);
             showNotification("筆記已移至垃圾桶");
+        }
+    };
+
+// [新增] 階層式分類刪除功能
+    const handleDeleteCategory = (type, name) => {
+        // 確認刪除範圍與筆記
+        let targetNotes = [];
+        let confirmMsg = "";
+        
+        // 根據當前選擇的 context 來篩選 (依賴主程式的 selectedSuper/Category 狀態)
+        if (type === 'superCategory') {
+            targetNotes = notes.filter(n => (n.superCategory || "其他") === name);
+            confirmMsg = `確定要刪除總分類「${name}」嗎？\n這將會同時刪除其下的 ${targetNotes.length} 則筆記。`;
+        } else if (type === 'category') {
+            targetNotes = notes.filter(n => (n.superCategory || "其他") === selectedSuper && (n.category || "未分類") === name);
+            confirmMsg = `確定要刪除大分類「${name}」嗎？\n這將會同時刪除其下的 ${targetNotes.length} 則筆記。`;
+        } else if (type === 'subcategory') {
+            targetNotes = notes.filter(n => 
+                (n.superCategory || "其他") === selectedSuper && 
+                (n.category || "未分類") === selectedCategory && 
+                (n.subcategory || "一般") === name
+            );
+            confirmMsg = `確定要刪除次分類「${name}」嗎？\n這將會同時刪除其下的 ${targetNotes.length} 則筆記。`;
+        }
+
+        if (confirm(confirmMsg)) {
+            // 1. 建立「資料夾」形式的垃圾桶物件
+            const trashFolder = {
+                id: `folder-${Date.now()}`,
+                isFolder: true,
+                type: 'folder',
+                level: type,
+                title: name, // 顯示名稱
+                context: { super: selectedSuper, category: selectedCategory }, // 保存刪除時的父層路徑以便還原
+                deletedAt: new Date().toISOString(),
+                notes: targetNotes.map(n => ({ ...n, deletedAt: new Date().toISOString() })) // 將筆記打包
+            };
+
+            // 2. 更新垃圾桶
+            const newTrash = [trashFolder, ...trash];
+            setTrash(newTrash);
+
+            // 3. 更新筆記列表 (移除被打包的筆記)
+            const targetIds = new Set(targetNotes.map(n => String(n.id)));
+            const newNotes = notes.filter(n => !targetIds.has(String(n.id)));
+            setNotes(newNotes);
+
+            // 4. 更新分類地圖 (移除該分類)
+            const promises = [];
+            if (type === 'superCategory') {
+                const newMap = { ...superCategoryMap }; delete newMap[name]; 
+                setSuperCategoryMap(newMap);
+                if (window.fs && window.db) promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+            } else if (type === 'category') {
+                // 移除大分類地圖
+                const newCatMap = { ...categoryMap }; delete newCatMap[name];
+                setCategoryMap(newCatMap);
+                // 移除總分類關聯
+                const newSuperMap = { ...superCategoryMap };
+                if (newSuperMap[selectedSuper]) newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== name);
+                setSuperCategoryMap(newSuperMap);
+                
+                if (window.fs && window.db) {
+                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { 
+                        categoryMapJSON: JSON.stringify(newCatMap),
+                        superCategoryMapJSON: JSON.stringify(newSuperMap)
+                    }, { merge: true }));
+                }
+            } else if (type === 'subcategory') {
+                const newMap = { ...categoryMap }; 
+                if (newMap[selectedCategory]) newMap[selectedCategory] = newMap[selectedCategory].filter(s => s !== name);
+                setCategoryMap(newMap);
+                if (window.fs && window.db) promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+            }
+
+            // 5. 同步垃圾桶與刪除雲端筆記
+            if (window.fs && window.db) {
+                // 更新垃圾桶
+                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "trash"), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
+                
+                // 批量刪除雲端筆記
+                targetNotes.forEach(n => {
+                    promises.push(window.fs.deleteDoc(window.fs.doc(window.db, "notes", String(n.id))));
+                });
+
+                Promise.all(promises)
+                    .then(() => console.log("✅ 分類刪除同步完成"))
+                    .catch(e => console.error("分類刪除同步失敗", e));
+            }
+
+            setHasDataChangedInSession(true);
+            showNotification("分類及其筆記已移至垃圾桶");
         }
     };
 
@@ -3398,24 +3524,36 @@ function EchoScriptApp() {
                                         
                                         {trash.length > 0 ? (
                                             <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-                                                {trash.map(t => (
-                                                    <div key={t.id} className={`flex justify-between items-center p-3 bg-stone-50/50 rounded-lg border ${theme.border}`}>
-                                                        <div className="flex-1 min-w-0 mr-3">
-                                                            <h4 className={`text-sm font-bold ${theme.text} truncate`}>{t.title}</h4>
-                                                            <div className="flex gap-2 text-[10px] text-stone-400">
-                                                                <span>{t.category}</span>
-                                                                <span>•</span>
-                                                                <span>剩 {Math.max(0, 30 - Math.floor((Date.now() - new Date(t.deletedAt).getTime()) / (1000 * 60 * 60 * 24)))} 天</span>
+                                                {trash.map(t => {
+                                                    const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(t.deletedAt).getTime()) / (1000 * 60 * 60 * 24)));
+                                                    const isFolder = t.isFolder;
+
+                                                    return (
+                                                        <div key={t.id} className={`flex justify-between items-center p-3 ${isFolder ? 'bg-orange-50/50' : 'bg-stone-50/50'} rounded-lg border ${theme.border}`}>
+                                                            <div className="flex-1 min-w-0 mr-3">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    {isFolder && <span className="bg-orange-200 text-orange-800 text-[10px] px-1.5 py-0.5 rounded font-bold">資料夾</span>}
+                                                                    <h4 className={`text-sm font-bold ${theme.text} truncate`}>{t.title}</h4>
+                                                                </div>
+                                                                <div className="flex gap-2 text-[10px] text-stone-400">
+                                                                    {isFolder ? (
+                                                                        <span>包含 {t.notes.length} 則筆記</span>
+                                                                    ) : (
+                                                                        <span>{t.category}</span>
+                                                                    )}
+                                                                    <span>•</span>
+                                                                    <span>剩 {daysLeft} 天</span>
+                                                                </div>
                                                             </div>
+                                                            <button 
+                                                                onClick={() => handleRestoreFromTrash(t.id)}
+                                                                className="shrink-0 px-3 py-1.5 bg-green-100 text-green-700 text-xs font-bold rounded-full hover:bg-green-200 transition-colors"
+                                                            >
+                                                                復原
+                                                            </button>
                                                         </div>
-                                                        <button 
-                                                            onClick={() => handleRestoreNote(t.id)}
-                                                            className="shrink-0 px-3 py-1.5 bg-green-100 text-green-700 text-xs font-bold rounded-full hover:bg-green-200 transition-colors"
-                                                        >
-                                                            復原
-                                                        </button>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         ) : (
                                             <div className="text-center py-4 text-xs text-stone-400 bg-stone-50 rounded-lg border border-dashed border-stone-200">
@@ -3623,6 +3761,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

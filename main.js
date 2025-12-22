@@ -809,38 +809,36 @@ const AllNotesModal = ({
         const term = categorySearchTerm.toLowerCase();
         const results = [];
 
-        // 1. 搜尋總分類
-        Object.keys(superCategoryMap).forEach(key => {
-            if (key.toLowerCase().includes(term)) {
-                results.push({ type: 'superCategory', id: key, name: key });
+        // [關鍵修正] 改為「階層式搜尋」，只搜尋掛在現有總分類下的結構
+        // 這樣如果分類被刪除(斷開連結)，底下的資料就不會被搜出來
+        
+        Object.entries(superCategoryMap).forEach(([sup, cats]) => {
+            // 1. 檢查總分類
+            if (sup.toLowerCase().includes(term)) {
+                results.push({ type: 'superCategory', id: sup, name: sup });
             }
-        });
 
-        // 2. 搜尋大分類
-        Object.keys(categoryMap).forEach(key => {
-            if (key.toLowerCase().includes(term)) {
-                let parent = "其他";
-                Object.entries(superCategoryMap).forEach(([sup, cats]) => {
-                    if (cats.includes(key)) parent = sup;
-                });
-                results.push({ type: 'category', id: key, name: key, parent: parent });
-            }
-        });
+            // 遍歷該總分類下的大分類
+            if (Array.isArray(cats)) {
+                cats.forEach(cat => {
+                    // 2. 檢查大分類
+                    if (cat.toLowerCase().includes(term)) {
+                        results.push({ type: 'category', id: cat, name: cat, parent: sup });
+                    }
 
-        // 3. 搜尋次分類
-        Object.entries(categoryMap).forEach(([cat, subs]) => {
-            subs.forEach(sub => {
-                if (sub.toLowerCase().includes(term)) {
-                    let superParent = "其他";
-                    Object.entries(superCategoryMap).forEach(([sup, cats]) => {
-                        if (cats.includes(cat)) superParent = sup;
+                    // 遍歷該大分類下的次分類
+                    const subs = categoryMap[cat] || [];
+                    subs.forEach(sub => {
+                        // 3. 檢查次分類
+                        if (sub.toLowerCase().includes(term)) {
+                            results.push({ type: 'subcategory', id: `${cat}-${sub}`, name: sub, parent: cat, superParent: sup });
+                        }
                     });
-                    results.push({ type: 'subcategory', id: `${cat}-${sub}`, name: sub, parent: cat, superParent: superParent });
-                }
-            });
+                });
+            }
         });
 
-        // 4. 搜尋筆記
+        // 4. 搜尋筆記 (notes 狀態本身已經過濾掉被刪除的筆記，所以這裡不用改)
         notes.filter(n => 
             n.title.toLowerCase().includes(term) || 
             n.content.toLowerCase().includes(term)
@@ -3786,6 +3784,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

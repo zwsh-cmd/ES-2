@@ -1543,7 +1543,19 @@ function EchoScriptApp() {
         const unsubscribe = window.authFns.onAuthStateChanged(window.auth, (u) => {
             setUser(u);
             setAuthLoading(false);
-            if (!u) {
+            if (u) {
+                // [新增] 登入後即時色彩同步：在雲端資料抵達前，先根據 localStorage 漆上底色
+                const savedThemeId = localStorage.getItem(`echoScript_Theme_${u.uid}`) || 'light';
+                const themeConfig = THEMES[savedThemeId] || THEMES.light;
+                const injection = document.getElementById('critical-mobile-style');
+                if (injection) {
+                    // 強制複寫 HTML 與 Body 的背景變數，消除登入瞬間的白邊
+                    document.documentElement.style.setProperty('background-color', themeConfig.hex, 'important');
+                    document.body.style.setProperty('background-color', themeConfig.hex, 'important');
+                    const rootStyle = document.documentElement.style;
+                    rootStyle.setProperty('--app-bg', themeConfig.hex, 'important');
+                }
+            } else {
                 // [Isolation] 登出時重置所有敏感狀態，防止資料殘留
                 setNotes([]);
                 setTrash([]);
@@ -1709,8 +1721,12 @@ function EchoScriptApp() {
             injection.id = 'critical-mobile-style';
             document.head.appendChild(injection);
         }
+        
+        // 確保 CSS 變數可以被動態修改，不再寫死在字串中
+        document.documentElement.style.setProperty('--app-bg', hexColor, 'important');
+
         injection.innerHTML = `
-            :root { --app-bg: ${hexColor} !important; }
+            :root { --app-bg: ${hexColor}; }
             /* 鎖定最底層的 HTML 畫布顏色 */
             html { 
                 background-color: var(--app-bg) !important; 
@@ -3974,6 +3990,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

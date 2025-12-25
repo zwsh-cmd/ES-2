@@ -1697,12 +1697,12 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [最終戰鬥修正] 全域負間距填充策略 (Global Negative Inset Fill)
-    // 解決三星與 Android 系統導航條白邊：強制內容溢出至物理螢幕邊界之外
+    // [色彩同化策略] 將系統導航區顏色與 App 背景色完全統合成一致
+    // 解決 Android/三星手機底部白邊：不再嘗試消除它，而是將它「漆」成背景色使其隱形
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. [物理級注入] 使用偽元素建立一個「延伸到底部之外」的背景層
+        // 1. [引擎級注入] 強制將所有底層畫布漆成主題背景色
         let injection = document.getElementById('critical-mobile-style');
         if (!injection) {
             injection = document.createElement('style');
@@ -1711,14 +1711,15 @@ function EchoScriptApp() {
         }
         injection.innerHTML = `
             :root { --app-bg: ${hexColor} !important; }
+            /* 鎖定最底層的 HTML 畫布顏色 */
             html { 
                 background-color: var(--app-bg) !important; 
                 height: 100% !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                /* 禁止根節點捲動，防止拉動時露出白底 */
                 overflow: hidden !important; 
             }
+            /* 鎖定 Body 顏色並確保其覆蓋範圍 */
             body { 
                 background-color: var(--app-bg) !important;
                 margin: 0 !important;
@@ -1726,18 +1727,17 @@ function EchoScriptApp() {
                 height: 100% !important;
                 width: 100% !important;
                 position: fixed !important;
-                /* 確保 body 不會因為高度計算誤差而產生縫隙 */
-                bottom: -1px !important; 
             }
-            /* 針對三星手機與 Chrome：使用偽元素在畫面最底部下方墊一塊顏色 */
-            body::after {
+            /* 在底部建立顏色溢出層，讓系統導航條直接浮在背景色之上 */
+            body::before {
                 content: "";
                 position: fixed;
-                left: 0; right: 0; bottom: -20dvh; /* 延伸至螢幕下方 20% 高度 */
-                height: 30dvh;
+                bottom: -50px;
+                left: 0;
+                right: 0;
+                height: 100px;
                 background-color: var(--app-bg) !important;
-                z-index: -999;
-                pointer-events: none;
+                z-index: -1000;
             }
             #root { 
                 background-color: var(--app-bg) !important;
@@ -1745,18 +1745,17 @@ function EchoScriptApp() {
             }
         `;
 
-        // 2. [Meta 清洗] 重設 Viewport 與 Theme-Color
+        // 2. [Meta 同步] 強制瀏覽器 UI 與背景色一致
         document.querySelectorAll('meta[name="viewport"], meta[name="theme-color"]').forEach(el => el.remove());
         
         const metaViewport = document.createElement('meta');
         metaViewport.name = "viewport";
-        // 加入 viewport-fit=cover 並強制 interactive-widget 為 resizes-content
-        metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content";
+        metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
         document.head.appendChild(metaViewport);
 
         const metaTheme = document.createElement('meta');
         metaTheme.name = "theme-color";
-        metaTheme.content = hexColor;
+        metaTheme.content = hexColor; // 這裡讓瀏覽器的 URL 欄位與底部導航欄跟隨背景色
         document.head.appendChild(metaTheme);
 
         // 3. 更新 Body Class
@@ -3975,6 +3974,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1504,9 +1504,10 @@ const NoteListItem = ({ item, isHistory, allResponses, theme }) => {
 
 // === [新增] 登入畫面組件 ===
 const LoginScreen = ({ onLogin, theme }) => {
+    // [修正] 解決登入前白邊：使用 fixed 確保背景徹底填滿瀏覽器畫布，不留縫隙
     return (
-        <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center p-4 transition-colors duration-300`}>
-            <div className={`${theme.card} p-8 rounded-2xl shadow-2xl border ${theme.border} max-w-sm w-full text-center`}>
+        <div className={`fixed inset-0 ${theme.bg} flex flex-col items-center justify-center p-4 transition-colors duration-300 overflow-y-auto`}>
+            <div className={`${theme.card} p-8 rounded-2xl shadow-2xl border ${theme.border} max-w-sm w-full text-center shrink-0`}>
                 <div className="mb-6 flex justify-center">
                     <div className={`w-16 h-16 rounded-2xl ${theme.accent} flex items-center justify-center text-white`}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
@@ -1701,9 +1702,12 @@ function EchoScriptApp() {
         const hexColor = theme.hex;
 
         // 1. 強制修復 HTML 根節點，確保 Canvas 背景色與主題一致
-        // 使用 setProperty 強制寫入 style 屬性，避免被 CSS 檔案覆蓋
+        // [核心修正] 強制 html 也是 100% 高度，這是解決「固定白邊」的最底層方法
         document.documentElement.style.setProperty('background-color', hexColor, 'important');
+        document.documentElement.style.height = '100%';
+        
         document.body.style.setProperty('background-color', hexColor, 'important');
+        document.body.style.height = '100%';
         
         // 2. 移除可能造成間隙的 margin/padding
         document.documentElement.style.margin = '0';
@@ -3935,6 +3939,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

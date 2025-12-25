@@ -1696,61 +1696,37 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
+    // [新增] 瀏覽器介面同步策略 (Meta Theme Color Sync)
+    // 解決「固定白邊」的唯一解法：直接告訴瀏覽器將其 UI (網址列、底部導航條) 變色
     useEffect(() => {
-        // 1. 取得精確的 Hex 色碼
-        const hexColor = theme.hex || '#fafaf9';
-        const isDark = currentThemeId === 'dark';
+        const hexColor = theme.hex;
 
-        // 2. [Direct DOM] 強制設定 html/body 背景色
-        // 將 html 高度設為 100% (非 min-height)，這在某些 Android 瀏覽器上更能確保填滿
+        // 1. 設定 HTML 根節點底色
         document.documentElement.style.backgroundColor = hexColor;
-        document.documentElement.style.height = '100%';
-        
         document.body.style.backgroundColor = hexColor;
-        document.body.style.minHeight = '100%';
-        document.body.style.overscrollBehaviorY = 'none';
 
-        // 3. [Meta 清理與重建] 徹底移除所有舊的 theme-color 標籤，防止衝突
-        // 這是解決「顏色改不掉」的關鍵，確保瀏覽器讀到的是最新且唯一的值
-        document.querySelectorAll('meta[name="theme-color"]').forEach(el => el.remove());
-
-        const metaTheme = document.createElement('meta');
-        metaTheme.name = "theme-color";
-        metaTheme.content = hexColor;
-        document.head.appendChild(metaTheme);
-
-        // 4. 設定 color-scheme
-        let metaColorScheme = document.querySelector('meta[name="color-scheme"]');
-        if (!metaColorScheme) {
-            metaColorScheme = document.createElement('meta');
-            metaColorScheme.name = "color-scheme";
-            document.head.appendChild(metaColorScheme);
+        // 2. [關鍵] 強制更新 Meta Theme Color (控制手機瀏覽器 UI 顏色)
+        let metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (!metaTheme) {
+            metaTheme = document.createElement('meta');
+            metaTheme.name = "theme-color";
+            document.head.appendChild(metaTheme);
         }
-        metaColorScheme.content = isDark ? "dark" : "light";
+        metaTheme.setAttribute('content', hexColor);
 
-        // 5. 設定 viewport (強制 viewport-fit=cover)
-        let metaViewport = document.querySelector('meta[name="viewport"]');
-        if (!metaViewport) {
-            metaViewport = document.createElement('meta');
-            metaViewport.name = "viewport";
-            document.head.appendChild(metaViewport);
+        // 3. 針對 Safari/iOS 的額外設定
+        let metaApple = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (!metaApple) {
+            metaApple = document.createElement('meta');
+            metaApple.name = "apple-mobile-web-app-status-bar-style";
+            document.head.appendChild(metaApple);
         }
-        // 確保 viewport-fit=cover 存在，這是讓背景色延伸到導航列下方的必要條件
-        if (!metaViewport.content.includes('viewport-fit=cover')) {
-            metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
-        }
+        metaApple.setAttribute('content', 'black-translucent');
 
-        
-
-        // 7. 更新 Tailwind Class
+        // 4. 更新 Tailwind Class
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
 
-        // 清理可能殘留的舊修正 (CSS注入)
-        const oldStyle = document.getElementById('echo-theme-style');
-        if (oldStyle) oldStyle.remove();
-
-    }, [theme, currentThemeId]);
+    }, [theme]);
 
     // [新增] 切換主題並儲存
     const handleSetTheme = (id) => {
@@ -3404,15 +3380,9 @@ function EchoScriptApp() {
     }
 
     return (
-        // [修正] 使用 boxShadow: '0 0 0 100vmax theme.hex' 創造無限延伸的背景色
-        // 這會向外擴散巨大的同色陰影，覆蓋所有可能的瀏覽器白邊或回彈區域
-        <div 
-            className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`}
-            style={{ 
-                backgroundColor: theme.hex, // 確保底色一致
-                boxShadow: `0 0 0 100vmax ${theme.hex}` // 核彈級修正：向外擴散 100倍螢幕大小的陰影
-            }}
-        >
+        // [還原] 移除所有 CSS Hack (陰影、固定層)，回歸最單純的容器
+        // 現在底部的白邊由上方的 useEffect (Meta Tag) 負責解決
+        <div className={`min-h-screen ${theme.text} font-sans pb-20 transition-colors duration-300`}>
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
                 <div className="flex items-center gap-2">
                     <img src="icon.png" className="w-8 h-8 rounded-lg object-cover" alt="App Icon" />
@@ -3947,6 +3917,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2133,9 +2133,9 @@ function EchoScriptApp() {
             setFavorites(cloudNotes.filter(n => n.isFavorite === true));
 
             try {
-                // [User ID] 隔離的洗牌堆
-                const deckKey = `echoScript_Deck_${user.uid}`;
-                const pointerKey = `echoScript_Pointer_${user.uid}`;
+                // [User ID] 隔離的洗牌堆 (修正 Key 名稱以匹配 useEffect 寫入端)
+                const deckKey = `echoScript_ShuffleDeck_${user.uid}`;
+                const pointerKey = `echoScript_DeckPointer_${user.uid}`;
                 
                 let loadedDeck = JSON.parse(localStorage.getItem(deckKey) || '[]');
                 let loadedPointer = parseInt(localStorage.getItem(pointerKey) || '0', 10);
@@ -2152,7 +2152,8 @@ function EchoScriptApp() {
                 setDeckPointer(loadedPointer);
 
                 if (cloudNotes.length > 0 && !showPinnedPlaceholderRef.current) {
-                    const resumeId = localStorage.getItem(`echoScript_Resume_${user.uid}`);
+                    // [Isolation] 讀取正確的 ResumeNoteId Key
+                    const resumeId = localStorage.getItem(`echoScript_ResumeNoteId_${user.uid}`);
                     let idx = -1;
                     if (resumeId) idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
                     if (idx === -1) idx = loadedDeck[loadedPointer] || 0;
@@ -2566,9 +2567,9 @@ function EchoScriptApp() {
         }
         
         // [User ID] 設定檔儲存
-        localStorage.setItem(`echoScript_Deck_${user.uid}`, JSON.stringify(nextDeck));
-        localStorage.setItem(`echoScript_Pointer_${user.uid}`, nextPointer.toString());
-        // [Isolation] 修正 Key 名稱以保持一致性 (ResumeNoteId)
+        // [Isolation] Deck 與 Pointer 已由 useEffect 自動監聽並寫入正確的 Key (echoScript_ShuffleDeck_UID)，此處無需重複寫入
+        
+        // [Isolation] 確保 ResumeNoteId 寫入
         localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(targetId));
         
         if (window.fs && window.db && user) {
@@ -3794,6 +3795,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

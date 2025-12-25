@@ -1696,17 +1696,26 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [壁紙策略] 清除底層並重設 Meta
-    // 關鍵修正：將 html/body 設為「透明」，避免它們的預設白色背景遮擋了我們自定義的 fixed 背景層
+    // [新策略] 環境遮罩策略 (Ambient Masking)
+    // 直接將主題色漆在瀏覽器根節點，並修正 Chrome Android 的高度計算
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. [關鍵] 強制清除 html/body 背景色
-        // 這是為了讓 React 渲染的 'Fixed Wallpaper' 能夠穿透顯示，不會被白色的 body 擋住
-        document.documentElement.style.backgroundColor = 'transparent';
-        document.body.style.backgroundColor = 'transparent';
+        // 1. 強制修復根節點樣式，消除任何可能的間隙
+        const style = document.documentElement.style;
+        style.setProperty('background-color', hexColor, 'important');
+        style.setProperty('margin', '0', 'important');
+        style.setProperty('padding', '0', 'important');
+        style.height = '100%';
+        
+        // 2. 針對 Chrome Android 的高度補償
+        document.body.style.setProperty('background-color', hexColor, 'important');
+        document.body.style.minHeight = '100%';
+        document.body.style.minHeight = '-webkit-fill-available';
+        document.body.style.margin = '0';
+        document.body.style.overscrollBehaviorY = 'none'; // 禁用瀏覽器拉下重新整理，防止露出底部白肉
 
-        // 2. 設定 Meta Theme Color (維持瀏覽器 UI 同步)
+        // 3. 更新 Meta Theme Color
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
             metaTheme = document.createElement('meta');
@@ -1715,7 +1724,7 @@ function EchoScriptApp() {
         }
         metaTheme.setAttribute('content', hexColor);
 
-        // 3. iOS 狀態列
+        // 4. iOS 狀態列
         let metaApple = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
         if (!metaApple) {
             metaApple = document.createElement('meta');
@@ -1724,8 +1733,7 @@ function EchoScriptApp() {
         }
         metaApple.setAttribute('content', 'black-translucent');
 
-        // 4. 更新 Body Class
-        // [修正] 移除 theme.bg，只保留文字顏色，避免 Tailwind class 重新把 body 塗成白色/灰色
+        // 5. 更新 Body Class
         document.body.className = `${theme.text} transition-colors duration-300`;
 
     }, [theme]);
@@ -3382,18 +3390,24 @@ function EchoScriptApp() {
     }
 
     return (
-        // [壁紙策略] 內容容器
-        // relative z-0: 建立堆疊環境，確保內容在壁紙之上
-        <div className={`min-h-screen ${theme.text} font-sans pb-20 transition-colors duration-300 relative z-0`}>
+        // [環境遮罩] 主容器
+        // 使用 min-h-[100dvh] 確保在動態視窗下也能維持高度
+        <div 
+            className={`min-h-[100dvh] ${theme.text} font-sans pb-20 transition-colors duration-300 relative z-0`}
+            style={{ backgroundColor: theme.hex }}
+        >
             
-            {/* 1. 固定壁紙層 (The Wallpaper) */}
-            {/* 永遠固定在視窗背景，因為 body 是透明的，所以這個顏色就是使用者看到的「底」 */}
+            {/* 1. 底部防禦層 (Bottom Shield) */}
+            {/* 針對 Android Chrome 底部導航列留白設計，強制在最底部下方延伸顏色 */}
             <div 
                 style={{
-                    position: 'fixed',
-                    inset: 0,           // 上下左右全滿 (top:0, right:0, bottom:0, left:0)
+                    position: 'absolute',
+                    bottom: '-100px',
+                    left: 0,
+                    right: 0,
+                    height: '100px',
                     backgroundColor: theme.hex,
-                    zIndex: -1,         // 放在最底層
+                    zIndex: -1,
                     pointerEvents: 'none'
                 }}
             />
@@ -3933,6 +3947,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

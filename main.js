@@ -1696,16 +1696,17 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [新增] 瀏覽器介面同步策略 (Meta Theme Color Sync)
-    // 解決「固定白邊」的唯一解法：直接告訴瀏覽器將其 UI (網址列、底部導航條) 變色
+    // [壁紙策略] 清除底層並重設 Meta
+    // 關鍵修正：將 html/body 設為「透明」，避免它們的預設白色背景遮擋了我們自定義的 fixed 背景層
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. 設定 HTML 根節點底色
-        document.documentElement.style.backgroundColor = hexColor;
-        document.body.style.backgroundColor = hexColor;
+        // 1. [關鍵] 強制清除 html/body 背景色
+        // 這是為了讓 React 渲染的 'Fixed Wallpaper' 能夠穿透顯示，不會被白色的 body 擋住
+        document.documentElement.style.backgroundColor = 'transparent';
+        document.body.style.backgroundColor = 'transparent';
 
-        // 2. [關鍵] 強制更新 Meta Theme Color (控制手機瀏覽器 UI 顏色)
+        // 2. 設定 Meta Theme Color (維持瀏覽器 UI 同步)
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
             metaTheme = document.createElement('meta');
@@ -1714,7 +1715,7 @@ function EchoScriptApp() {
         }
         metaTheme.setAttribute('content', hexColor);
 
-        // 3. 針對 Safari/iOS 的額外設定
+        // 3. iOS 狀態列
         let metaApple = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
         if (!metaApple) {
             metaApple = document.createElement('meta');
@@ -1723,8 +1724,9 @@ function EchoScriptApp() {
         }
         metaApple.setAttribute('content', 'black-translucent');
 
-        // 4. 更新 Tailwind Class
-        document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
+        // 4. 更新 Body Class
+        // [修正] 移除 theme.bg，只保留文字顏色，避免 Tailwind class 重新把 body 塗成白色/灰色
+        document.body.className = `${theme.text} transition-colors duration-300`;
 
     }, [theme]);
 
@@ -3380,9 +3382,23 @@ function EchoScriptApp() {
     }
 
     return (
-        // [還原] 移除所有 CSS Hack (陰影、固定層)，回歸最單純的容器
-        // 現在底部的白邊由上方的 useEffect (Meta Tag) 負責解決
-        <div className={`min-h-screen ${theme.text} font-sans pb-20 transition-colors duration-300`}>
+        // [壁紙策略] 內容容器
+        // relative z-0: 建立堆疊環境，確保內容在壁紙之上
+        <div className={`min-h-screen ${theme.text} font-sans pb-20 transition-colors duration-300 relative z-0`}>
+            
+            {/* 1. 固定壁紙層 (The Wallpaper) */}
+            {/* 永遠固定在視窗背景，因為 body 是透明的，所以這個顏色就是使用者看到的「底」 */}
+            <div 
+                style={{
+                    position: 'fixed',
+                    inset: 0,           // 上下左右全滿 (top:0, right:0, bottom:0, left:0)
+                    backgroundColor: theme.hex,
+                    zIndex: -1,         // 放在最底層
+                    pointerEvents: 'none'
+                }}
+            />
+
+            {/* 2. 導航列與內容 */}
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
                 <div className="flex items-center gap-2">
                     <img src="icon.png" className="w-8 h-8 rounded-lg object-cover" alt="App Icon" />
@@ -3917,6 +3933,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

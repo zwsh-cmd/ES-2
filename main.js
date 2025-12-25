@@ -1498,13 +1498,78 @@ const NoteListItem = ({ item, isHistory, allResponses, theme }) => {
     );
 };
 
+// === [新增] 登入畫面組件 ===
+const LoginScreen = ({ onLogin, theme }) => {
+    return (
+        <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center p-4 transition-colors duration-300`}>
+            <div className={`${theme.card} p-8 rounded-2xl shadow-2xl border ${theme.border} max-w-sm w-full text-center`}>
+                <div className="mb-6 flex justify-center">
+                    <div className={`w-16 h-16 rounded-2xl ${theme.accent} flex items-center justify-center text-white`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    </div>
+                </div>
+                <h1 className={`text-2xl font-bold ${theme.text} mb-2`}>EchoScript</h1>
+                <p className={`text-sm ${theme.subtext} mb-8`}>您的雲端靈感筆記庫</p>
+                
+                <button 
+                    onClick={onLogin}
+                    className={`w-full py-3 px-4 rounded-xl font-bold text-white shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 bg-[#4285F4] hover:bg-[#3367D6]`}
+                >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    使用 Google 帳號登入
+                </button>
+                <p className={`mt-6 text-xs ${theme.subtext}`}>登入後，您的筆記將安全地儲存在雲端，且只有您自己看得到。</p>
+            </div>
+        </div>
+    );
+};
+
 
 // === 主程式 ===
 // === 主程式 ===
 function EchoScriptApp() {
+    // [Auth] 使用者狀態管理
+    const [user, setUser] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
+
+    // [Auth] 監聽登入狀態
+    useEffect(() => {
+        if (!window.authFns || !window.auth) return;
+        const unsubscribe = window.authFns.onAuthStateChanged(window.auth, (u) => {
+            setUser(u);
+            setAuthLoading(false);
+            if (!u) {
+                // 登出時重置部分狀態
+                setNotes([]);
+                setTrash([]);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // [Auth] 登入動作
+    const handleLogin = async () => {
+        if (!window.authFns || !window.auth) return;
+        try {
+            const provider = new window.authFns.GoogleAuthProvider();
+            await window.authFns.signInWithPopup(window.auth, provider);
+        } catch (error) {
+            console.error("Login failed:", error);
+            alert("登入失敗，請重試");
+        }
+    };
+    
+    // [Auth] 登出動作
+    const handleLogout = async () => {
+        if (!window.authFns || !window.auth) return;
+        if (confirm("確定要登出嗎？")) {
+            await window.authFns.signOut(window.auth);
+            window.location.reload(); 
+        }
+    };
+
     const [notes, setNotes] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
-    // [關鍵修正] 記錄開啟列表前的卡片索引，用於退出列表時還原
     const preModalIndexRef = useRef(0);
     const [isAnimating, setIsAnimating] = useState(false);
     
@@ -1512,46 +1577,36 @@ function EchoScriptApp() {
     const [allResponses, setAllResponses] = useState({}); 
     
     const [history, setHistory] = useState([]);
-    const [isHistoryLoaded, setIsHistoryLoaded] = useState(false); // [新增] 標記歷史紀錄是否已從雲端同步
+    const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
     
-    // [新增] 垃圾桶狀態
     const [trash, setTrash] = useState([]);
 
-    // [新增] 監聽/載入雲端垃圾桶 (settings/trash) 並執行 30 天自動清理
+    // [新增] 監聽/載入雲端垃圾桶 (User Specific)
     useEffect(() => {
-        if (!window.fs || !window.db) return;
-        const unsubscribe = window.fs.onSnapshot(
-            window.fs.doc(window.db, "settings", "trash"),
-            (doc) => {
-                if (doc.exists()) {
-                    const data = doc.data();
-                    if (data.trashJSON) {
+        if (!window.fs || !window.db || !user) return; // 依賴 user
+        
+        // [修改] 針對使用者 ID 讀取垃圾桶
+        const docRef = window.fs.doc(window.db, "settings", `trash_${user.uid}`);
+        
+        const unsubscribe = window.fs.onSnapshot(docRef, (doc) => {
+            if (doc.exists()) {
+                const data = doc.data();
+                if (data.trashJSON) {
+                    try {
                         let cloudTrash = JSON.parse(data.trashJSON);
-                        
-                        // [自動清理] 過濾掉超過 30 天的筆記
                         const now = Date.now();
-                        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-                        const validTrash = cloudTrash.filter(item => {
-                            const deletedTime = new Date(item.deletedAt || 0).getTime();
-                            return (now - deletedTime) < thirtyDaysMs;
-                        });
-
+                        const thirtyDaysMs = 30 * 86400000;
+                        const validTrash = cloudTrash.filter(item => (now - new Date(item.deletedAt || 0).getTime()) < thirtyDaysMs);
                         setTrash(validTrash);
-                        
-                        // 如果有過期被清掉的，順便更新回雲端 (延遲執行避免頻繁寫入)
                         if (validTrash.length !== cloudTrash.length) {
-                             window.fs.setDoc(
-                                window.fs.doc(window.db, "settings", "trash"), 
-                                { trashJSON: JSON.stringify(validTrash) }, 
-                                { merge: true }
-                            ).catch(e => console.error("垃圾桶自動清理同步失敗", e));
+                             window.fs.setDoc(docRef, { trashJSON: JSON.stringify(validTrash) }, { merge: true });
                         }
-                    }
+                    } catch (e) {}
                 }
             }
-        );
+        });
         return () => unsubscribe();
-    }, []);
+    }, [user]);
     const [recentIndices, setRecentIndices] = useState([]);
     // [新增] 未來堆疊：用於記錄「返回上一張」後，原本的「下一張」是誰 (實現重播機制)
     const [futureIndices, setFutureIndices] = useState([]);
@@ -1599,96 +1654,30 @@ function EchoScriptApp() {
         if (currentIndex !== -1) setShowPinnedPlaceholder(false); 
     }, [currentIndex]);
 
-    // [新增] 初始化與監聽雲端主題設定 (settings/preferences)
+    // [新增] 監聽雲端設定 (Preferences/History) - User Specific
     useEffect(() => {
-        // 1. 先讀取本地快取，避免閃爍
-        const localTheme = localStorage.getItem('echoScript_Theme');
-        if (localTheme && THEMES[localTheme]) setCurrentThemeId(localTheme);
+        if (!window.fs || !window.db || !user) return;
         
-        const localPinnedId = localStorage.getItem('echoScript_PinnedId');
-        if (localPinnedId) setPinnedNoteId(localPinnedId);
-
-        // [新增] 讀取本地抽卡目標
-        const localShuffleTarget = localStorage.getItem('echoScript_ShuffleTarget');
-        if (localShuffleTarget) setShuffleTarget(localShuffleTarget);
-
-        // 2. 監聽雲端
-        if (!window.fs || !window.db) return;
-        const unsubscribe = window.fs.onSnapshot(
-            window.fs.doc(window.db, "settings", "preferences"),
-            (doc) => {
-                if (doc.exists()) {
-                    const data = doc.data();
-                    // 同步主題
-                    if (data.themeId && THEMES[data.themeId]) {
-                        setCurrentThemeId(data.themeId);
-                        localStorage.setItem('echoScript_Theme', data.themeId);
-                    }
-                    // 同步釘選筆記
-                    if (data.pinnedNoteId !== undefined) { // 允許 null (取消釘選)
-                        setPinnedNoteId(data.pinnedNoteId);
-                        if (data.pinnedNoteId) localStorage.setItem('echoScript_PinnedId', data.pinnedNoteId);
-                        else localStorage.removeItem('echoScript_PinnedId');
-                    }
-                    
-                    // [新增] 同步「最後編輯/查看」的筆記 ID (Resume ID)
-                    if (data.resumeNoteId !== undefined) {
-                        if (data.resumeNoteId) localStorage.setItem('echoScript_ResumeNoteId', data.resumeNoteId);
-                        else localStorage.removeItem('echoScript_ResumeNoteId');
-                    }
-
-                    // [新增] 同步抽卡目標
-                    if (data.shuffleTarget !== undefined) {
-                        setShuffleTarget(data.shuffleTarget);
-                        if (data.shuffleTarget) localStorage.setItem('echoScript_ShuffleTarget', data.shuffleTarget);
-                        else localStorage.removeItem('echoScript_ShuffleTarget');
-                    }
-                }
+        // 1. Preferences
+        const unsubPref = window.fs.onSnapshot(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), (doc) => {
+            if (doc.exists()) {
+                const data = doc.data();
+                if (data.themeId && THEMES[data.themeId]) setCurrentThemeId(data.themeId);
+                if (data.pinnedNoteId !== undefined) setPinnedNoteId(data.pinnedNoteId);
+                if (data.shuffleTarget !== undefined) setShuffleTarget(data.shuffleTarget);
             }
-        );
-        return () => unsubscribe();
-    }, []);
+        });
 
-    // [新增] 監聽雲端編輯歷史 (settings/history)
-    useEffect(() => {
-        if (!window.fs || !window.db) return;
-        const unsubscribe = window.fs.onSnapshot(
-            window.fs.doc(window.db, "settings", "history"),
-            (doc) => {
-                if (doc.exists()) {
-                    const data = doc.data();
-                    if (data.historyJSON) {
-                        console.log("📥 同步雲端歷史紀錄");
-                        const rawHistory = JSON.parse(data.historyJSON);
-                        
-                        // [關鍵修正] 在讀取時立刻清洗重複資料 (Load-time Deduplication)
-                        // 這樣即使雲端存有以前留下的重複髒資料，讀進來時也會被強制修復
-                        const uniqueHistory = [];
-                        const seenIds = new Set();
-                        
-                        if (Array.isArray(rawHistory)) {
-                            for (const item of rawHistory) {
-                                if (item && item.id !== undefined && item.id !== null) {
-                                    const idStr = String(item.id);
-                                    // 確保 ID 唯一，若重複則只保留排在前面的(通常是最新的)
-                                    if (!seenIds.has(idStr)) {
-                                        seenIds.add(idStr);
-                                        uniqueHistory.push(item);
-                                    }
-                                }
-                            }
-                        }
-
-                        setHistory(uniqueHistory);
-                        // 更新本地快取為乾淨版本
-                        localStorage.setItem('echoScript_History', JSON.stringify(uniqueHistory));
-                    }
-                }
-                setIsHistoryLoaded(true); // 標記載入完成，允許後續寫入
+        // 2. History
+        const unsubHist = window.fs.onSnapshot(window.fs.doc(window.db, "settings", `history_${user.uid}`), (doc) => {
+            if (doc.exists() && doc.data().historyJSON) {
+                try { setHistory(JSON.parse(doc.data().historyJSON)); } catch(e){}
             }
-        );
-        return () => unsubscribe();
-    }, []);
+            setIsHistoryLoaded(true);
+        });
+
+        return () => { unsubPref(); unsubHist(); };
+    }, [user]);
 
     // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
     useEffect(() => {
@@ -2074,76 +2063,64 @@ function EchoScriptApp() {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu]); // [修改] 加入依賴
     
-    // === 雲端版資料監聽 (取代原本的 LocalStorage 初始化) ===
+    // === 雲端版資料監聽 (User Isolated) ===
     useEffect(() => {
-        // 確保 window.fs 工具箱存在 (防止報錯)
-        if (!window.fs || !window.db) {
-            console.error("Firebase 未初始化，請檢查 index.html");
-            return;
-        }
+        if (!window.fs || !window.db || !user) return; // [Auth] 必須有 user 才執行
 
-        const { collection, onSnapshot, query, orderBy, setDoc, doc } = window.fs;
+        const { collection, onSnapshot, query, orderBy, where, setDoc, doc } = window.fs;
         const db = window.db;
 
-        // 1. 建立監聽器：按建立時間倒序排列 (讓新筆記排前面)
-        // 這裡我們用 createdDate 排序，你也可以改用 modifiedDate
-        const q = query(collection(db, "notes"), orderBy("createdDate", "desc"));
+        // [關鍵] 加入 where 條件篩選當前使用者的筆記
+        const q = query(
+            collection(db, "notes"), 
+            where("userId", "==", user.uid),
+            orderBy("createdDate", "desc")
+        );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const cloudNotes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // 2. [首次初始化] 如果雲端完全沒資料，自動上傳預設筆記
-            if (cloudNotes.length === 0 && !localStorage.getItem('echoScript_CloudInitDone')) {
-                console.log("☁️ 雲端無資料，正在初始化預設筆記...");
+            // [初始化] 針對該 User 的初始化 (使用 localStorage Key 區隔)
+            const initKey = `echoScript_Init_${user.uid}`;
+            if (cloudNotes.length === 0 && !localStorage.getItem(initKey)) {
+                console.log("☁️ 新使用者，初始化預設筆記...");
                 INITIAL_NOTES.forEach(note => {
-                    // 使用 setDoc 確保 ID 一致
-                    const noteId = String(note.id);
+                    const noteId = String(Date.now() + Math.random()); // 隨機 ID 避免衝突
                     setDoc(doc(db, "notes", noteId), {
                         ...note,
-                        id: noteId, // 確保 ID 寫入欄位
+                        id: noteId,
+                        userId: user.uid, // [Auth] 標記擁有者
                         createdDate: new Date().toISOString(),
                         modifiedDate: new Date().toISOString()
-                    }).catch(e => console.error("上傳失敗", e));
+                    }).catch(e => console.error(e));
                 });
-                localStorage.setItem('echoScript_CloudInitDone', 'true');
-                return; // 等待下一次 snapshot 更新
+                localStorage.setItem(initKey, 'true');
+                return;
             }
 
-            // 3. 更新 React 狀態
             setNotes(cloudNotes);
 
-            // [新增] 同步雲端回應 (解決回應消失問題)
-            // 從下載的筆記資料中，把 responses 欄位抓出來，更新到 allResponses 狀態
             const cloudResponses = {};
             cloudNotes.forEach(note => {
                 if (note.responses && Array.isArray(note.responses)) {
-                    // [修正] 確保載入時也依時間正序排序 (舊 -> 新)，修正既有資料順序不一的問題
                     cloudResponses[note.id] = note.responses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
                 }
             });
-            // 只有當雲端有回應資料時才更新，確保 UI 能顯示出來，並同步寫入 LocalStorage
             if (Object.keys(cloudResponses).length > 0) {
                  setAllResponses(prev => ({ ...prev, ...cloudResponses }));
-                 localStorage.setItem('echoScript_AllResponses', JSON.stringify(cloudResponses));
             }
+            setFavorites(cloudNotes.filter(n => n.isFavorite === true));
 
-            // [新增] 同步雲端收藏 (解決清快取後收藏消失問題)
-            // 檢查雲端資料中的 isFavorite 標記，重建 favorites 列表
-            const cloudFavorites = cloudNotes.filter(n => n.isFavorite === true);
-            // 無論是否有收藏，都更新狀態 (以雲端為準)，確保多裝置或清快取後資料一致
-            setFavorites(cloudFavorites);
-            localStorage.setItem('echoScript_Favorites', JSON.stringify(cloudFavorites));
-
-            // 4. [洗牌邏輯修復] 資料來源改變後，必須檢查洗牌堆是否需要重建
             try {
-                let loadedDeck = JSON.parse(localStorage.getItem('echoScript_ShuffleDeck') || '[]');
-                let loadedPointer = parseInt(localStorage.getItem('echoScript_DeckPointer') || '0', 10);
+                // [User ID] 隔離的洗牌堆
+                const deckKey = `echoScript_Deck_${user.uid}`;
+                const pointerKey = `echoScript_Pointer_${user.uid}`;
                 
-                // 如果雲端資料筆數變了 (例如別台電腦新增了筆記)，或者這是第一次同步
+                let loadedDeck = JSON.parse(localStorage.getItem(deckKey) || '[]');
+                let loadedPointer = parseInt(localStorage.getItem(pointerKey) || '0', 10);
+                
                 if (loadedDeck.length !== cloudNotes.length) {
-                    console.log("♻️ 同步雲端：重建洗牌堆...");
                     loadedDeck = Array.from({length: cloudNotes.length}, (_, i) => i);
-                    // Fisher-Yates 洗牌
                     for (let i = loadedDeck.length - 1; i > 0; i--) {
                         const j = Math.floor(Math.random() * (i + 1));
                         [loadedDeck[i], loadedDeck[j]] = [loadedDeck[j], loadedDeck[i]];
@@ -2153,46 +2130,19 @@ function EchoScriptApp() {
                 setShuffleDeck(loadedDeck);
                 setDeckPointer(loadedPointer);
 
-                // 5. [狀態恢復] 決定當前要顯示哪一張卡片
-                // [邏輯修正] 嚴格定義：App 啟動只回到「首頁」(最後編輯/查看的卡片)，不再自動跳轉釘選
                 if (cloudNotes.length > 0 && !showPinnedPlaceholderRef.current) {
-                    const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
+                    const resumeId = localStorage.getItem(`echoScript_Resume_${user.uid}`);
                     let idx = -1;
-
-                    // A. 優先檢查是否有上次離開或剛操作的筆記 (Resume = 首頁)
-                    if (resumeId) {
-                        idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
-                    }
-
-                    // [已移除] 移除釘選筆記 fallback，確保邏輯不混淆
-                    
-                    // B. 如果找不到 Resume，就從洗牌堆拿一張新的
-                    if (idx === -1) {
-                        const deckIndex = loadedDeck[loadedPointer] || 0;
-                        idx = deckIndex;
-                    }
-                    
-                    // 只有當「目前顯示是 0 (初始狀態)」或「強制刷新」時才更新
-                    // 如果有釘選 (cachedPinnedId)，我們傾向於每次打開 App 都看到它，除非使用者已經在操作中
-                    setCurrentIndex(prev => {
-                        // 簡單邏輯：如果是剛載入(0) 或者是因為雲端同步導致的更新，我們希望能定錨到正確位置
-                        // 但為了不干擾使用者如果已經按了下一張，我們這裡採取：只在初始化或目標明確時切換
-                        return idx; 
-                    });
+                    if (resumeId) idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
+                    if (idx === -1) idx = loadedDeck[loadedPointer] || 0;
+                    setCurrentIndex(idx);
                 }
-            } catch (e) { console.error("Deck sync error", e); }
+            } catch (e) { console.error(e); }
         });
 
-        // 6. 載入非核心資料 (這些保留在 LocalStorage 即可)
-        setFavorites(JSON.parse(localStorage.getItem('echoScript_Favorites') || '[]'));
-        setAllResponses(JSON.parse(localStorage.getItem('echoScript_AllResponses') || '{}'));
-        setHistory(JSON.parse(localStorage.getItem('echoScript_History') || '[]'));
-        setRecentIndices(JSON.parse(localStorage.getItem('echoScript_Recents') || '[]'));
-        setFutureIndices(JSON.parse(localStorage.getItem('echoScript_FutureRecents') || '[]'));
-
-        // 關閉時取消監聽
+        // 載入本地暫存 (僅作為備援，主要依賴雲端)
         return () => unsubscribe();
-    }, []);
+    }, [user]); // [Auth] 依賴 user
 
     useEffect(() => {
         const handleNoteSelect = (e) => {
@@ -2528,26 +2478,30 @@ function EchoScriptApp() {
         }, 300);
     };
 
-    // [修改] 雲端版儲存邏輯 (保留了原本的洗牌與智慧插入算法，但寫入改為 Firestore)
+    // [修改] 雲端版儲存邏輯 (Auth aware)
     const handleSaveNote = async (updatedNote) => {
+        if (!user) return; // 安全檢查
         const now = new Date().toISOString();
         let targetId;
         let nextNotes;
         
-        // 取得當前的洗牌狀態
         let nextDeck = [...shuffleDeck];
         let nextPointer = deckPointer;
 
         if (isCreatingNew) {
-            // 1. 準備新筆記資料 (確保 ID 為字串，這是雲端資料庫的要求)
             const newId = updatedNote.id ? String(updatedNote.id) : String(Date.now());
-            const newNote = { ...updatedNote, id: newId, createdDate: now, modifiedDate: now };
+            // [Auth] 加入 userId
+            const newNote = { 
+                ...updatedNote, 
+                id: newId, 
+                userId: user.uid, 
+                createdDate: now, 
+                modifiedDate: now 
+            };
             
-            // 2. 更新筆記列表 (新筆記加入最前面)
             nextNotes = [newNote, ...notes];
             targetId = newId;
             
-            // 3. [智慧插入] 邏輯保留：原本洗牌堆裡的號碼+1，並將新筆記(0)隨機插入未來
             nextDeck = nextDeck.map(i => i + 1);
             const futureSlots = nextDeck.length - nextPointer;
             const insertOffset = Math.floor(Math.random() * (futureSlots + 1));
@@ -2557,12 +2511,11 @@ function EchoScriptApp() {
             
             setCurrentIndex(0); 
             showNotification("新筆記已建立 (同步中...)");
-
         } else {
-            // 修改模式
             const editedNote = { 
                 ...updatedNote, 
-                id: String(updatedNote.id), // 確保 ID 為字串
+                id: String(updatedNote.id),
+                userId: user.uid, // 確保 userId 存在
                 createdDate: updatedNote.createdDate || now, 
                 modifiedDate: now 
             };
@@ -2573,50 +2526,42 @@ function EchoScriptApp() {
             showNotification("筆記已更新 (同步中...)");
         }
         
-        // 4. [樂觀更新] 先立刻更新畫面與本地狀態，讓使用者感覺不到延遲
         setNotes(nextNotes);
         setShuffleDeck(nextDeck);
         setDeckPointer(nextPointer);
         
-        // 5. [雲端寫入] 取代原本的 LocalStorage 寫入
         try {
             const noteToSave = nextNotes.find(n => String(n.id) === String(targetId));
             if (noteToSave) {
-                // 使用 setDoc (若 ID 存在則覆蓋，不存在則新增)
                 await window.fs.setDoc(window.fs.doc(window.db, "notes", String(targetId)), noteToSave);
                 console.log("✅ 雲端儲存成功");
             }
         } catch (e) {
-            console.error("雲端儲存失敗", e);
-            showNotification("⚠️ 雲端儲存失敗，請檢查網路");
+            console.error(e);
+            showNotification("⚠️ 雲端儲存失敗");
         }
         
-        // 6. 這些是「暫存狀態」，依然保留在 LocalStorage (因為這屬於你個人的操作進度，不需要存雲端)
-        localStorage.setItem('echoScript_ShuffleDeck', JSON.stringify(nextDeck));
-        localStorage.setItem('echoScript_DeckPointer', nextPointer.toString());
-        localStorage.setItem('echoScript_ResumeNoteId', String(targetId));
-        if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: String(targetId) }, { merge: true });
+        // [User ID] 設定檔儲存
+        localStorage.setItem(`echoScript_Deck_${user.uid}`, JSON.stringify(nextDeck));
+        localStorage.setItem(`echoScript_Pointer_${user.uid}`, nextPointer.toString());
+        localStorage.setItem(`echoScript_Resume_${user.uid}`, String(targetId));
         
-        // [新增] 記錄編輯歷史 (Edit History) - 至少保留 30 筆 (原設定為 50 筆)
+        if (window.fs && window.db) {
+            window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(targetId) }, { merge: true });
+        }
+        
         const savedNote = nextNotes.find(n => String(n.id) === String(targetId));
         if (savedNote) addToHistory(savedNote);
 
-        // [修正] 編輯完後，強制跳轉到該筆記的卡片位置
         const savedIndex = nextNotes.findIndex(n => String(n.id) === String(targetId));
         if (savedIndex !== -1) setCurrentIndex(savedIndex);
 
         setHasDataChangedInSession(true); 
         
-        // [修正] 計算歷史紀錄回退步數
-        // 如果 showAllNotesModal 為 true，表示我們是從「分類列表 -> 新增筆記」進來的 (Stack: List -> Edit)，需要退 2 步回到卡片
-        // 如果只是單純修改或從首頁新增 (Stack: Edit)，只需退 1 步
         const stepsBack = showAllNotesModal ? -2 : -1;
-
         setShowEditModal(false);
         setShowAllNotesModal(false);
 
-        // [關鍵修正] 主動清除歷史堆疊，防止按返回鍵時重新打開 Modal
-        // 設定旗標：告訴 handlePopState 這次的返回是程式控制的，不要觸發「退出 APP」的提示
         ignoreNextPopState.current = true;
         window.history.go(stepsBack);
     };
@@ -3266,6 +3211,13 @@ function EchoScriptApp() {
         setTouchStart(null); setTouchCurrent(null);
     };
 
+    // [Render] 登入檢查
+    if (authLoading) return <div className={`min-h-screen ${theme.bg} flex items-center justify-center ${theme.text}`}>載入中...</div>;
+    
+    if (!user) {
+        return <LoginScreen onLogin={handleLogin} theme={theme} />;
+    }
+
     return (
         <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`}>
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
@@ -3290,13 +3242,9 @@ function EchoScriptApp() {
                     >
                         <List className="w-5 h-5" />
                     </button>
-                    {/* [UI調整] 我的資料庫按鈕移至右上角 */}
-                    <button 
-                        onClick={() => setShowMenuModal(true)} 
-                        className={`${theme.accent} ${theme.accentText} p-2 rounded-full shadow-sm active:opacity-80`} 
-                        title="我的資料庫"
-                    >
-                        <BookOpen className="w-5 h-5" />
+                    {/* [Auth] 改為 User Avatar 或 Menu */}
+                    <button onClick={() => setShowMenuModal(true)} className={`${theme.accent} ${theme.accentText} p-1 rounded-full overflow-hidden w-9 h-9 border-2 border-white/20`}>
+                         {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : <BookOpen className="w-5 h-5 m-auto" />}
                     </button>
                 </div>
             </nav>
@@ -3466,8 +3414,12 @@ function EchoScriptApp() {
             {showMenuModal && (
                 <div className="fixed inset-0 z-40 bg-stone-900/40 backdrop-blur-sm flex justify-end" onClick={(e) => { if(e.target === e.currentTarget) setShowMenuModal(false); }}>
                     <div className={`w-full max-w-sm ${theme.bg} h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300`}>
-                        <div className={`p-5 border-b ${theme.border} ${theme.card} flex justify-between items-center`}>
-                            <h2 className={`font-bold text-lg ${theme.text}`}>我的資料庫</h2>
+                        <div className={`p-5 border-b ${theme.border} ${theme.card} flex items-center gap-3`}>
+                             <img src={user.photoURL} className="w-10 h-10 rounded-full" />
+                             <div className="flex-1 overflow-hidden">
+                                <h2 className={`font-bold text-sm ${theme.text} truncate`}>{user.displayName}</h2>
+                                <button onClick={handleLogout} className="text-xs text-red-500 font-bold hover:underline">登出帳號</button>
+                             </div>
                             <button onClick={() => setShowMenuModal(false)}><X className="w-6 h-6 text-gray-400" /></button>
                         </div>
                        <div className={`flex p-2 gap-2 ${theme.card} border-b ${theme.border}`}>
@@ -3801,6 +3753,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

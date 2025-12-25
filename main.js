@@ -1555,7 +1555,8 @@ function EchoScriptApp() {
             await window.authFns.signInWithPopup(window.auth, provider);
         } catch (error) {
             console.error("Login failed:", error);
-            alert("登入失敗，請重試");
+            // [修改] 顯示詳細錯誤代碼，以便除錯
+            alert("登入錯誤:\n" + error.code + "\n" + error.message);
         }
     };
     
@@ -3753,6 +3754,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -3208,55 +3208,133 @@ function EchoScriptApp() {
         URL.revokeObjectURL(url);
     };
 
+    // === [升級版] 完美還原邏輯：非破壞性合併 ===
     const handleRestore = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // [Safety Check] 確保已登入，才能執行雲端寫入
+        // [Safety Check] 確保已登入
         if (!user) { alert("請先登入後再執行還原"); return; }
+
+        // 為了比對，我們需要一個快速查找表 (Map)，用 ID 當鑰匙
+        // notes 是目前已讀取的筆記狀態，可直接用來比對
+        const currentNotesMap = new Map(notes.map(n => [String(n.id), n]));
 
         const reader = new FileReader();
         reader.onload = async (ev) => {
             try {
                 const data = JSON.parse(ev.target.result);
                 const promises = [];
-                showNotification("正在分析備份檔並上傳至雲端...");
+                let addedCount = 0;
+                let conflictCount = 0;
+                let skippedCount = 0;
 
-                // 1. 還原筆記 (寫入 Firestore notes 集合)
+                showNotification("正在分析備份檔並執行智慧合併...");
+
+                // 1. 處理筆記 (核心邏輯)
                 if (data.notes && Array.isArray(data.notes)) {
-                    data.notes.forEach(n => {
-                        // [Isolation] 強制覆寫 userId 為當前使用者，確保資料歸屬正確
-                        // 同時保留原始的 createdDate/modifiedDate 與內容
-                        const noteData = { ...n, userId: user.uid };
-                        if (window.fs && window.db) {
-                            promises.push(
-                                window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), noteData)
-                            );
+                    for (const backupNote of data.notes) {
+                        const noteId = String(backupNote.id);
+                        const localNote = currentNotesMap.get(noteId);
+
+                        // [情況 A] 本地沒有這則筆記 -> 直接新增
+                        if (!localNote) {
+                            // [Isolation] 強制覆寫 userId
+                            const noteData = { ...backupNote, userId: user.uid };
+                            if (window.fs && window.db) {
+                                promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", noteId), noteData));
+                            }
+                            addedCount++;
+                        } 
+                        // [情況 B] 本地有，檢查內容是否衝突
+                        else {
+                            // 簡單比對標題和內容
+                            const isContentSame = (localNote.title === backupNote.title) && (localNote.content === backupNote.content);
+                            
+                            if (isContentSame) {
+                                // [情況 B-1] 內容完全一樣 -> 跳過
+                                skippedCount++;
+                            } else {
+                                // [情況 B-2] 衝突！內容不一樣 -> 另存新檔 (副本)
+                                // 生成新 ID，標題加上 (還原副本)
+                                const newId = String(Date.now() + Math.random()); 
+                                const newNoteData = {
+                                    ...backupNote,
+                                    id: newId,
+                                    title: `${backupNote.title} (還原副本)`,
+                                    userId: user.uid,
+                                    originalId: noteId // (選填) 記錄原本的 ID 供參考
+                                };
+                                if (window.fs && window.db) {
+                                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", newId), newNoteData));
+                                }
+                                conflictCount++;
+                            }
+                        }
+                    }
+                }
+
+                // 2. 還原分類結構 (採用合併策略，而非覆蓋)
+                // 這樣能確保你備份後的這段期間，若有新增分類，不會被舊備份洗掉
+                if (data.categoryMap && window.fs && window.db) {
+                    const mergedCatMap = { ...categoryMap }; // 複製目前的分類地圖
+                    let layoutChanged = false;
+
+                    Object.entries(data.categoryMap).forEach(([cat, subs]) => {
+                        if (!mergedCatMap[cat]) {
+                            mergedCatMap[cat] = subs; // 整個大分類都沒有 -> 新增
+                            layoutChanged = true;
+                        } else {
+                            // 大分類有，檢查次分類是否缺漏
+                            subs.forEach(sub => {
+                                if (!mergedCatMap[cat].includes(sub)) {
+                                    mergedCatMap[cat].push(sub); // 補上缺少的次分類
+                                    layoutChanged = true;
+                                }
+                            });
                         }
                     });
-                }
 
-                // 2. 還原分類結構 (寫入 settings/layout_UID)
-                // 備份檔可能只包含 categoryMap，這裡我們盡量還原
-                if (data.categoryMap && window.fs && window.db) {
-                    const payload = { categoryMapJSON: JSON.stringify(data.categoryMap) };
-                    // 如果備份檔有 superCategoryMap 也一併還原 (目前備份邏輯似乎漏了這個，但若未來有加上，這裡也能支援)
+                    // 同理處理 superCategoryMap (如果有的話)
+                    let mergedSuperMap = { ...superCategoryMap };
                     if (data.superCategoryMap) {
-                        payload.superCategoryMapJSON = JSON.stringify(data.superCategoryMap);
+                         Object.entries(data.superCategoryMap).forEach(([sup, cats]) => {
+                            if (!mergedSuperMap[sup]) {
+                                mergedSuperMap[sup] = cats;
+                                layoutChanged = true;
+                            } else {
+                                cats.forEach(c => {
+                                    if(!mergedSuperMap[sup].includes(c)) {
+                                        mergedSuperMap[sup].push(c);
+                                        layoutChanged = true;
+                                    }
+                                });
+                            }
+                         });
                     }
-                    
-                    promises.push(
-                        window.fs.setDoc(
-                            window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
-                            payload, 
-                            { merge: true }
-                        )
-                    );
+
+                    if (layoutChanged) {
+                        const payload = { 
+                            categoryMapJSON: JSON.stringify(mergedCatMap),
+                            superCategoryMapJSON: JSON.stringify(mergedSuperMap)
+                        };
+                        promises.push(
+                            window.fs.setDoc(
+                                window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
+                                payload, 
+                                { merge: true }
+                            )
+                        );
+                    }
                 }
 
-                // 3. 還原歷史紀錄 (寫入 settings/history_UID)
+                // 3. 還原歷史紀錄 (維持合併或覆寫，這裡採用安全合併：寫入但不刪除現有)
                 if (data.history && window.fs && window.db) {
-                    promises.push(
+                     // 注意：歷史紀錄通常比較沒那麼敏感，但為了安全我們還是用 merge
+                     // 但由於 history 是一整個 JSON 字串，Firestore 的 merge 無法合併 JSON 內部的陣列
+                     // 如果需要完美合併歷史紀錄會比較複雜，這裡維持「以備份檔覆蓋歷史紀錄設定」的邏輯
+                     // 但因為這只是瀏覽紀錄，影響不大。若要極致，可在此處做 JSON array concat。
+                     promises.push(
                         window.fs.setDoc(
                             window.fs.doc(window.db, "settings", `history_${user.uid}`), 
                             { historyJSON: JSON.stringify(data.history) }, 
@@ -3265,14 +3343,15 @@ function EchoScriptApp() {
                     );
                 }
 
-                // 等待所有雲端寫入完成
                 if (promises.length > 0) {
                     await Promise.all(promises);
-                    showNotification("☁️ 雲端還原成功！即將重新整理...");
-                    // 給予一點時間讓 Notification 顯示，然後重整頁面以重新載入資料
+                    const msg = `還原完成！\n新增: ${addedCount} 則\n副本: ${conflictCount} 則\n跳過: ${skippedCount} 則`;
+                    alert(msg);
+                    showNotification("☁️ 雲端還原並合併成功！");
+                    // 稍微延遲後重整，確保資料寫入
                     setTimeout(() => window.location.reload(), 1500);
                 } else {
-                    showNotification("備份檔中沒有可還原的資料");
+                    showNotification("備份檔的資料與現有完全一致，無需變更");
                 }
 
             } catch (err) { 
@@ -3845,6 +3924,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1696,26 +1696,22 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [新策略] 環境遮罩策略 (Ambient Masking)
-    // 直接將主題色漆在瀏覽器根節點，並修正 Chrome Android 的高度計算
+    // [全域覆蓋策略] 徹底解決 Android Chrome 底部白邊
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. 強制修復根節點樣式，消除任何可能的間隙
-        const style = document.documentElement.style;
-        style.setProperty('background-color', hexColor, 'important');
-        style.setProperty('margin', '0', 'important');
-        style.setProperty('padding', '0', 'important');
-        style.height = '100%';
-        
-        // 2. 針對 Chrome Android 的高度補償
+        // 1. 強制修復 HTML 根節點，確保 Canvas 背景色與主題一致
+        // 使用 setProperty 強制寫入 style 屬性，避免被 CSS 檔案覆蓋
+        document.documentElement.style.setProperty('background-color', hexColor, 'important');
         document.body.style.setProperty('background-color', hexColor, 'important');
-        document.body.style.minHeight = '100%';
-        document.body.style.minHeight = '-webkit-fill-available';
+        
+        // 2. 移除可能造成間隙的 margin/padding
+        document.documentElement.style.margin = '0';
+        document.documentElement.style.padding = '0';
         document.body.style.margin = '0';
-        document.body.style.overscrollBehaviorY = 'none'; // 禁用瀏覽器拉下重新整理，防止露出底部白肉
+        document.body.style.padding = '0';
 
-        // 3. 更新 Meta Theme Color
+        // 3. 更新 Meta Theme Color (與瀏覽器工具列同步)
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
             metaTheme = document.createElement('meta');
@@ -1724,16 +1720,7 @@ function EchoScriptApp() {
         }
         metaTheme.setAttribute('content', hexColor);
 
-        // 4. iOS 狀態列
-        let metaApple = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-        if (!metaApple) {
-            metaApple = document.createElement('meta');
-            metaApple.name = "apple-mobile-web-app-status-bar-style";
-            document.head.appendChild(metaApple);
-        }
-        metaApple.setAttribute('content', 'black-translucent');
-
-        // 5. 更新 Body Class
+        // 4. 更新 Body Class
         document.body.className = `${theme.text} transition-colors duration-300`;
 
     }, [theme]);
@@ -3390,29 +3377,30 @@ function EchoScriptApp() {
     }
 
     return (
-        // [環境遮罩] 主容器
-        // 使用 min-h-[100dvh] 確保在動態視窗下也能維持高度
+        // [修正] 使用 min-h-screen 並確保背景色強制填充
         <div 
-            className={`min-h-[100dvh] ${theme.text} font-sans pb-20 transition-colors duration-300 relative z-0`}
-            style={{ backgroundColor: theme.hex }}
+            className={`min-h-screen ${theme.text} font-sans pb-20 transition-colors duration-300 relative z-0`}
+            style={{ 
+                backgroundColor: theme.hex,
+                // 防止過度捲動時露出底部的白色畫布
+                overscrollBehavior: 'none' 
+            }}
         >
-            
-            {/* 1. 底部防禦層 (Bottom Shield) */}
-            {/* 針對 Android Chrome 底部導航列留白設計，強制在最底部下方延伸顏色 */}
+            {/* [補償層] 故意超出螢幕底部的色塊，確保瀏覽器計算誤差時不會露出白色 */}
             <div 
                 style={{
-                    position: 'absolute',
-                    bottom: '-100px',
+                    position: 'fixed',
+                    bottom: '-5vh',
                     left: 0,
                     right: 0,
-                    height: '100px',
+                    height: '10vh',
                     backgroundColor: theme.hex,
-                    zIndex: -1,
+                    zIndex: -10,
                     pointerEvents: 'none'
                 }}
             />
 
-            {/* 2. 導航列與內容 */}
+            {/* 導航列與內容 */}
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
                 <div className="flex items-center gap-2">
                     <img src="icon.png" className="w-8 h-8 rounded-lg object-cover" alt="App Icon" />
@@ -3947,6 +3935,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

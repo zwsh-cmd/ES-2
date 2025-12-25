@@ -3416,8 +3416,8 @@ function EchoScriptApp() {
                         <List className="w-5 h-5" />
                     </button>
                     {/* [Auth] 改為 User Avatar 或 Menu */}
-                    <button onClick={() => setShowMenuModal(true)} className={`${theme.accent} ${theme.accentText} p-1 rounded-full overflow-hidden w-9 h-9 border-2 border-white/20`}>
-                         {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : <BookOpen className="w-5 h-5 m-auto" />}
+                    <button onClick={() => setShowMenuModal(true)} className={`${theme.accent} ${theme.accentText} p-2 rounded-full shadow-sm active:opacity-80`}>
+                        <BookOpen className="w-5 h-5" />
                     </button>
                 </div>
             </nav>
@@ -3927,6 +3927,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

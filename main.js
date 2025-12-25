@@ -2675,11 +2675,11 @@ function EchoScriptApp() {
                 console.log("♻️ 復原：自動重建遺失的分類結構");
             }
 
-            // 同步 Trash 與 Layout
-            if (window.fs && window.db) {
-                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "trash"), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
+            // 同步 Trash 與 Layout (Isolation)
+            if (window.fs && window.db && user) {
+                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `trash_${user.uid}`), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
                 if (layoutChanged) {
-                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { 
+                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { 
                         categoryMapJSON: JSON.stringify(newCatMap),
                         superCategoryMapJSON: JSON.stringify(newSuperMap)
                     }, { merge: true }));
@@ -2799,7 +2799,7 @@ function EchoScriptApp() {
                 if (latestNote) {
                     nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
                     const targetId = String(latestNote.id);
-                    // [Isolation] 寫入專屬 ResumeNoteId
+                    // [Isolation] 修正為專屬 Key
                     if (user) localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, targetId);
                     if (window.fs && window.db && user) {
                         window.fs.setDoc(
@@ -2814,7 +2814,7 @@ function EchoScriptApp() {
             } else {
                 setShowPinnedPlaceholder(false);
                 nextIdx = -1;
-                // [Isolation]
+                // [Isolation] 修正為專屬 Key
                 if (user) localStorage.removeItem(`echoScript_ResumeNoteId_${user.uid}`);
             }
             
@@ -2835,11 +2835,14 @@ function EchoScriptApp() {
 
                 setShuffleDeck(newDeck);
                 setDeckPointer(newPointer);
-                localStorage.setItem('echoScript_ShuffleDeck', JSON.stringify(newDeck));
-                localStorage.setItem('echoScript_DeckPointer', newPointer.toString());
+                // [Isolation] 移除手動寫入，改由 useEffect 自動監聽 state 變化寫入專屬 Key
+                // localStorage.setItem('echoScript_ShuffleDeck', ...);
+                // localStorage.setItem('echoScript_DeckPointer', ...);
             }
             
-            localStorage.setItem('echoScript_AllNotes', JSON.stringify(newNotes));
+            // [Isolation] 移除手動寫入，改由 useEffect 自動監聽 notes 變化寫入專屬 Key
+            // localStorage.setItem('echoScript_AllNotes', JSON.stringify(newNotes));
+            
             setHasDataChangedInSession(true);
             showNotification("筆記已移至垃圾桶");
         }
@@ -3081,7 +3084,8 @@ function EchoScriptApp() {
 
             // 2. 更新本地狀態與 LocalStorage (確保 UI 反應即時)
             setAllResponses(nextAllResponses);
-            localStorage.setItem('echoScript_AllResponses', JSON.stringify(nextAllResponses));
+            // [Isolation] 寫入專屬 Responses Key
+            if (user) localStorage.setItem(`echoScript_AllResponses_${user.uid}`, JSON.stringify(nextAllResponses));
 
             // 3. [新增] 同步更新雲端 Firestore
             try {
@@ -3212,10 +3216,10 @@ function EchoScriptApp() {
                 if (data.history) setHistory(data.history);
                 if (data.allResponses) setAllResponses(data.allResponses);
                 
-                // [關鍵] 優先還原分類結構，確保順序正確
+                // [關鍵] 優先還原分類結構，確保順序正確 (Isolation)
                 if (data.categoryMap) {
                     setCategoryMap(data.categoryMap);
-                    localStorage.setItem('echoScript_CategoryMap', JSON.stringify(data.categoryMap));
+                    if (user) localStorage.setItem(`echoScript_CategoryMap_${user.uid}`, JSON.stringify(data.categoryMap));
                 }
                 
                 if (data.notes) {
@@ -3790,6 +3794,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

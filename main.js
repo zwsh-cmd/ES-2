@@ -1742,23 +1742,23 @@ function EchoScriptApp() {
         }
 
         // 6. [核彈級修正] 插入固定定位的背景布幕 (Backdrop)
-        // 如果 body 高度計算有誤，這個全螢幕的 div 會強制填滿所有空間，包含 Android 導航列下方
+        // [超級修正] 改用超大尺寸 (200vh) + 負定位，確保無論瀏覽器如何計算高度或回彈，背景永遠覆蓋整個可視範圍與邊界
         let backdrop = document.getElementById('theme-backdrop');
         if (!backdrop) {
             backdrop = document.createElement('div');
             backdrop.id = 'theme-backdrop';
             document.body.appendChild(backdrop);
         }
-        // [修正] 改用 top/bottom/left/right: 0 來強制填滿，解決 100vh 在手機上可能出現的白邊問題
         Object.assign(backdrop.style, {
             position: 'fixed',
-            top: '0',
+            top: '-50vh',    // 往上延伸，防止頂部白邊
             left: '0',
-            right: '0',   // 確保寬度填滿
-            bottom: '0',  // 確保高度填滿至最底部
+            width: '100vw',
+            height: '200vh', // 強制設定為視窗兩倍高，無視 bottom 計算問題
             zIndex: '-9999', // 放在最底層
             backgroundColor: hexColor,
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            transform: 'translateZ(0)' // 啟動 GPU 加速，避免渲染閃爍
         });
 
         // 7. 更新 Tailwind Class
@@ -3957,6 +3957,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

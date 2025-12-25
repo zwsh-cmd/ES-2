@@ -1742,24 +1742,37 @@ function EchoScriptApp() {
         }
 
         // 6. [核彈級修正] 插入固定定位的背景布幕 (Backdrop)
-        // [超級修正] 改用超大尺寸 (200vh) + 負定位，確保無論瀏覽器如何計算高度或回彈，背景永遠覆蓋整個可視範圍與邊界
-        let backdrop = document.getElementById('theme-backdrop');
-        if (!backdrop) {
-            backdrop = document.createElement('div');
-            backdrop.id = 'theme-backdrop';
-            document.body.appendChild(backdrop);
+        // [創意修正] 放棄實體 DIV，改用 CSS Style 注入 (CSS Injection Strategy)
+        // 直接在 head 注入樣式表，利用 body::before 偽元素 + !important 強制覆寫背景
+        // 這種方式比 DOM 元素更快被瀏覽器渲染，且 z-index: -1 能更準確地貼合在內容層下方
+        let styleTag = document.getElementById('theme-global-style');
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = 'theme-global-style';
+            document.head.appendChild(styleTag);
         }
-        Object.assign(backdrop.style, {
-            position: 'fixed',
-            top: '-50vh',    // 往上延伸，防止頂部白邊
-            left: '0',
-            width: '100vw',
-            height: '200vh', // 強制設定為視窗兩倍高，無視 bottom 計算問題
-            zIndex: '-9999', // 放在最底層
-            backgroundColor: hexColor,
-            pointerEvents: 'none',
-            transform: 'translateZ(0)' // 啟動 GPU 加速，避免渲染閃爍
-        });
+        styleTag.innerHTML = `
+            html, body {
+                background-color: ${hexColor} !important;
+                overscroll-behavior-y: none; /* 防止橡皮筋回彈露出底色 */
+            }
+            body::before {
+                content: "";
+                position: fixed;
+                top: -100vh;
+                left: 0;
+                right: 0;
+                height: 300vh; /* 覆蓋上中下所有範圍 */
+                background-color: ${hexColor};
+                z-index: -1; /* 確保在內容之後，背景之上 */
+                pointer-events: none;
+                transform: translate3d(0, 0, 0); /* 開啟硬體加速 */
+            }
+        `;
+        
+        // 移除舊版可能殘留的實體 div (如果有)
+        const oldBackdrop = document.getElementById('theme-backdrop');
+        if (oldBackdrop) oldBackdrop.remove();
 
         // 7. 更新 Tailwind Class
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
@@ -3957,6 +3970,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -350,7 +350,9 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
 
     // [新增] 總分類列表 (從現有筆記中提取，並加入預設值)
     const existingSuperCategories = useMemo(() => {
-        const defaults = ["敘事技巧", "智慧", "其他"];
+        // [修正] 移除寫死的範例分類("敘事技巧", "智慧")，避免不同帳號誤以為資料殘留
+        // 只保留最基礎的 "其他"，其餘分類將根據使用者現有的筆記動態生成
+        const defaults = ["其他"];
         const fromNotes = existingNotes.map(n => n.superCategory).filter(Boolean);
         return [...new Set([...defaults, ...fromNotes])];
     }, [existingNotes]);
@@ -3795,6 +3797,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

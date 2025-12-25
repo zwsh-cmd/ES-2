@@ -2160,8 +2160,37 @@ function EchoScriptApp() {
                     // [Isolation] 讀取正確的 ResumeNoteId Key
                     const resumeId = localStorage.getItem(`echoScript_ResumeNoteId_${user.uid}`);
                     let idx = -1;
-                    if (resumeId) idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
-                    if (idx === -1) idx = loadedDeck[loadedPointer] || 0;
+                    
+                    // 1. 優先嘗試讀取上次停留的筆記 (Resume)
+                    if (resumeId) {
+                        idx = cloudNotes.findIndex(n => String(n.id) === String(resumeId));
+                    }
+
+                    // 2. [修正] 如果找不到紀錄 (新裝置/快取清除)，改為找「最後修改」的筆記
+                    // 原本是 fallback 到隨機 (loadedDeck)，現在改為最新的編輯紀錄，符合「首頁」直覺
+                    if (idx === -1) {
+                         let latestNote = cloudNotes[0];
+                         let maxTime = -1;
+                         
+                         cloudNotes.forEach(n => {
+                             // 比較 modifiedDate (若無則用 createdDate)
+                             const mTime = new Date(n.modifiedDate || n.createdDate || 0).getTime();
+                             if (mTime > maxTime) {
+                                 maxTime = mTime;
+                                 latestNote = n;
+                             }
+                         });
+                         
+                         if (latestNote) {
+                             idx = cloudNotes.findIndex(n => n.id === latestNote.id);
+                             // 自動寫入 LocalStorage，確保下次直接讀取
+                             localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(latestNote.id));
+                         }
+                    }
+
+                    // 3. 安全網：若真的完全找不到，回到第 0 筆
+                    if (idx === -1) idx = 0;
+                    
                     setCurrentIndex(idx);
                 }
             } catch (e) { console.error(e); }
@@ -3927,6 +3956,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

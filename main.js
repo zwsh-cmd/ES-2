@@ -1504,10 +1504,9 @@ const NoteListItem = ({ item, isHistory, allResponses, theme }) => {
 
 // === [新增] 登入畫面組件 ===
 const LoginScreen = ({ onLogin, theme }) => {
-    // [修正] 解決登入前白邊：使用 fixed 確保背景徹底填滿瀏覽器畫布，不留縫隙
     return (
-        <div className={`fixed inset-0 ${theme.bg} flex flex-col items-center justify-center p-4 transition-colors duration-300 overflow-y-auto`}>
-            <div className={`${theme.card} p-8 rounded-2xl shadow-2xl border ${theme.border} max-w-sm w-full text-center shrink-0`}>
+        <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center p-4 transition-colors duration-300`}>
+            <div className={`${theme.card} p-8 rounded-2xl shadow-2xl border ${theme.border} max-w-sm w-full text-center`}>
                 <div className="mb-6 flex justify-center">
                     <div className={`w-16 h-16 rounded-2xl ${theme.accent} flex items-center justify-center text-white`}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
@@ -1543,19 +1542,7 @@ function EchoScriptApp() {
         const unsubscribe = window.authFns.onAuthStateChanged(window.auth, (u) => {
             setUser(u);
             setAuthLoading(false);
-            if (u) {
-                // [新增] 登入後即時色彩同步：在雲端資料抵達前，先根據 localStorage 漆上底色
-                const savedThemeId = localStorage.getItem(`echoScript_Theme_${u.uid}`) || 'light';
-                const themeConfig = THEMES[savedThemeId] || THEMES.light;
-                const injection = document.getElementById('critical-mobile-style');
-                if (injection) {
-                    // 強制複寫 HTML 與 Body 的背景變數，消除登入瞬間的白邊
-                    document.documentElement.style.setProperty('background-color', themeConfig.hex, 'important');
-                    document.body.style.setProperty('background-color', themeConfig.hex, 'important');
-                    const rootStyle = document.documentElement.style;
-                    rootStyle.setProperty('--app-bg', themeConfig.hex, 'important');
-                }
-            } else {
+            if (!u) {
                 // [Isolation] 登出時重置所有敏感狀態，防止資料殘留
                 setNotes([]);
                 setTrash([]);
@@ -1709,64 +1696,78 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [穿透化策略] 將根節點透明化，並強制網頁內容延伸至系統導航條下方
-    // 解決 Android 底部白邊：讓系統導航區「看穿」到 App 內部的背景色
+    // [新增] 更新 Body 背景色 (確保滑動超過邊界時顏色一致)
     useEffect(() => {
-        const hexColor = theme.hex;
+        // 1. 取得精確的 Hex 色碼
+        const hexColor = theme.hex || '#fafaf9';
+        const isDark = currentThemeId === 'dark';
 
-        // 1. [引擎級注入] 將 html/body 設為透明，徹底消除「白色畫布」層
-        let injection = document.getElementById('critical-mobile-style');
-        if (!injection) {
-            injection = document.createElement('style');
-            injection.id = 'critical-mobile-style';
-            document.head.appendChild(injection);
-        }
+        // 2. [Direct DOM] 強制設定 html/body 背景色
+        // 將 html 高度設為 100% (非 min-height)，這在某些 Android 瀏覽器上更能確保填滿
+        document.documentElement.style.backgroundColor = hexColor;
+        document.documentElement.style.height = '100%';
         
-        injection.innerHTML = `
-            html { 
-                background: transparent !important; 
-                height: 100% !important;
-                width: 100% !important;
-                overflow: hidden !important; 
-            }
-            body { 
-                background: transparent !important; 
-                height: 100% !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                position: fixed !important;
-                width: 100% !important;
-            }
-            #root { 
-                /* 真正的背景色在這裡設定 */
-                background-color: ${hexColor} !important;
-                height: 100% !important;
-                width: 100% !important;
-                overflow: hidden;
-            }
-        `;
+        document.body.style.backgroundColor = hexColor;
+        document.body.style.minHeight = '100%';
+        document.body.style.overscrollBehaviorY = 'none';
 
-        // 2. [Meta 指令] 告訴瀏覽器強制使用全螢幕覆蓋模式
-        document.querySelectorAll('meta[name="viewport"]').forEach(el => el.remove());
-        const metaViewport = document.createElement('meta');
-        metaViewport.name = "viewport";
-        // viewport-fit=cover 是關鍵：它會讓內容穿透到安全區域 (含導航條) 下方
-        metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
-        document.head.appendChild(metaViewport);
+        // 3. [Meta 清理與重建] 徹底移除所有舊的 theme-color 標籤，防止衝突
+        // 這是解決「顏色改不掉」的關鍵，確保瀏覽器讀到的是最新且唯一的值
+        document.querySelectorAll('meta[name="theme-color"]').forEach(el => el.remove());
 
-        // 3. 更新 Theme Color 輔助渲染
-        let metaTheme = document.querySelector('meta[name="theme-color"]');
-        if (!metaTheme) {
-            metaTheme = document.createElement('meta');
-            metaTheme.name = "theme-color";
-            document.head.appendChild(metaTheme);
+        const metaTheme = document.createElement('meta');
+        metaTheme.name = "theme-color";
+        metaTheme.content = hexColor;
+        document.head.appendChild(metaTheme);
+
+        // 4. 設定 color-scheme
+        let metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+        if (!metaColorScheme) {
+            metaColorScheme = document.createElement('meta');
+            metaColorScheme.name = "color-scheme";
+            document.head.appendChild(metaColorScheme);
         }
-        metaTheme.setAttribute('content', hexColor);
+        metaColorScheme.content = isDark ? "dark" : "light";
 
-        // 4. 更新 Body Class
-        document.body.className = `${theme.text} transition-colors duration-300`;
+        // 5. 設定 viewport (強制 viewport-fit=cover)
+        let metaViewport = document.querySelector('meta[name="viewport"]');
+        if (!metaViewport) {
+            metaViewport = document.createElement('meta');
+            metaViewport.name = "viewport";
+            document.head.appendChild(metaViewport);
+        }
+        // 確保 viewport-fit=cover 存在，這是讓背景色延伸到導航列下方的必要條件
+        if (!metaViewport.content.includes('viewport-fit=cover')) {
+            metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
+        }
 
-    }, [theme]);
+        // 6. [核彈級修正] 插入固定定位的背景布幕 (Backdrop)
+        // 如果 body 高度計算有誤，這個全螢幕的 div 會強制填滿所有空間，包含 Android 導航列下方
+        let backdrop = document.getElementById('theme-backdrop');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.id = 'theme-backdrop';
+            document.body.appendChild(backdrop);
+        }
+        Object.assign(backdrop.style, {
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100vw',
+            height: '100vh', // 強制填滿視窗高度
+            zIndex: '-9999', // 放在最底層
+            backgroundColor: hexColor,
+            pointerEvents: 'none'
+        });
+
+        // 7. 更新 Tailwind Class
+        document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
+
+        // 清理可能殘留的舊修正 (CSS注入)
+        const oldStyle = document.getElementById('echo-theme-style');
+        if (oldStyle) oldStyle.remove();
+
+    }, [theme, currentThemeId]);
 
     // [新增] 切換主題並儲存
     const handleSetTheme = (id) => {
@@ -3420,30 +3421,7 @@ function EchoScriptApp() {
     }
 
     return (
-        // [穿透版] 內容容器：使用 100dvh 並強制讓背景「溢出」底部
-        // 透過增加 pb (padding-bottom) 並讓背景色直接填滿，確保導航條下方看得到顏色
-        <div 
-            className={`h-[100dvh] w-full overflow-y-auto no-scrollbar ${theme.text} font-sans transition-colors duration-300 relative z-0`}
-            style={{ 
-                backgroundColor: theme.hex,
-                paddingBottom: 'env(safe-area-inset-bottom, 24px)', // 自動適應系統導航條高度
-                WebkitOverflowScrolling: 'touch' 
-            }}
-        >
-            {/* 物理層補強：建立一個固定在視窗最底部的色塊，確保 Google AI 觸發時，背景依然是主題色 */}
-            <div 
-                style={{
-                    position: 'fixed',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 'env(safe-area-inset-bottom, 40px)',
-                    backgroundColor: theme.hex,
-                    zIndex: -1
-                }}
-            />
-
-            {/* 導航列與內容 */}
+        <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`}>
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
                 <div className="flex items-center gap-2">
                     <img src="icon.png" className="w-8 h-8 rounded-lg object-cover" alt="App Icon" />
@@ -3978,24 +3956,6 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -1697,13 +1697,12 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [最終決戰] 針對 Android 系統導航條 (Navigation Handle) 的顏色鎖定策略
-    // 邏輯：直接對 html 根標籤進行「引擎級」的上色與擴張，確保 Google AI 觸發區也被主題色填滿
+    // [究極修正] 視窗內容穿透策略 (Window Inset Bleeding Strategy)
+    // 解決三星與 Android 系統導航條白邊：將背景色直接「漆」在瀏覽器最底層的 Canvas 上
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. 注入全域關鍵樣式 (Critical Global Styles)
-        // 關鍵：將 padding-bottom 從 env(safe-area) 改為 0，並對 html 進行強制的色塊溢出
+        // 1. [引擎級注入] 直接改寫 HTML 標籤與偽元素，確保白邊區域被強制覆蓋顏色
         let injection = document.getElementById('critical-mobile-style');
         if (!injection) {
             injection = document.createElement('style');
@@ -1711,55 +1710,46 @@ function EchoScriptApp() {
             document.head.appendChild(injection);
         }
         injection.innerHTML = `
+            :root { --app-bg: ${hexColor}; }
             html { 
-                background-color: ${hexColor} !important; 
-                /* 使用 min-h-fill-available 確保計算包含導航條下方 */
+                background-color: var(--app-bg) !important; 
                 height: 100% !important;
-                height: -webkit-fill-available !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                /* 核心：鎖死根部背景，不讓系統預設的白色透出來 */
-                position: absolute;
+                /* 強制鎖死 HTML 畫布顏色，防止 Google AI 觸發區露出預設白 */
+                position: fixed;
                 top: 0; left: 0; right: 0; bottom: 0;
-                overflow: hidden;
+                width: 100%;
             }
             body { 
-                background-color: ${hexColor} !important;
-                height: 100% !important;
-                height: -webkit-fill-available !important;
+                background-color: var(--app-bg) !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                position: fixed;
-                width: 100%;
-                /* 移除 padding-bottom 補償，改由 App 內部處理，防止露白 */
-                padding-bottom: 0 !important;
+                min-height: 100% !important;
+                /* 使用 Webkit 屬性解決高度計算 Bug */
+                min-height: -webkit-fill-available !important;
             }
             #root { 
-                height: 100% !important;
-                background-color: ${hexColor} !important;
-                overflow: hidden;
+                background-color: var(--app-bg) !important;
+                min-height: 100% !important;
             }
         `;
 
-        // 2. 更新 Meta Tags (針對 Android Chrome 重點修復)
-        // 強制移除現有的 meta viewport 並重新精準設定
-        document.querySelectorAll('meta[name="viewport"]').forEach(el => el.remove());
+        // 2. [Meta 重洗] 強制移除所有可能衝突的 Meta Tags 並重建
+        // 核心在於 viewport-fit=cover 必須是唯一且強制性的
+        document.querySelectorAll('meta[name="viewport"], meta[name="theme-color"]').forEach(el => el.remove());
+        
         const metaViewport = document.createElement('meta');
         metaViewport.name = "viewport";
-        // 加入 interactive-widget=resizes-content 是為了解決 Android 底部虛擬欄位伸縮的白邊
         metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content";
         document.head.appendChild(metaViewport);
 
-        // 3. 更新 Theme Color (同步網址列與系統欄顏色)
-        let metaTheme = document.querySelector('meta[name="theme-color"]');
-        if (!metaTheme) {
-            metaTheme = document.createElement('meta');
-            metaTheme.name = "theme-color";
-            document.head.appendChild(metaTheme);
-        }
-        metaTheme.setAttribute('content', hexColor);
+        const metaTheme = document.createElement('meta');
+        metaTheme.name = "theme-color";
+        metaTheme.content = hexColor;
+        document.head.appendChild(metaTheme);
 
-        // 4. 更新 Body Class
+        // 3. 更新 Body Class
         document.body.className = `${theme.text} transition-colors duration-300`;
 
     }, [theme]);
@@ -3975,6 +3965,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

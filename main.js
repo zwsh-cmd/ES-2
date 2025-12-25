@@ -1541,9 +1541,18 @@ function EchoScriptApp() {
             setUser(u);
             setAuthLoading(false);
             if (!u) {
-                // 登出時重置部分狀態
+                // [Isolation] 登出時重置所有敏感狀態，防止資料殘留
                 setNotes([]);
                 setTrash([]);
+                setFavorites([]);
+                setHistory([]);
+                setAllResponses({});
+                setCategoryMap({});
+                setSuperCategoryMap({"總分類": ["大分類"]});
+                // 重置其他狀態
+                setIsSettingsLoaded(false);
+                setIsHistoryLoaded(false);
+                setPinnedNoteId(null);
             }
         });
         return () => unsubscribe();
@@ -2417,7 +2426,8 @@ function EchoScriptApp() {
         setIsAnimating(true);
         setTimeout(() => {
             // 1. 優先尋找「最後一次編輯/操作」的卡片 (即 App 定義的「首頁」)
-            const resumeId = localStorage.getItem('echoScript_ResumeNoteId');
+            // [Isolation] 讀取專屬 ResumeID
+            const resumeId = user ? localStorage.getItem(`echoScript_ResumeNoteId_${user.uid}`) : null;
             let targetIndex = -1;
 
             if (resumeId) {
@@ -2558,9 +2568,10 @@ function EchoScriptApp() {
         // [User ID] 設定檔儲存
         localStorage.setItem(`echoScript_Deck_${user.uid}`, JSON.stringify(nextDeck));
         localStorage.setItem(`echoScript_Pointer_${user.uid}`, nextPointer.toString());
-        localStorage.setItem(`echoScript_Resume_${user.uid}`, String(targetId));
+        // [Isolation] 修正 Key 名稱以保持一致性 (ResumeNoteId)
+        localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(targetId));
         
-        if (window.fs && window.db) {
+        if (window.fs && window.db && user) {
             window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(targetId) }, { merge: true });
         }
         
@@ -2768,6 +2779,7 @@ function EchoScriptApp() {
 
             if (isDeletingPinned) {
                 setPinnedNoteId(null);
+                // [Isolation] 移除專屬 PinnedId
                 if(user) localStorage.removeItem(`echoScript_PinnedId_${user.uid}`);
                 if (window.fs && window.db && user) {
                     window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { pinnedNoteId: null }, { merge: true });
@@ -2787,10 +2799,11 @@ function EchoScriptApp() {
                 if (latestNote) {
                     nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
                     const targetId = String(latestNote.id);
-                    localStorage.setItem('echoScript_ResumeNoteId', targetId);
-                    if (window.fs && window.db) {
+                    // [Isolation] 寫入專屬 ResumeNoteId
+                    if (user) localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, targetId);
+                    if (window.fs && window.db && user) {
                         window.fs.setDoc(
-                            window.fs.doc(window.db, "settings", "preferences"), 
+                            window.fs.doc(window.db, "settings", `preferences_${user.uid}`), 
                             { resumeNoteId: targetId }, 
                             { merge: true }
                         );
@@ -2801,7 +2814,8 @@ function EchoScriptApp() {
             } else {
                 setShowPinnedPlaceholder(false);
                 nextIdx = -1;
-                localStorage.removeItem('echoScript_ResumeNoteId');
+                // [Isolation]
+                if (user) localStorage.removeItem(`echoScript_ResumeNoteId_${user.uid}`);
             }
             
             setCurrentIndex(nextIdx);
@@ -2931,9 +2945,12 @@ function EchoScriptApp() {
 
         // 1. 本地樂觀更新
         setPinnedNoteId(newPinnedId);
-        // [Isolation]
-        if (newPinnedId && user) localStorage.setItem(`echoScript_PinnedId_${user.uid}`, newPinnedId);
-        else if(user) localStorage.removeItem(`echoScript_PinnedId_${user.uid}`);
+        
+        // [Isolation] 確保使用 UID Key
+        if (user) {
+            if (newPinnedId) localStorage.setItem(`echoScript_PinnedId_${user.uid}`, newPinnedId);
+            else localStorage.removeItem(`echoScript_PinnedId_${user.uid}`);
+        }
 
         // [修正] 簡化提示詞，避免混淆「首頁」概念
         showNotification(isCurrentlyPinned ? "已取消釘選" : "已釘選");
@@ -2962,9 +2979,10 @@ function EchoScriptApp() {
         }
 
         // [關鍵修正] 鎖定當前筆記 ID，避免雲端同步(onSnapshot)觸發時，App 誤以為要跳到下一張卡片
-        if (currentNote) {
-            localStorage.setItem('echoScript_ResumeNoteId', String(currentNote.id));
-            if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: String(currentNote.id) }, { merge: true });
+        if (currentNote && user) {
+            // [Isolation]
+            localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(currentNote.id));
+            if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(currentNote.id) }, { merge: true });
         }
 
         // 2. [新增] 同步更新雲端 Firestore
@@ -3010,11 +3028,14 @@ function EchoScriptApp() {
         // 更新 React 狀態
         setAllResponses(nextAllResponses);
         
-        // [關鍵修正] 強制同步寫入 LocalStorage
-        localStorage.setItem('echoScript_AllResponses', JSON.stringify(nextAllResponses));
+        // [關鍵修正] 強制同步寫入 LocalStorage (Isolation)
+        if (user) localStorage.setItem(`echoScript_AllResponses_${user.uid}`, JSON.stringify(nextAllResponses));
+        
         // [新增] 只要有編輯或新增回應，就表示使用者正在關注此筆記，鎖定它！
-        localStorage.setItem('echoScript_ResumeNoteId', currentNote.id);
-        if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { resumeNoteId: String(currentNote.id) }, { merge: true });
+        if (user) {
+            localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, currentNote.id);
+            if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(currentNote.id) }, { merge: true });
+        }
 
         // [新增] 同步寫入雲端 (更新該筆記的 responses 欄位)
         try {
@@ -3769,6 +3790,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

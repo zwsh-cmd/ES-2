@@ -1709,12 +1709,12 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [色彩同化策略] 將系統導航區顏色與 App 背景色完全統合成一致
-    // 解決 Android/三星手機底部白邊：不再嘗試消除它，而是將它「漆」成背景色使其隱形
+    // [最終戰略：Canvas 著色] 將系統邊界區域與 App 背景色徹底融合
+    // 解決 Android 底部白邊：透過物理補償、Viewport 修正與 Meta 同步三重鎖定
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. [引擎級注入] 強制將所有底層畫布漆成主題背景色
+        // 1. [物理補償] 注入全域 CSS 修正
         let injection = document.getElementById('critical-mobile-style');
         if (!injection) {
             injection = document.createElement('style');
@@ -1722,38 +1722,40 @@ function EchoScriptApp() {
             document.head.appendChild(injection);
         }
         
-        // 確保 CSS 變數可以被動態修改，不再寫死在字串中
+        // 使用 CSS 變數並強制設定 html 背景
         document.documentElement.style.setProperty('--app-bg', hexColor, 'important');
 
         injection.innerHTML = `
-            :root { --app-bg: ${hexColor}; }
-            /* 鎖定最底層的 HTML 畫布顏色 */
+            :root { --app-bg: ${hexColor} !important; }
+            /* 關鍵：強制 HTML 標籤使用 fixed 佈局，防止系統導航條擠壓出白邊 */
             html { 
                 background-color: var(--app-bg) !important; 
                 height: 100% !important;
-                margin: 0 !important;
-                padding: 0 !important;
+                width: 100% !important;
                 overflow: hidden !important; 
+                position: fixed !important;
+                top: 0; left: 0;
             }
-            /* 鎖定 Body 顏色並確保其覆蓋範圍 */
             body { 
                 background-color: var(--app-bg) !important;
-                margin: 0 !important;
-                padding: 0 !important;
                 height: 100% !important;
                 width: 100% !important;
-                position: fixed !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                /* 針對 Android 的視窗修正：使用 -webkit-fill-available */
+                min-height: -webkit-fill-available !important;
+                position: relative;
             }
-            /* 在底部建立顏色溢出層，讓系統導航條直接浮在背景色之上 */
-            body::before {
+            /* 建立視覺溢出層：向下延伸 10dvh 以填補 Google AI 感應區 */
+            body::after {
                 content: "";
                 position: fixed;
-                bottom: -50px;
-                left: 0;
-                right: 0;
-                height: 100px;
+                left: 0; right: 0;
+                bottom: -10dvh;
+                height: 15dvh;
                 background-color: var(--app-bg) !important;
-                z-index: -1000;
+                z-index: -9999;
+                pointer-events: none;
             }
             #root { 
                 background-color: var(--app-bg) !important;
@@ -1761,20 +1763,21 @@ function EchoScriptApp() {
             }
         `;
 
-        // 2. [Meta 同步] 強制瀏覽器 UI 與背景色一致
+        // 2. [Meta 同步] 加入關鍵的 interactive-widget 屬性
+        // 這是解決手機 Chrome 底部留白的最新標準
         document.querySelectorAll('meta[name="viewport"], meta[name="theme-color"]').forEach(el => el.remove());
         
         const metaViewport = document.createElement('meta');
         metaViewport.name = "viewport";
-        metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
+        metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content";
         document.head.appendChild(metaViewport);
 
         const metaTheme = document.createElement('meta');
         metaTheme.name = "theme-color";
-        metaTheme.content = hexColor; // 這裡讓瀏覽器的 URL 欄位與底部導航欄跟隨背景色
+        metaTheme.content = hexColor; 
         document.head.appendChild(metaTheme);
 
-        // 3. 更新 Body Class
+        // 3. [強制作色] 確保 Body class 與主題色同步
         document.body.className = `${theme.text} transition-colors duration-300`;
 
     }, [theme]);
@@ -3431,29 +3434,16 @@ function EchoScriptApp() {
     }
 
     return (
-        // [決戰版] 溢出填充策略 (Overscroll Bleed Strategy)
-        // 既然底部會留白，我們將高度設為 100dvh 之後，再加上額外的底部補償，
-        // 並利用 -bottom 讓色塊強行「刺穿」系統的導航條區域。
+        // [最終版] 視窗填充容器 (Viewport Fill Container)
+        // 1. h-full 配合外部 html/body 的 fixed 確保顏色徹底填滿
+        // 2. 移除內部的保險層，改由上述 useEffect 的 body::after 處理更底層的渲染
         <div 
-            className={`h-[100dvh] w-full overflow-y-auto no-scrollbar ${theme.text} font-sans pb-24 transition-colors duration-300 relative z-0`}
+            className={`h-full w-full overflow-y-auto no-scrollbar ${theme.text} font-sans pb-24 transition-colors duration-300 relative z-0`}
             style={{ 
                 backgroundColor: theme.hex,
                 WebkitOverflowScrolling: 'touch' 
             }}
         >
-            {/* [究極保險] 物理填充層：這會直接延伸到螢幕物理邊界之外 */}
-            <div 
-                style={{
-                    position: 'fixed',
-                    bottom: '-10dvh', // 故意向下延伸 10% 視窗高度
-                    left: 0,
-                    right: 0,
-                    height: '20dvh', 
-                    backgroundColor: theme.hex,
-                    zIndex: -1,
-                    pointerEvents: 'none'
-                }}
-            />
 
             {/* 導航列與內容 */}
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
@@ -3990,6 +3980,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1697,44 +1697,60 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [物理層修正] 徹底解決行動端 (三星/Chrome) 底部白邊問題
-    // 邏輯：強制注入物理層樣式並修正安全區域補償，確保瀏覽器底部的虛擬按鈕區也被填充顏色
+    // [最終決戰] 針對 Android 系統導航條 (Navigation Handle) 的顏色鎖定策略
+    // 邏輯：直接對 html 根標籤進行「引擎級」的上色與擴張，確保 Google AI 觸發區也被主題色填滿
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. 注入引擎級 CSS 樣式
+        // 1. 注入全域關鍵樣式 (Critical Global Styles)
+        // 關鍵：將 padding-bottom 從 env(safe-area) 改為 0，並對 html 進行強制的色塊溢出
         let injection = document.getElementById('critical-mobile-style');
         if (!injection) {
             injection = document.createElement('style');
             injection.id = 'critical-mobile-style';
             document.head.appendChild(injection);
         }
-        // [關鍵] 加入 viewport-fit=cover 相關的 padding 補償
         injection.innerHTML = `
             html { 
                 background-color: ${hexColor} !important; 
+                /* 使用 min-h-fill-available 確保計算包含導航條下方 */
                 height: 100% !important;
-                padding: 0 !important;
+                height: -webkit-fill-available !important;
                 margin: 0 !important;
-                overflow: hidden; /* 防止 HTML 標籤本身捲動露白 */
+                padding: 0 !important;
+                /* 核心：鎖死根部背景，不讓系統預設的白色透出來 */
+                position: absolute;
+                top: 0; left: 0; right: 0; bottom: 0;
+                overflow: hidden;
             }
             body { 
-                background-color: ${hexColor} !important; 
+                background-color: ${hexColor} !important;
                 height: 100% !important;
+                height: -webkit-fill-available !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                /* 三星手機導航列補償：確保內容延伸到安全區域下方 */
-                padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-                position: fixed; /* 固定 Body，解決瀏覽器 UI 伸縮導致的白邊 */
+                position: fixed;
                 width: 100%;
+                /* 移除 padding-bottom 補償，改由 App 內部處理，防止露白 */
+                padding-bottom: 0 !important;
             }
             #root { 
-                height: 100%; 
+                height: 100% !important;
                 background-color: ${hexColor} !important;
+                overflow: hidden;
             }
         `;
 
-        // 2. 更新 Meta Tags (加入 viewport-fit=cover 與 Theme Color)
+        // 2. 更新 Meta Tags (針對 Android Chrome 重點修復)
+        // 強制移除現有的 meta viewport 並重新精準設定
+        document.querySelectorAll('meta[name="viewport"]').forEach(el => el.remove());
+        const metaViewport = document.createElement('meta');
+        metaViewport.name = "viewport";
+        // 加入 interactive-widget=resizes-content 是為了解決 Android 底部虛擬欄位伸縮的白邊
+        metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content";
+        document.head.appendChild(metaViewport);
+
+        // 3. 更新 Theme Color (同步網址列與系統欄顏色)
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
             metaTheme = document.createElement('meta');
@@ -1743,13 +1759,7 @@ function EchoScriptApp() {
         }
         metaTheme.setAttribute('content', hexColor);
 
-        let metaViewport = document.querySelector('meta[name="viewport"]');
-        if (metaViewport) {
-            // [關鍵] 三星手機必須有 viewport-fit=cover 才能消除導航列縫隙
-            metaViewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
-        }
-
-        // 3. 更新 Body Class
+        // 4. 更新 Body Class
         document.body.className = `${theme.text} transition-colors duration-300`;
 
     }, [theme]);
@@ -3406,27 +3416,27 @@ function EchoScriptApp() {
     }
 
     return (
-        // [最終修正] 使用 h-[100dvh] (動態視窗高度) 
-        // 這會自動扣除手機瀏覽器的導航列高度，確保內容與背景完美對齊螢幕邊緣
+        // [決戰版] 溢出填充策略 (Overscroll Bleed Strategy)
+        // 既然底部會留白，我們將高度設為 100dvh 之後，再加上額外的底部補償，
+        // 並利用 -bottom 讓色塊強行「刺穿」系統的導航條區域。
         <div 
-            className={`h-[100dvh] w-full overflow-y-auto no-scrollbar ${theme.text} font-sans pb-20 transition-colors duration-300 relative z-0`}
+            className={`h-[100dvh] w-full overflow-y-auto no-scrollbar ${theme.text} font-sans pb-24 transition-colors duration-300 relative z-0`}
             style={{ 
                 backgroundColor: theme.hex,
                 WebkitOverflowScrolling: 'touch' 
             }}
         >
-            {/* [保險層] 使用 fixed 覆蓋整個可視區域下方 */}
+            {/* [究極保險] 物理填充層：這會直接延伸到螢幕物理邊界之外 */}
             <div 
                 style={{
                     position: 'fixed',
-                    bottom: 0,
+                    bottom: '-10dvh', // 故意向下延伸 10% 視窗高度
                     left: 0,
                     right: 0,
-                    height: '100px', // 在底部墊高顏色，防止任何渲染間隙
+                    height: '20dvh', 
                     backgroundColor: theme.hex,
                     zIndex: -1,
-                    pointerEvents: 'none',
-                    transform: 'translateY(50px)' // 向下偏移，只作為邊界填充
+                    pointerEvents: 'none'
                 }}
             />
 
@@ -3965,6 +3975,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -1697,12 +1697,12 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [究極修正] 視窗內容穿透策略 (Window Inset Bleeding Strategy)
-    // 解決三星與 Android 系統導航條白邊：將背景色直接「漆」在瀏覽器最底層的 Canvas 上
+    // [最終戰鬥修正] 全域負間距填充策略 (Global Negative Inset Fill)
+    // 解決三星與 Android 系統導航條白邊：強制內容溢出至物理螢幕邊界之外
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. [引擎級注入] 直接改寫 HTML 標籤與偽元素，確保白邊區域被強制覆蓋顏色
+        // 1. [物理級注入] 使用偽元素建立一個「延伸到底部之外」的背景層
         let injection = document.getElementById('critical-mobile-style');
         if (!injection) {
             injection = document.createElement('style');
@@ -1710,37 +1710,47 @@ function EchoScriptApp() {
             document.head.appendChild(injection);
         }
         injection.innerHTML = `
-            :root { --app-bg: ${hexColor}; }
+            :root { --app-bg: ${hexColor} !important; }
             html { 
                 background-color: var(--app-bg) !important; 
                 height: 100% !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                /* 強制鎖死 HTML 畫布顏色，防止 Google AI 觸發區露出預設白 */
-                position: fixed;
-                top: 0; left: 0; right: 0; bottom: 0;
-                width: 100%;
+                /* 禁止根節點捲動，防止拉動時露出白底 */
+                overflow: hidden !important; 
             }
             body { 
                 background-color: var(--app-bg) !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                min-height: 100% !important;
-                /* 使用 Webkit 屬性解決高度計算 Bug */
-                min-height: -webkit-fill-available !important;
+                height: 100% !important;
+                width: 100% !important;
+                position: fixed !important;
+                /* 確保 body 不會因為高度計算誤差而產生縫隙 */
+                bottom: -1px !important; 
+            }
+            /* 針對三星手機與 Chrome：使用偽元素在畫面最底部下方墊一塊顏色 */
+            body::after {
+                content: "";
+                position: fixed;
+                left: 0; right: 0; bottom: -20dvh; /* 延伸至螢幕下方 20% 高度 */
+                height: 30dvh;
+                background-color: var(--app-bg) !important;
+                z-index: -999;
+                pointer-events: none;
             }
             #root { 
                 background-color: var(--app-bg) !important;
-                min-height: 100% !important;
+                height: 100% !important;
             }
         `;
 
-        // 2. [Meta 重洗] 強制移除所有可能衝突的 Meta Tags 並重建
-        // 核心在於 viewport-fit=cover 必須是唯一且強制性的
+        // 2. [Meta 清洗] 重設 Viewport 與 Theme-Color
         document.querySelectorAll('meta[name="viewport"], meta[name="theme-color"]').forEach(el => el.remove());
         
         const metaViewport = document.createElement('meta');
         metaViewport.name = "viewport";
+        // 加入 viewport-fit=cover 並強制 interactive-widget 為 resizes-content
         metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content";
         document.head.appendChild(metaViewport);
 
@@ -3965,6 +3975,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2734,6 +2734,22 @@ function EchoScriptApp() {
             setHasDataChangedInSession(true);
         }
     };
+
+    // [新增] 清空垃圾桶功能
+    const handleEmptyTrash = () => {
+        if (trash.length === 0) return;
+        if (confirm("確定要清空垃圾桶嗎？此動作無法復原。")) {
+            setTrash([]);
+            if (window.fs && window.db) {
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", "trash"), 
+                    { trashJSON: "[]" }, 
+                    { merge: true }
+                ).catch(e => console.error("清空垃圾桶失敗", e));
+            }
+            showNotification("垃圾桶已清空");
+        }
+    };
                                 
     const handleDeleteNote = (id) => {
         // [修改] 提示文字變更
@@ -3541,7 +3557,17 @@ function EchoScriptApp() {
                                     <div className={`${theme.card} p-4 rounded-xl border ${theme.border}`}>
                                         <h3 className={`font-bold mb-3 flex items-center gap-2 ${theme.text}`}>
                                             <Trash2 className="w-4 h-4"/> 垃圾桶
-                                            <span className="text-xs font-normal text-stone-400 ml-auto">保留 30 天</span>
+                                            <div className="ml-auto flex items-center gap-2">
+                                                <span className="text-xs font-normal text-stone-400">保留 30 天</span>
+                                                {trash.length > 0 && (
+                                                    <button 
+                                                        onClick={handleEmptyTrash}
+                                                        className="text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors"
+                                                    >
+                                                        清空
+                                                    </button>
+                                                )}
+                                            </div>
                                         </h3>
                                         
                                         {trash.length > 0 ? (
@@ -3784,6 +3810,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

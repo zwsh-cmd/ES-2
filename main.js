@@ -1741,36 +1741,28 @@ function EchoScriptApp() {
             metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
         }
 
-        // 6. [核彈級修正] 插入固定定位的背景布幕 (Backdrop)
-        // [創意修正] 放棄實體 DIV，改用 CSS Style 注入 (CSS Injection Strategy)
-        // 直接在 head 注入樣式表，利用 body::before 偽元素 + !important 強制覆寫背景
-        // 這種方式比 DOM 元素更快被瀏覽器渲染，且 z-index: -1 能更準確地貼合在內容層下方
-        let styleTag = document.getElementById('theme-global-style');
-        if (!styleTag) {
-            styleTag = document.createElement('style');
-            styleTag.id = 'theme-global-style';
-            document.head.appendChild(styleTag);
-        }
-        styleTag.innerHTML = `
-            html, body {
-                background-color: ${hexColor} !important;
-                overscroll-behavior-y: none; /* 防止橡皮筋回彈露出底色 */
-            }
-            body::before {
-                content: "";
-                position: fixed;
-                top: -100vh;
-                left: 0;
-                right: 0;
-                height: 300vh; /* 覆蓋上中下所有範圍 */
-                background-color: ${hexColor};
-                z-index: -1; /* 確保在內容之後，背景之上 */
-                pointer-events: none;
-                transform: translate3d(0, 0, 0); /* 開啟硬體加速 */
-            }
-        `;
+        // 6. [核彈級修正] 根源綁定策略 (Root Binding Strategy)
+        // 放棄所有外掛的 DIV 或偽元素，直接鎖定 DOM 樹的三大根節點：html, body, #root
+        // 使用 '100dvh' (Dynamic Viewport Height) 來解決手機網址列伸縮造成的白邊
         
-        // 移除舊版可能殘留的實體 div (如果有)
+        const rootElement = document.getElementById('root');
+        const elementsToBind = [document.documentElement, document.body, rootElement];
+
+        elementsToBind.forEach(el => {
+            if (el) {
+                // 直接操作 style 屬性，權重最高
+                el.style.backgroundColor = hexColor; 
+                el.style.minHeight = '100dvh'; // 關鍵：使用 dvh 填滿動態視窗
+                el.style.width = '100%';
+                el.style.margin = '0';
+                el.style.padding = '0';
+                el.style.overscrollBehaviorY = 'none'; // 鎖定下拉回彈
+            }
+        });
+
+        // 清除所有舊的修正方案，避免衝突
+        const oldStyle = document.getElementById('theme-global-style');
+        if (oldStyle) oldStyle.remove();
         const oldBackdrop = document.getElementById('theme-backdrop');
         if (oldBackdrop) oldBackdrop.remove();
 
@@ -3970,6 +3962,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

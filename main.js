@@ -1749,12 +1749,13 @@ function EchoScriptApp() {
             backdrop.id = 'theme-backdrop';
             document.body.appendChild(backdrop);
         }
+        // [修正] 改用 top/bottom/left/right: 0 來強制填滿，解決 100vh 在手機上可能出現的白邊問題
         Object.assign(backdrop.style, {
             position: 'fixed',
             top: '0',
             left: '0',
-            width: '100vw',
-            height: '100vh', // 強制填滿視窗高度
+            right: '0',   // 確保寬度填滿
+            bottom: '0',  // 確保高度填滿至最底部
             zIndex: '-9999', // 放在最底層
             backgroundColor: hexColor,
             pointerEvents: 'none'
@@ -3956,6 +3957,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

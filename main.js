@@ -676,6 +676,7 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
 // === 6. 所有筆記列表 Modal (支援分類顯示) ===
 // [修正] 搜尋樣式優化：筆記使用底色，分類使用卡片色；搜尋返回強制回總分類
 const AllNotesModal = ({ 
+    user, // [Isolation]
     notes, setNotes, onClose, onItemClick, onDelete, 
     viewLevel, setViewLevel, 
     selectedSuper, setSelectedSuper,       
@@ -715,8 +716,8 @@ const AllNotesModal = ({
             const newMap = { ...superCategoryMap, [name]: [] };
             setSuperCategoryMap(newMap);
             
-            if (window.fs && window.db) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+            if (window.fs && window.db && user) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
                     { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
             }
         } 
@@ -733,8 +734,8 @@ const AllNotesModal = ({
             if (!newSuperMap[selectedSuper].includes(name)) newSuperMap[selectedSuper].push(name);
             setSuperCategoryMap(newSuperMap);
 
-            if (window.fs && window.db) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+            if (window.fs && window.db && user) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
                     { 
                         categoryMapJSON: JSON.stringify(newCatMap),
                         superCategoryMapJSON: JSON.stringify(newSuperMap)
@@ -751,8 +752,8 @@ const AllNotesModal = ({
             newCatMap[selectedCategory].push(name);
             setCategoryMap(newCatMap);
 
-            if (window.fs && window.db) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+            if (window.fs && window.db && user) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
                     { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
             }
         }
@@ -904,19 +905,19 @@ const AllNotesModal = ({
                 const newMap = {};
                 list.forEach(key => { newMap[key] = superCategoryMap[key]; });
                 setSuperCategoryMap(newMap);
-                syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
+                syncToCloud(`layout_${user.uid}`, { superCategoryMapJSON: JSON.stringify(newMap) });
             } 
             else if (viewLevel === 'categories') {
                 const newMap = { ...superCategoryMap };
                 newMap[selectedSuper] = list;
                 setSuperCategoryMap(newMap);
-                syncToCloud('layout', { superCategoryMapJSON: JSON.stringify(newMap) });
+                syncToCloud(`layout_${user.uid}`, { superCategoryMapJSON: JSON.stringify(newMap) });
             }
             else if (viewLevel === 'subcategories') {
                 const newMap = { ...categoryMap };
                 newMap[selectedCategory] = list;
                 setCategoryMap(newMap);
-                syncToCloud('layout', { categoryMapJSON: JSON.stringify(newMap) });
+                syncToCloud(`layout_${user.uid}`, { categoryMapJSON: JSON.stringify(newMap) });
             }
         }
         resetDrag();
@@ -924,7 +925,7 @@ const AllNotesModal = ({
     };
 
     const resetDrag = () => { dragItem.current = null; dragOverItem.current = null; setDraggingIndex(null); setDragOverIndex(null); };
-    const syncToCloud = (docName, data) => { if (window.fs && window.db) window.fs.setDoc(window.fs.doc(window.db, "settings", docName), data, { merge: true }); };
+    const syncToCloud = (docName, data) => { if (window.fs && window.db && user) window.fs.setDoc(window.fs.doc(window.db, "settings", docName), data, { merge: true }); };
 
     // [修改] 啟動移動流程：初始化狀態，不再預先計算目標
     const handleMove = () => {
@@ -967,8 +968,8 @@ const AllNotesModal = ({
                 setSuperCategoryMap(newSuperMap);
 
                 // 2. 寫入資料庫 (Layout)
-                if (window.fs && window.db) {
-                    updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+                if (window.fs && window.db && user) {
+                    updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
                         { superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
                 }
 
@@ -1025,8 +1026,8 @@ const AllNotesModal = ({
                 setCategoryMap(newCatMap);
 
                 // 2. 寫入資料庫
-                if (window.fs && window.db) {
-                    updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), 
+                if (window.fs && window.db && user) {
+                    updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
                         { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
                 }
 
@@ -1133,13 +1134,14 @@ const AllNotesModal = ({
 
         const updates = [];
         let updatedNotes = [...notes];
+        const layoutDocId = user ? `layout_${user.uid}` : "layout"; // Helper for isolation
 
         if (type === 'superCategory') {
             if (selectedSuper === item) setSelectedSuper(newName);
             const newMap = { ...superCategoryMap };
             newMap[newName] = newMap[item]; delete newMap[item];
             setSuperCategoryMap(newMap);
-            if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+            if (window.fs && window.db && user) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
             updatedNotes = notes.map(n => {
                 if ((n.superCategory || "其他") === item) {
                     const newNote = { ...n, superCategory: newName };
@@ -1158,8 +1160,8 @@ const AllNotesModal = ({
                 const idx = newSuperMap[k].indexOf(item); if (idx !== -1) newSuperMap[k][idx] = newName;
             });
             setSuperCategoryMap(newSuperMap);
-            if (window.fs && window.db) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newCatMap), superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
+            if (window.fs && window.db && user) {
+                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { categoryMapJSON: JSON.stringify(newCatMap), superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
             }
             updatedNotes = notes.map(n => {
                 if ((n.category || "未分類") === item) {
@@ -1176,7 +1178,7 @@ const AllNotesModal = ({
             const idx = subs.indexOf(item);
             if (idx !== -1) { subs[idx] = newName; newCatMap[selectedCategory] = subs; }
             setCategoryMap(newCatMap);
-            if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
+            if (window.fs && window.db && user) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
             updatedNotes = notes.map(n => {
                 if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
                     const newNote = { ...n, subcategory: newName };
@@ -1756,11 +1758,13 @@ function EchoScriptApp() {
     // [新增] 切換主題並儲存
     const handleSetTheme = (id) => {
         setCurrentThemeId(id);
-        localStorage.setItem('echoScript_Theme', id);
+        // [Isolation] 本地儲存區隔
+        if (user) localStorage.setItem(`echoScript_Theme_${user.uid}`, id);
         
-        if (window.fs && window.db) {
+        if (window.fs && window.db && user) {
+            // [Isolation] 雲端儲存區隔
             window.fs.setDoc(
-                window.fs.doc(window.db, "settings", "preferences"), 
+                window.fs.doc(window.db, "settings", `preferences_${user.uid}`), 
                 { themeId: id }, 
                 { merge: true }
             ).catch(e => console.error("主題同步失敗", e));
@@ -1796,10 +1800,11 @@ function EchoScriptApp() {
             setSuperCategoryMap(newSuperMap);
             
             // [關鍵修正] 只有當雲端設定已經載入過一次後，才允許寫回雲端
-            if (window.fs && window.db && isSettingsLoaded) {
+            // [Isolation] 確保 user 存在且寫入專屬 layout 文件
+            if (window.fs && window.db && isSettingsLoaded && user) {
                 console.log("☁️ 同步寫入雲端 settings/layout");
                 window.fs.setDoc(
-                    window.fs.doc(window.db, "settings", "layout"), 
+                    window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
                     { 
                         categoryMapJSON: JSON.stringify(newCatMap),
                         superCategoryMapJSON: JSON.stringify(newSuperMap)
@@ -1808,21 +1813,27 @@ function EchoScriptApp() {
                 ).catch(e => console.error("自動同步分類失敗", e));
             }
         }
-    }, [notes, categoryMap, superCategoryMap, isSettingsLoaded]);
+    }, [notes, categoryMap, superCategoryMap, isSettingsLoaded, user]);
 
-    // [存取] 持久化分類結構
+    // [存取] 持久化分類結構 (隔離版)
     useEffect(() => {
-        const savedMap = localStorage.getItem('echoScript_CategoryMap');
+        if (!user) return;
+        const savedMap = localStorage.getItem(`echoScript_CategoryMap_${user.uid}`);
         if (savedMap) setCategoryMap(JSON.parse(savedMap));
-    }, []);
-    useEffect(() => { localStorage.setItem('echoScript_CategoryMap', JSON.stringify(categoryMap)); }, [categoryMap]);
+    }, [user]);
+    
+    useEffect(() => { 
+        if (user) localStorage.setItem(`echoScript_CategoryMap_${user.uid}`, JSON.stringify(categoryMap)); 
+    }, [categoryMap, user]);
 
-    // [新增] 監聽雲端分類排序 (settings/layout)
+    // [新增] 監聽雲端分類排序 (settings/layout_UID)
     // [修正] 優先讀取 JSON 字串格式，確保順序正確，並設定 isSettingsLoaded 標記
     useEffect(() => {
-        if (!window.fs || !window.db) return;
+        if (!window.fs || !window.db || !user) return;
+        
+        // [Isolation] 讀取專屬 layout 文件
         const unsubscribe = window.fs.onSnapshot(
-            window.fs.doc(window.db, "settings", "layout"), 
+            window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
             (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
@@ -1846,7 +1857,7 @@ function EchoScriptApp() {
             }
         );
         return () => unsubscribe();
-    }, []);
+    }, [user]);
 
     // [新增] 儲存 AllNotesModal 的內部導航層級狀態，用於支援 PopState
     const [allNotesViewLevel, setAllNotesViewLevel] = useState('superCategories'); // superCategories -> categories -> subcategories -> notes
@@ -2159,27 +2170,29 @@ function EchoScriptApp() {
         return () => window.removeEventListener('noteSelected', handleNoteSelect);
     }, [notes]);
 
-    useEffect(() => { localStorage.setItem('echoScript_AllNotes', JSON.stringify(notes)); }, [notes]);
-    useEffect(() => { localStorage.setItem('echoScript_Favorites', JSON.stringify(favorites)); }, [favorites]);
-    useEffect(() => { localStorage.setItem('echoScript_AllResponses', JSON.stringify(allResponses)); }, [allResponses]);
+    useEffect(() => { if(user) localStorage.setItem(`echoScript_AllNotes_${user.uid}`, JSON.stringify(notes)); }, [notes, user]);
+    useEffect(() => { if(user) localStorage.setItem(`echoScript_Favorites_${user.uid}`, JSON.stringify(favorites)); }, [favorites, user]);
+    useEffect(() => { if(user) localStorage.setItem(`echoScript_AllResponses_${user.uid}`, JSON.stringify(allResponses)); }, [allResponses, user]);
     useEffect(() => { 
+        if (!user) return;
         const json = JSON.stringify(history);
-        localStorage.setItem('echoScript_History', json); 
+        localStorage.setItem(`echoScript_History_${user.uid}`, json); 
         
         // [新增] 同步寫入雲端 (僅當已完成首次載入後)
+        // [Isolation] 寫入 user 專屬 history
         if (window.fs && window.db && isHistoryLoaded) {
             window.fs.setDoc(
-                window.fs.doc(window.db, "settings", "history"), 
+                window.fs.doc(window.db, "settings", `history_${user.uid}`), 
                 { historyJSON: json }, 
                 { merge: true }
             ).catch(e => console.error("歷史紀錄同步失敗", e));
         }
-    }, [history, isHistoryLoaded]);
-    useEffect(() => { localStorage.setItem('echoScript_Recents', JSON.stringify(recentIndices)); }, [recentIndices]);
-    useEffect(() => { localStorage.setItem('echoScript_FutureRecents', JSON.stringify(futureIndices)); }, [futureIndices]);
+    }, [history, isHistoryLoaded, user]);
+    useEffect(() => { if(user) localStorage.setItem(`echoScript_Recents_${user.uid}`, JSON.stringify(recentIndices)); }, [recentIndices, user]);
+    useEffect(() => { if(user) localStorage.setItem(`echoScript_FutureRecents_${user.uid}`, JSON.stringify(futureIndices)); }, [futureIndices, user]);
     // [新增] 儲存洗牌狀態
-    useEffect(() => { localStorage.setItem('echoScript_ShuffleDeck', JSON.stringify(shuffleDeck)); }, [shuffleDeck]);
-    useEffect(() => { localStorage.setItem('echoScript_DeckPointer', deckPointer.toString()); }, [deckPointer]);
+    useEffect(() => { if(user) localStorage.setItem(`echoScript_ShuffleDeck_${user.uid}`, JSON.stringify(shuffleDeck)); }, [shuffleDeck, user]);
+    useEffect(() => { if(user) localStorage.setItem(`echoScript_DeckPointer_${user.uid}`, deckPointer.toString()); }, [deckPointer, user]);
 
     const showNotification = (msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); };
 
@@ -2314,11 +2327,11 @@ function EchoScriptApp() {
         setShuffleTarget(target);
         setShowShuffleMenu(false);
 
-        // [新增] 同步寫入雲端與本地
-        localStorage.setItem('echoScript_ShuffleTarget', target);
-        if (window.fs && window.db) {
+        // [新增] 同步寫入雲端與本地 (Isolation)
+        if (user) localStorage.setItem(`echoScript_ShuffleTarget_${user.uid}`, target);
+        if (window.fs && window.db && user) {
             window.fs.setDoc(
-                window.fs.doc(window.db, "settings", "preferences"), 
+                window.fs.doc(window.db, "settings", `preferences_${user.uid}`), 
                 { shuffleTarget: target }, 
                 { merge: true }
             ).catch(e => console.error("抽卡目標同步失敗", e));
@@ -2362,11 +2375,11 @@ function EchoScriptApp() {
         setShowShuffleMenu(false);
         showNotification("已取消鎖定，改為隨當前筆記");
 
-        // [新增] 同步清除雲端與本地
-        localStorage.removeItem('echoScript_ShuffleTarget');
-        if (window.fs && window.db) {
+        // [新增] 同步清除雲端與本地 (Isolation)
+        if (user) localStorage.removeItem(`echoScript_ShuffleTarget_${user.uid}`);
+        if (window.fs && window.db && user) {
             window.fs.setDoc(
-                window.fs.doc(window.db, "settings", "preferences"), 
+                window.fs.doc(window.db, "settings", `preferences_${user.uid}`), 
                 { shuffleTarget: null }, 
                 { merge: true }
             ).catch(e => console.error("清除抽卡目標失敗", e));
@@ -2677,9 +2690,10 @@ function EchoScriptApp() {
         if (trash.length === 0) return;
         if (confirm("確定要清空垃圾桶嗎？此動作無法復原。")) {
             setTrash([]);
-            if (window.fs && window.db) {
+            if (window.fs && window.db && user) {
+                // [Isolation] 清空專屬 trash
                 window.fs.setDoc(
-                    window.fs.doc(window.db, "settings", "trash"), 
+                    window.fs.doc(window.db, "settings", `trash_${user.uid}`), 
                     { trashJSON: "[]" }, 
                     { merge: true }
                 ).catch(e => console.error("清空垃圾桶失敗", e));
@@ -2698,10 +2712,10 @@ function EchoScriptApp() {
                 const newTrash = [trashItem, ...trash];
                 setTrash(newTrash);
                 
-                // 同步垃圾桶到雲端
-                if (window.fs && window.db) {
+                // 同步垃圾桶到雲端 (Isolation)
+                if (window.fs && window.db && user) {
                      window.fs.setDoc(
-                        window.fs.doc(window.db, "settings", "trash"), 
+                        window.fs.doc(window.db, "settings", `trash_${user.uid}`), 
                         { trashJSON: JSON.stringify(newTrash) }, 
                         { merge: true }
                     ).catch(e => console.error("垃圾桶備份失敗", e));
@@ -2715,7 +2729,7 @@ function EchoScriptApp() {
             const newNotes = notes.filter(n => String(n.id) !== String(id));
             setNotes(newNotes);
 
-            // [修正] 同步從編輯歷史中移除該筆記
+            // [修正] 同步從編輯歷史中移除該筆記 (Isolation)
             setHistory(prevHistory => {
                 const validHistory = Array.isArray(prevHistory) ? prevHistory : [];
                 const validNoteIds = new Set(newNotes.map(n => String(n.id)));
@@ -2726,10 +2740,10 @@ function EchoScriptApp() {
                     validNoteIds.has(String(h.id))
                 );
                 
-                localStorage.setItem('echoScript_History', JSON.stringify(newHistory));
-                if (window.fs && window.db) {
+                if(user) localStorage.setItem(`echoScript_History_${user.uid}`, JSON.stringify(newHistory));
+                if (window.fs && window.db && user) {
                     window.fs.setDoc(
-                        window.fs.doc(window.db, "settings", "history"), 
+                        window.fs.doc(window.db, "settings", `history_${user.uid}`), 
                         { historyJSON: JSON.stringify(newHistory) }, 
                         { merge: true }
                     ).catch(e => console.error("歷史紀錄強制同步失敗", e));
@@ -2754,14 +2768,14 @@ function EchoScriptApp() {
 
             if (isDeletingPinned) {
                 setPinnedNoteId(null);
-                localStorage.removeItem('echoScript_PinnedId');
-                if (window.fs && window.db) {
-                    window.fs.setDoc(window.fs.doc(window.db, "settings", "preferences"), { pinnedNoteId: null }, { merge: true });
+                if(user) localStorage.removeItem(`echoScript_PinnedId_${user.uid}`);
+                if (window.fs && window.db && user) {
+                    window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { pinnedNoteId: null }, { merge: true });
                 }
                 setShowPinnedPlaceholder(true);
                 showPinnedPlaceholderRef.current = true;
                 nextIdx = -1;
-                localStorage.removeItem('echoScript_ResumeNoteId');
+                if(user) localStorage.removeItem(`echoScript_ResumeNoteId_${user.uid}`);
             
             } else if (newNotes.length > 0) {
                 const latestNote = [...newNotes].sort((a, b) => {
@@ -2861,38 +2875,37 @@ function EchoScriptApp() {
             const newNotes = notes.filter(n => !targetIds.has(String(n.id)));
             setNotes(newNotes);
 
-            // 4. 更新分類地圖 (移除該分類)
+            // 4. 更新分類地圖 (移除該分類) - Isolation: layout_UID
             const promises = [];
-            if (type === 'superCategory') {
-                const newMap = { ...superCategoryMap }; delete newMap[name]; 
-                setSuperCategoryMap(newMap);
-                if (window.fs && window.db) promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
-            } else if (type === 'category') {
-                // 移除大分類地圖
-                const newCatMap = { ...categoryMap }; delete newCatMap[name];
-                setCategoryMap(newCatMap);
-                // 移除總分類關聯
-                const newSuperMap = { ...superCategoryMap };
-                if (newSuperMap[selectedSuper]) newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== name);
-                setSuperCategoryMap(newSuperMap);
-                
-                if (window.fs && window.db) {
-                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { 
+            if (window.fs && window.db && user) {
+                if (type === 'superCategory') {
+                    const newMap = { ...superCategoryMap }; delete newMap[name]; 
+                    setSuperCategoryMap(newMap);
+                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+                } else if (type === 'category') {
+                    // 移除大分類地圖
+                    const newCatMap = { ...categoryMap }; delete newCatMap[name];
+                    setCategoryMap(newCatMap);
+                    // 移除總分類關聯
+                    const newSuperMap = { ...superCategoryMap };
+                    if (newSuperMap[selectedSuper]) newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== name);
+                    setSuperCategoryMap(newSuperMap);
+                    
+                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { 
                         categoryMapJSON: JSON.stringify(newCatMap),
                         superCategoryMapJSON: JSON.stringify(newSuperMap)
                     }, { merge: true }));
+                    
+                } else if (type === 'subcategory') {
+                    const newMap = { ...categoryMap }; 
+                    if (newMap[selectedCategory]) newMap[selectedCategory] = newMap[selectedCategory].filter(s => s !== name);
+                    setCategoryMap(newMap);
+                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { categoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
                 }
-            } else if (type === 'subcategory') {
-                const newMap = { ...categoryMap }; 
-                if (newMap[selectedCategory]) newMap[selectedCategory] = newMap[selectedCategory].filter(s => s !== name);
-                setCategoryMap(newMap);
-                if (window.fs && window.db) promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "layout"), { categoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
-            }
 
-            // 5. 同步垃圾桶與刪除雲端筆記
-            if (window.fs && window.db) {
+                // 5. 同步垃圾桶與刪除雲端筆記 - Isolation: trash_UID
                 // 更新垃圾桶
-                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", "trash"), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
+                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `trash_${user.uid}`), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
                 
                 // 批量刪除雲端筆記
                 targetNotes.forEach(n => {
@@ -2918,16 +2931,17 @@ function EchoScriptApp() {
 
         // 1. 本地樂觀更新
         setPinnedNoteId(newPinnedId);
-        if (newPinnedId) localStorage.setItem('echoScript_PinnedId', newPinnedId);
-        else localStorage.removeItem('echoScript_PinnedId');
+        // [Isolation]
+        if (newPinnedId && user) localStorage.setItem(`echoScript_PinnedId_${user.uid}`, newPinnedId);
+        else if(user) localStorage.removeItem(`echoScript_PinnedId_${user.uid}`);
 
         // [修正] 簡化提示詞，避免混淆「首頁」概念
         showNotification(isCurrentlyPinned ? "已取消釘選" : "已釘選");
 
-        // 2. 雲端同步 (寫入 settings/preferences)
-        if (window.fs && window.db) {
+        // 2. 雲端同步 (寫入 settings/preferences_UID)
+        if (window.fs && window.db && user) {
             window.fs.setDoc(
-                window.fs.doc(window.db, "settings", "preferences"), 
+                window.fs.doc(window.db, "settings", `preferences_${user.uid}`), 
                 { pinnedNoteId: newPinnedId }, 
                 { merge: true }
             ).catch(e => console.error("釘選同步失敗", e));
@@ -3597,6 +3611,7 @@ function EchoScriptApp() {
 
             {showAllNotesModal && (
                 <AllNotesModal 
+                    user={user} // [Isolation] 傳遞 user 資訊
                     notes={notes}
                     setNotes={setNotes} 
                     categoryMap={categoryMap}
@@ -3754,6 +3769,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

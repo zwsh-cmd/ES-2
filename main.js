@@ -1565,6 +1565,9 @@ function EchoScriptApp() {
         if (!window.authFns || !window.auth) return;
         try {
             const provider = new window.authFns.GoogleAuthProvider();
+            // [關鍵修正] 強制跳出帳號選擇視窗，避免自動登入上一個帳號
+            provider.setCustomParameters({ prompt: 'select_account' });
+            
             await window.authFns.signInWithPopup(window.auth, provider);
         } catch (error) {
             console.error("Login failed:", error);
@@ -3924,6 +3927,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -42,20 +42,25 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-        // 這裡引入了所有你會用到的資料庫功能
+        // [修改] 引入資料庫功能 (加入 where, getDocs 以支援篩選)
         import { 
             getFirestore, 
             collection, 
             addDoc, 
-            setDoc,       // 用於指定 ID 寫入 (重要)
-            updateDoc,    // 用於修改筆記 (重要)
+            setDoc,       
+            updateDoc,    
             deleteDoc, 
             doc, 
-            onSnapshot,   // 用於即時監聽
+            onSnapshot,   
             query, 
             orderBy, 
+            where,        // [新增] 篩選功能
+            getDocs,      // [新增] 讀取功能
             serverTimestamp 
         } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+        
+        // [新增] 引入 Auth 驗證功能
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
 
         // 你的專屬鑰匙
         const firebaseConfig = {
@@ -70,9 +75,12 @@
         // 啟動 Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app); // [新增] 初始化 Auth
 
         // 【關鍵】把 db 和功能包 (fs) 掛載到 window，讓 main.js 可以隨便用
         window.db = db;
+        window.auth = auth; // [新增] 掛載 auth
+        
         window.fs = { 
             collection, 
             addDoc, 
@@ -83,10 +91,17 @@
             onSnapshot, 
             query, 
             orderBy, 
+            where,       // [新增]
+            getDocs,     // [新增]
             serverTimestamp 
         };
 
-        console.log("Firebase 雲端資料庫已就緒 (MyNotes)");
+        // [新增] 驗證工具箱 window.authFns
+        window.authFns = { 
+            GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged 
+        };
+
+        console.log("Firebase 雲端資料庫與驗證已就緒 (EchoScript)");
     </script>
 
     <script>
@@ -98,5 +113,6 @@
     </script>
 </body>
 </html>
+
 
 

@@ -3211,26 +3211,74 @@ function EchoScriptApp() {
     const handleRestore = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // [Safety Check] 確保已登入，才能執行雲端寫入
+        if (!user) { alert("請先登入後再執行還原"); return; }
+
         const reader = new FileReader();
-        reader.onload = (ev) => {
+        reader.onload = async (ev) => {
             try {
                 const data = JSON.parse(ev.target.result);
-                if (data.favorites) setFavorites(data.favorites);
-                if (data.history) setHistory(data.history);
-                if (data.allResponses) setAllResponses(data.allResponses);
-                
-                // [關鍵] 優先還原分類結構，確保順序正確 (Isolation)
-                if (data.categoryMap) {
-                    setCategoryMap(data.categoryMap);
-                    if (user) localStorage.setItem(`echoScript_CategoryMap_${user.uid}`, JSON.stringify(data.categoryMap));
+                const promises = [];
+                showNotification("正在分析備份檔並上傳至雲端...");
+
+                // 1. 還原筆記 (寫入 Firestore notes 集合)
+                if (data.notes && Array.isArray(data.notes)) {
+                    data.notes.forEach(n => {
+                        // [Isolation] 強制覆寫 userId 為當前使用者，確保資料歸屬正確
+                        // 同時保留原始的 createdDate/modifiedDate 與內容
+                        const noteData = { ...n, userId: user.uid };
+                        if (window.fs && window.db) {
+                            promises.push(
+                                window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), noteData)
+                            );
+                        }
+                    });
                 }
-                
-                if (data.notes) {
-                    setNotes(data.notes);
-                    showNotification("資料庫還原成功！");
-                    setTimeout(() => window.location.reload(), 1000);
+
+                // 2. 還原分類結構 (寫入 settings/layout_UID)
+                // 備份檔可能只包含 categoryMap，這裡我們盡量還原
+                if (data.categoryMap && window.fs && window.db) {
+                    const payload = { categoryMapJSON: JSON.stringify(data.categoryMap) };
+                    // 如果備份檔有 superCategoryMap 也一併還原 (目前備份邏輯似乎漏了這個，但若未來有加上，這裡也能支援)
+                    if (data.superCategoryMap) {
+                        payload.superCategoryMapJSON = JSON.stringify(data.superCategoryMap);
+                    }
+                    
+                    promises.push(
+                        window.fs.setDoc(
+                            window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
+                            payload, 
+                            { merge: true }
+                        )
+                    );
                 }
-            } catch (err) { showNotification("檔案格式錯誤"); }
+
+                // 3. 還原歷史紀錄 (寫入 settings/history_UID)
+                if (data.history && window.fs && window.db) {
+                    promises.push(
+                        window.fs.setDoc(
+                            window.fs.doc(window.db, "settings", `history_${user.uid}`), 
+                            { historyJSON: JSON.stringify(data.history) }, 
+                            { merge: true }
+                        )
+                    );
+                }
+
+                // 等待所有雲端寫入完成
+                if (promises.length > 0) {
+                    await Promise.all(promises);
+                    showNotification("☁️ 雲端還原成功！即將重新整理...");
+                    // 給予一點時間讓 Notification 顯示，然後重整頁面以重新載入資料
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showNotification("備份檔中沒有可還原的資料");
+                }
+
+            } catch (err) { 
+                console.error("還原失敗", err);
+                showNotification("檔案格式錯誤或網路上傳失敗"); 
+            }
         };
         reader.readAsText(file);
     };
@@ -3797,6 +3845,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

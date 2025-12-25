@@ -1741,30 +1741,7 @@ function EchoScriptApp() {
             metaViewport.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
         }
 
-        // 6. [核彈級修正] 根源綁定策略 (Root Binding Strategy)
-        // 放棄所有外掛的 DIV 或偽元素，直接鎖定 DOM 樹的三大根節點：html, body, #root
-        // 使用 '100dvh' (Dynamic Viewport Height) 來解決手機網址列伸縮造成的白邊
         
-        const rootElement = document.getElementById('root');
-        const elementsToBind = [document.documentElement, document.body, rootElement];
-
-        elementsToBind.forEach(el => {
-            if (el) {
-                // 直接操作 style 屬性，權重最高
-                el.style.backgroundColor = hexColor; 
-                el.style.minHeight = '100dvh'; // 關鍵：使用 dvh 填滿動態視窗
-                el.style.width = '100%';
-                el.style.margin = '0';
-                el.style.padding = '0';
-                el.style.overscrollBehaviorY = 'none'; // 鎖定下拉回彈
-            }
-        });
-
-        // 清除所有舊的修正方案，避免衝突
-        const oldStyle = document.getElementById('theme-global-style');
-        if (oldStyle) oldStyle.remove();
-        const oldBackdrop = document.getElementById('theme-backdrop');
-        if (oldBackdrop) oldBackdrop.remove();
 
         // 7. 更新 Tailwind Class
         document.body.className = `${theme.bg} ${theme.text} transition-colors duration-300`;
@@ -3427,7 +3404,15 @@ function EchoScriptApp() {
     }
 
     return (
-        <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`}>
+        // [修正] 使用 boxShadow: '0 0 0 100vmax theme.hex' 創造無限延伸的背景色
+        // 這會向外擴散巨大的同色陰影，覆蓋所有可能的瀏覽器白邊或回彈區域
+        <div 
+            className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`}
+            style={{ 
+                backgroundColor: theme.hex, // 確保底色一致
+                boxShadow: `0 0 0 100vmax ${theme.hex}` // 核彈級修正：向外擴散 100倍螢幕大小的陰影
+            }}
+        >
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
                 <div className="flex items-center gap-2">
                     <img src="icon.png" className="w-8 h-8 rounded-lg object-cover" alt="App Icon" />
@@ -3962,6 +3947,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

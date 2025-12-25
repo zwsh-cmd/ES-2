@@ -1697,25 +1697,44 @@ function EchoScriptApp() {
         return () => { unsubPref(); unsubHist(); };
     }, [user]);
 
-    // [全域覆蓋策略] 徹底解決 Android Chrome 底部白邊
+    // [物理層修正] 徹底解決行動端 (三星/Chrome) 底部白邊問題
+    // 邏輯：強制注入物理層樣式並修正安全區域補償，確保瀏覽器底部的虛擬按鈕區也被填充顏色
     useEffect(() => {
         const hexColor = theme.hex;
 
-        // 1. 強制修復 HTML 根節點，確保 Canvas 背景色與主題一致
-        // [核心修正] 強制 html 也是 100% 高度，這是解決「固定白邊」的最底層方法
-        document.documentElement.style.setProperty('background-color', hexColor, 'important');
-        document.documentElement.style.height = '100%';
-        
-        document.body.style.setProperty('background-color', hexColor, 'important');
-        document.body.style.height = '100%';
-        
-        // 2. 移除可能造成間隙的 margin/padding
-        document.documentElement.style.margin = '0';
-        document.documentElement.style.padding = '0';
-        document.body.style.margin = '0';
-        document.body.style.padding = '0';
+        // 1. 注入引擎級 CSS 樣式
+        let injection = document.getElementById('critical-mobile-style');
+        if (!injection) {
+            injection = document.createElement('style');
+            injection.id = 'critical-mobile-style';
+            document.head.appendChild(injection);
+        }
+        // [關鍵] 加入 viewport-fit=cover 相關的 padding 補償
+        injection.innerHTML = `
+            html { 
+                background-color: ${hexColor} !important; 
+                height: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden; /* 防止 HTML 標籤本身捲動露白 */
+            }
+            body { 
+                background-color: ${hexColor} !important; 
+                height: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                /* 三星手機導航列補償：確保內容延伸到安全區域下方 */
+                padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+                position: fixed; /* 固定 Body，解決瀏覽器 UI 伸縮導致的白邊 */
+                width: 100%;
+            }
+            #root { 
+                height: 100%; 
+                background-color: ${hexColor} !important;
+            }
+        `;
 
-        // 3. 更新 Meta Theme Color (與瀏覽器工具列同步)
+        // 2. 更新 Meta Tags (加入 viewport-fit=cover 與 Theme Color)
         let metaTheme = document.querySelector('meta[name="theme-color"]');
         if (!metaTheme) {
             metaTheme = document.createElement('meta');
@@ -1724,7 +1743,13 @@ function EchoScriptApp() {
         }
         metaTheme.setAttribute('content', hexColor);
 
-        // 4. 更新 Body Class
+        let metaViewport = document.querySelector('meta[name="viewport"]');
+        if (metaViewport) {
+            // [關鍵] 三星手機必須有 viewport-fit=cover 才能消除導航列縫隙
+            metaViewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+        }
+
+        // 3. 更新 Body Class
         document.body.className = `${theme.text} transition-colors duration-300`;
 
     }, [theme]);
@@ -3381,26 +3406,27 @@ function EchoScriptApp() {
     }
 
     return (
-        // [修正] 使用 min-h-screen 並確保背景色強制填充
+        // [最終修正] 使用 h-[100dvh] (動態視窗高度) 
+        // 這會自動扣除手機瀏覽器的導航列高度，確保內容與背景完美對齊螢幕邊緣
         <div 
-            className={`min-h-screen ${theme.text} font-sans pb-20 transition-colors duration-300 relative z-0`}
+            className={`h-[100dvh] w-full overflow-y-auto no-scrollbar ${theme.text} font-sans pb-20 transition-colors duration-300 relative z-0`}
             style={{ 
                 backgroundColor: theme.hex,
-                // 防止過度捲動時露出底部的白色畫布
-                overscrollBehavior: 'none' 
+                WebkitOverflowScrolling: 'touch' 
             }}
         >
-            {/* [補償層] 故意超出螢幕底部的色塊，確保瀏覽器計算誤差時不會露出白色 */}
+            {/* [保險層] 使用 fixed 覆蓋整個可視區域下方 */}
             <div 
                 style={{
                     position: 'fixed',
-                    bottom: '-5vh',
+                    bottom: 0,
                     left: 0,
                     right: 0,
-                    height: '10vh',
+                    height: '100px', // 在底部墊高顏色，防止任何渲染間隙
                     backgroundColor: theme.hex,
-                    zIndex: -10,
-                    pointerEvents: 'none'
+                    zIndex: -1,
+                    pointerEvents: 'none',
+                    transform: 'translateY(50px)' // 向下偏移，只作為邊界填充
                 }}
             />
 
@@ -3939,6 +3965,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -3580,33 +3580,33 @@ function EchoScriptApp() {
                 )}
             </main>
             
-            {/* [UI調整] 底部導航列：改為全寬度背景色 (Theme BG) 以解決底部白條問題 */}
-            <div className={`fixed bottom-0 left-0 w-full z-20 flex justify-around items-center py-3 border-t ${theme.border} ${theme.bg} backdrop-blur-md safe-area-bottom`}>
+            {/* [UI調整] 左下角導航操作區：改為橫向排列 (首頁 -> 釘選 -> 隨機) */}
+            <div className="fixed bottom-6 left-6 z-20 flex gap-3 items-center">
                 
-                {/* 1. 首頁按鈕 */}
+                {/* 1. 首頁按鈕 (最左邊) */}
                 <button 
                     onClick={handleGoHome} 
                     disabled={isAnimating || notes.length === 0} 
-                    className={`p-2 rounded-full transition-transform active:scale-90 ${theme.text} opacity-80 hover:opacity-100`}
+                    className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
                     title="回到最後編輯 (首頁)"
                 >
                     <Home className="w-6 h-6"/>
                 </button>
 
-                {/* 2. 釘選按鈕 */}
+                {/* 2. 釘選按鈕 (中間) */}
                 <button 
                     onClick={handleGoToPin} 
                     disabled={isAnimating || notes.length === 0} 
-                    className={`p-2 rounded-full transition-transform active:scale-90 ${theme.text} opacity-80 hover:opacity-100`}
+                    className={`${theme.accent} ${theme.accentText} p-3 rounded-full shadow-lg active:scale-95 transition-transform`} 
                     title="回到釘選筆記"
                 >
                     <Pin className="w-6 h-6" />
                 </button>
 
-                {/* 3. 抽卡按鈕 (有目標時亮起，否則維持低調) */}
+                {/* 3. [修改] 抽卡設定按鈕 (右邊) - 改為圖示「抽卡」，點擊設定目標 */}
                 <button 
                     onClick={() => setShowShuffleMenu(true)} 
-                    className={`p-2 rounded-full transition-transform active:scale-90 relative ${shuffleTarget ? `${theme.accent} ${theme.accentText} shadow-md` : `${theme.text} opacity-80 hover:opacity-100`}`}
+                    className={`${shuffleTarget ? `${theme.accent} ${theme.accentText}` : `${theme.card} border ${theme.border} ${theme.subtext}`} p-3 rounded-full shadow-lg active:scale-95 transition-transform relative`} 
                     title="設定抽卡目標"
                 >
                     <Shuffle className="w-6 h-6" />
@@ -3956,8 +3956,6 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
-
-
 
 
 

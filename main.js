@@ -618,7 +618,6 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                             <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="插入圖片">
                                 <ImageIcon className="w-4 h-4"/> 圖片
                             </button>
-                            <div className="w-px h-4 bg-stone-300 mx-1"></div>
                             
                             {/* [修改] 按鈕順序：內文 -> 大標 -> 小標 -> 引用 -> 項目 -> 粗體 -> 斜體 -> 底線 */}
                             <button onClick={() => insertMarkdown('normal')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="內文"><Type className="w-4 h-4"/> 內文</button>
@@ -4196,6 +4195,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

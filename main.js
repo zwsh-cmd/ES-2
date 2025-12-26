@@ -170,7 +170,8 @@ const MarkdownRenderer = ({ content }) => {
                 if (line.startsWith('- ')) {
                     return (
                         <div key={i} className="flex items-start gap-2 ml-4 mb-1">
-                            <span className="opacity-50 font-bold mt-[0.4em] text-[0.6em]">•</span>
+                            {/* [修改] 加大項目符號，提高清晰度，移除透明度，字級加大 */}
+                            <span className="text-stone-800 font-bold mt-[0.1em] text-xl leading-none">•</span>
                             <span className="flex-1">{parseInline(line.slice(2))}</span>
                         </div>
                     );
@@ -515,14 +516,15 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                     {/* 中間區塊：工具列 (固定不捲動) */}
                     <div className={`px-4 py-2 shrink-0 border-b ${theme.border} flex justify-between items-center ${theme.card}`}>
                         <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                            {/* [修改] 按鈕順序：內文 -> 大標 -> 小標 -> 引用 -> 項目 -> 粗體 -> 斜體 -> 底線 */}
                             <button onClick={() => insertMarkdown('normal')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="內文"><Type className="w-4 h-4"/> 內文</button>
                             <button onClick={() => insertMarkdown('h1')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="大標"><Heading1 className="w-5 h-5"/> 大標</button>
                             <button onClick={() => insertMarkdown('h2')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="小標"><Heading2 className="w-5 h-5"/> 小標</button>
+                            <button onClick={() => insertMarkdown('quote')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="引用"><Quote className="w-4 h-4"/> 引用</button>
+                            <button onClick={() => insertMarkdown('list')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="項目"><List className="w-4 h-4"/> 項目</button>
                             <button onClick={() => insertMarkdown('bold')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="粗體"><Bold className="w-4 h-4"/> 粗體</button>
                             <button onClick={() => insertMarkdown('italic')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="斜體"><Italic className="w-4 h-4"/> 斜體</button>
                             <button onClick={() => insertMarkdown('underline')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="底線"><Underline className="w-4 h-4"/> 底線</button>
-                            <button onClick={() => insertMarkdown('quote')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="引用"><Quote className="w-4 h-4"/> 引用</button>
-                            <button onClick={() => insertMarkdown('list')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="項目"><List className="w-4 h-4"/> 項目</button>
                         </div>
                         <div className="flex gap-1 text-xs font-bold shrink-0 ml-2">
                              <button onClick={() => setActiveTab('write')} className={`px-2 py-1 rounded ${activeTab === 'write' ? 'bg-stone-200 text-stone-800' : 'text-stone-400'}`}>編輯</button>
@@ -4009,6 +4011,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

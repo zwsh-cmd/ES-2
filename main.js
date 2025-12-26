@@ -706,10 +706,13 @@ const AllNotesModal = ({
         const typeName = viewLevel === 'superCategories' ? '總分類' : 
                          viewLevel === 'categories' ? '大分類' : '次分類';
         
-        const newName = prompt(`請輸入新的${typeName}名稱`);
+        // 修改：提示使用者字數限制
+        const newName = prompt(`請輸入新的${typeName}名稱 (最多16字)`);
         if (!newName || !newName.trim()) return;
 
         const name = newName.trim();
+        // 修改：檢查字數限制
+        if (name.length > 16) { alert("名稱不能超過16個字"); return; }
         const updates = [];
 
         if (viewLevel === 'superCategories') {
@@ -1121,8 +1124,12 @@ const AllNotesModal = ({
         const { type, item } = contextMenu;
         if (type === 'note') { alert("筆記請直接點擊進入編輯模式修改。"); setContextMenu(null); return; }
 
-        const newName = prompt(`請輸入新的名稱`, item);
+        // 修改：提示使用者字數限制
+        const newName = prompt(`請輸入新的名稱 (最多16字)`, item);
         if (!newName || newName === item) { setContextMenu(null); return; }
+        
+        // 修改：檢查字數限制
+        if (newName.length > 16) { alert("名稱不能超過16個字"); setContextMenu(null); return; }
 
         let isDuplicate = false;
         if (type === 'superCategory' && superCategoryMap[newName]) isDuplicate = true;
@@ -4002,6 +4009,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

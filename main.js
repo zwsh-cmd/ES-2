@@ -96,6 +96,8 @@ const Bold = (props) => <IconBase d={["M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z", "
 // 新增清晰的 H1, H2, 與內文(T) 圖示
 const Heading1 = (props) => <IconBase d={["M4 12h8", "M4 18V6", "M12 18V6", "M15 13L17 11V18"]} {...props} />;
 const Heading2 = (props) => <IconBase d={["M4 12h8", "M4 18V6", "M12 18V6", "M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"]} {...props} />;
+// [新增] 核取方塊圖示
+const CheckSquare = (props) => <IconBase d={["M9 11l3 3L22 4", "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]} {...props} />;
 const Type = (props) => <IconBase d={["M4 7V4h16v3", "M9 20h6", "M12 4v16"]} {...props} />;
 const Quote = (props) => <IconBase d={["M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z", "M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"]} {...props} />;
 const Italic = (props) => <IconBase d={["M19 4h-9", "M14 20H5", "M15 4L9 20"]} {...props} />;
@@ -166,12 +168,25 @@ const MarkdownRenderer = ({ content }) => {
                 if (line.startsWith('# ')) return <h1 key={i} className="text-xl font-bold mt-5 mb-3">{parseInline(line.slice(2))}</h1>;
                 if (line.startsWith('## ')) return <h2 key={i} className="text-lg font-bold mt-4 mb-2 opacity-90">{parseInline(line.slice(3))}</h2>;
                 if (line.startsWith('> ')) return <blockquote key={i} className="border-l-4 border-current pl-4 italic opacity-70 my-2">{parseInline(line.slice(2))}</blockquote>;
+                
+                // [新增] 處理待辦清單 (Checkboxes) - 必須放在一般清單判定之前
+                if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) {
+                    const isChecked = line.startsWith('- [x] ');
+                    return (
+                        <div key={i} className="flex items-start gap-2 ml-4 mb-1">
+                            {/* mt-[0.45em] 讓 checkbox 垂直置中於文字行高 */}
+                            <input type="checkbox" checked={isChecked} readOnly className="mt-[0.45em] accent-stone-600 cursor-default" />
+                            <span className={`flex-1 ${isChecked ? 'line-through opacity-50' : ''}`}>{parseInline(line.slice(6))}</span>
+                        </div>
+                    );
+                }
+
                 // [新增] 處理清單符號：將 "- " 轉換為縮排 + 圓點
                 if (line.startsWith('- ')) {
                     return (
                         <div key={i} className="flex items-start gap-2 ml-4 mb-1">
-                            {/* [修改] 加大項目符號，提高清晰度，移除透明度，字級加大 */}
-                            <span className="text-stone-800 font-bold mt-[0.1em] text-xl leading-none">•</span>
+                            {/* [修改] 項目符號往下移至文字中間 (mt-[0.1em] -> mt-[0.3em]) */}
+                            <span className="text-stone-800 font-bold mt-[0.3em] text-xl leading-none">•</span>
                             <span className="flex-1">{parseInline(line.slice(2))}</span>
                         </div>
                     );
@@ -421,6 +436,7 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
             if (syntax === "h2") prefix = "## ";
             if (syntax === "quote") prefix = "> ";
             if (syntax === "list") prefix = "- ";
+            if (syntax === "todo") prefix = "- [ ] "; // [新增] 待辦語法
 
             newText = text.substring(0, lineStart) + prefix + cleanContent + text.substring(lineEnd);
             newCursorPos = lineStart + prefix.length + cleanContent.length;
@@ -522,6 +538,8 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                             <button onClick={() => insertMarkdown('h2')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="小標"><Heading2 className="w-5 h-5"/> 小標</button>
                             <button onClick={() => insertMarkdown('quote')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="引用"><Quote className="w-4 h-4"/> 引用</button>
                             <button onClick={() => insertMarkdown('list')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="項目"><List className="w-4 h-4"/> 項目</button>
+                            {/* [新增] 待辦清單按鈕，介於項目與粗體之間 */}
+                            <button onClick={() => insertMarkdown('todo')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="核取方塊"><CheckSquare className="w-4 h-4"/> 待辦</button>
                             <button onClick={() => insertMarkdown('bold')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="粗體"><Bold className="w-4 h-4"/> 粗體</button>
                             <button onClick={() => insertMarkdown('italic')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="斜體"><Italic className="w-4 h-4"/> 斜體</button>
                             <button onClick={() => insertMarkdown('underline')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="底線"><Underline className="w-4 h-4"/> 底線</button>
@@ -4011,6 +4029,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

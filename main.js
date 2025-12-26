@@ -3103,6 +3103,18 @@ function EchoScriptApp() {
         const updatedNote = { ...currentNote, content: newContent, modifiedDate: new Date().toISOString() };
         setNotes(prev => prev.map(n => n.id === currentNote.id ? updatedNote : n));
 
+        // [新增] 自動將此卡片設為首頁 (Resume Note)，因為這是最新修改的操作
+        if (user) {
+            localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(currentNote.id));
+            if (window.fs && window.db) {
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", `preferences_${user.uid}`), 
+                    { resumeNoteId: String(currentNote.id) }, 
+                    { merge: true }
+                ).catch(e => console.error("Resume ID update failed", e));
+            }
+        }
+
         // 2. 雲端同步
         if (window.fs && window.db && user) {
              window.fs.setDoc(
@@ -4074,6 +4086,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

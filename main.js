@@ -3483,45 +3483,57 @@ function EchoScriptApp() {
                                 <div className="mb-2">
                                     <div className="flex justify-between items-center mb-2">
                                         <div className={`flex items-baseline gap-2 text-sm font-bold ${theme.subtext} tracking-widest uppercase`}>
-                                        {/* 修改：點擊大分類 -> 跳轉至該分類下的次分類列表 */}
-                                        <button 
-                                            onClick={() => {
-                                                preModalIndexRef.current = currentIndex;
-                                                // 設定導航路徑
-                                                setSelectedSuper(currentNote.superCategory || "其他");
-                                                setSelectedCategory(currentNote.category || "未分類");
-                                                // 設定視圖層級：顯示該大分類下的「次分類列表」
-                                                setAllNotesViewLevel('subcategories');
-                                                setShowAllNotesModal(true);
-                                            }}
-                                            className="hover:underline hover:text-stone-500 transition-colors cursor-pointer"
-                                            title="檢視此分類下的資料夾"
-                                        >
-                                            {currentNote.category || "未分類"}
-                                        </button>
-                                        
-                                        <span className="opacity-50">|</span>
-                                        
-                                        {/* 修改：點擊次分類 -> 跳轉至該次分類下的筆記列表 */}
-                                        <button 
-                                            onClick={() => {
-                                                preModalIndexRef.current = currentIndex;
-                                                // 設定導航路徑
-                                                setSelectedSuper(currentNote.superCategory || "其他");
-                                                setSelectedCategory(currentNote.category || "未分類");
-                                                setSelectedSubcategory(currentNote.subcategory || "一般");
-                                                // 設定視圖層級：顯示該次分類下的「筆記列表」
-                                                setAllNotesViewLevel('notes');
-                                                setShowAllNotesModal(true);
-                                            }}
-                                            className="hover:underline hover:text-stone-500 transition-colors cursor-pointer"
-                                            title="檢視此分類下的所有筆記"
-                                        >
-                                            {currentNote.subcategory || "一般"}
-                                        </button>
-                                    </div>
+                                            {/* [新增] 總分類連結：點擊 -> 顯示該總分類下的大分類列表 */}
+                                            <button 
+                                                onClick={() => {
+                                                    preModalIndexRef.current = currentIndex;
+                                                    setSelectedSuper(currentNote.superCategory || "其他");
+                                                    setAllNotesViewLevel('categories');
+                                                    setShowAllNotesModal(true);
+                                                }}
+                                                className="hover:underline hover:text-stone-500 transition-colors cursor-pointer"
+                                                title="檢視此總分類下的資料夾"
+                                            >
+                                                {currentNote.superCategory || "其他"}
+                                            </button>
+
+                                            <span className="opacity-50">|</span>
+
+                                            {/* 大分類連結：點擊 -> 顯示該大分類下的次分類列表 */}
+                                            <button 
+                                                onClick={() => {
+                                                    preModalIndexRef.current = currentIndex;
+                                                    setSelectedSuper(currentNote.superCategory || "其他");
+                                                    setSelectedCategory(currentNote.category || "未分類");
+                                                    setAllNotesViewLevel('subcategories');
+                                                    setShowAllNotesModal(true);
+                                                }}
+                                                className="hover:underline hover:text-stone-500 transition-colors cursor-pointer"
+                                                title="檢視此分類下的資料夾"
+                                            >
+                                                {currentNote.category || "未分類"}
+                                            </button>
+                                            
+                                            <span className="opacity-50">|</span>
+                                            
+                                            {/* 次分類連結：點擊 -> 顯示該次分類下的所有筆記 */}
+                                            <button 
+                                                onClick={() => {
+                                                    preModalIndexRef.current = currentIndex;
+                                                    setSelectedSuper(currentNote.superCategory || "其他");
+                                                    setSelectedCategory(currentNote.category || "未分類");
+                                                    setSelectedSubcategory(currentNote.subcategory || "一般");
+                                                    setAllNotesViewLevel('notes');
+                                                    setShowAllNotesModal(true);
+                                                }}
+                                                className="hover:underline hover:text-stone-500 transition-colors cursor-pointer"
+                                                title="檢視此分類下的所有筆記"
+                                            >
+                                                {currentNote.subcategory || "一般"}
+                                            </button>
+                                        </div>
                                         <div className="flex items-center gap-3">
-                                            <span className={`text-xs ${theme.subtext} font-sans opacity-70`}>#{currentNote.id}</span>
+                                            {/* [修改] 已移除筆記編號 ID */}
                                             <button onClick={handleTogglePin} className={`transition-transform duration-200 hover:scale-110 ${String(currentNote.id) === String(pinnedNoteId) ? theme.text : 'text-stone-300'}`} title="釘選這則筆記">
                                                 <Pin className="w-5 h-5" fill={String(currentNote.id) === String(pinnedNoteId) ? "currentColor" : "none"} />
                                             </button>
@@ -3989,6 +4001,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

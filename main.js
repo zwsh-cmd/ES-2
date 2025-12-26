@@ -136,7 +136,7 @@ class ErrorBoundary extends React.Component {
 // 修改 1: 加入 existingNotes 參數
 // === 新增：Combobox 合體輸入元件 (解決分類被過濾問題) ===
 // === 新增：Markdown 渲染器元件 (顯示預覽用) ===
-const MarkdownRenderer = ({ content }) => {
+const MarkdownRenderer = ({ content, onCheckboxChange }) => { // [修改] 接收 onCheckboxChange
     const parseInline = (text) => {
         // 新增支援 *斜體* 與 <u>底線</u>
         const parts = text.split(/(\*\*.*?\*\*|~~.*?~~|\*.*?\*|<u>.*?<\/u>)/g);
@@ -174,8 +174,13 @@ const MarkdownRenderer = ({ content }) => {
                     const isChecked = line.startsWith('- [x] ');
                     return (
                         <div key={i} className="flex items-start gap-2 ml-4 mb-1">
-                            {/* mt-[0.45em] 讓 checkbox 垂直置中於文字行高 */}
-                            <input type="checkbox" checked={isChecked} readOnly className="mt-[0.45em] accent-stone-600 cursor-default" />
+                            {/* [修改] 移除 readOnly，加入 onChange 事件與 cursor-pointer */}
+                            <input 
+                                type="checkbox" 
+                                checked={isChecked} 
+                                onChange={() => onCheckboxChange && onCheckboxChange(i, !isChecked)}
+                                className="mt-[0.45em] accent-stone-600 cursor-pointer" 
+                            />
                             <span className={`flex-1 ${isChecked ? 'line-through opacity-50' : ''}`}>{parseInline(line.slice(6))}</span>
                         </div>
                     );
@@ -3071,6 +3076,39 @@ function EchoScriptApp() {
         setHasDataChangedInSession(true); // [新增] 標記資料已變更 (觸發備份提醒)
     };
 
+    // [新增] 處理卡片上的核取方塊點擊事件
+    const handleCheckboxUpdate = (lineIndex, newChecked) => {
+        if (!currentNote) return;
+        
+        const lines = currentNote.content.split('\n');
+        // 根據行號找到該行，並替換狀態
+        const line = lines[lineIndex];
+        if (!line) return;
+
+        // 簡單替換字串：直接替換前綴
+        // 注意：這裡假設格式是標準的 "- [ ] " 或 "- [x] "
+        lines[lineIndex] = newChecked 
+            ? line.replace('- [ ]', '- [x]') 
+            : line.replace('- [x]', '- [ ]');
+        
+        const newContent = lines.join('\n');
+
+        // 1. 本地狀態樂觀更新
+        const updatedNote = { ...currentNote, content: newContent, modifiedDate: new Date().toISOString() };
+        setNotes(prev => prev.map(n => n.id === currentNote.id ? updatedNote : n));
+
+        // 2. 雲端同步
+        if (window.fs && window.db && user) {
+             window.fs.setDoc(
+                window.fs.doc(window.db, "notes", String(currentNote.id)), 
+                { content: newContent, modifiedDate: updatedNote.modifiedDate }, 
+                { merge: true }
+            ).catch(e => console.error("Checkbox update failed", e));
+        }
+        
+        setHasDataChangedInSession(true);
+    };
+
     const handleSaveResponse = (text, responseId) => {
         // [修正] 立即計算新的回應資料
         const prevResponses = allResponses;
@@ -3580,7 +3618,8 @@ function EchoScriptApp() {
 
                                     {/* 內文區域 - 這裡強制使用深色字體以確保 Markdown 在淺色底的卡片上可讀，若為深色模式則自動調整 */ }
                                     <div className={`-mt-2 text-lg leading-loose font-sans text-justify whitespace-pre-wrap ${currentThemeId === 'dark' ? 'text-slate-200' : 'text-stone-700'}`}>
-                                        <MarkdownRenderer content={currentNote.content} />
+                                        {/* [修改] 傳入 onCheckboxChange 以支援互動核取 */}
+                                        <MarkdownRenderer content={currentNote.content} onCheckboxChange={handleCheckboxUpdate} />
                                     </div>
                                 </div>
                             </div>
@@ -4029,6 +4068,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

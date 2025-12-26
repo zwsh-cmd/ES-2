@@ -173,15 +173,22 @@ const MarkdownRenderer = ({ content, onCheckboxChange }) => { // [修改] 接收
                 if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) {
                     const isChecked = line.startsWith('- [x] ');
                     return (
-                        <div key={i} className="flex items-start gap-2 ml-4 mb-1">
-                            {/* [修改] 移除 readOnly，加入 onChange 事件與 cursor-pointer */}
+                        <div key={i} className="flex items-start gap-2 ml-4 mb-1 relative">
+                            {/* [修改] 加入 z-10 與 stopPropagation 確保點擊絕對有效 */}
                             <input 
                                 type="checkbox" 
                                 checked={isChecked} 
                                 onChange={() => onCheckboxChange && onCheckboxChange(i, !isChecked)}
-                                className="mt-[0.45em] accent-stone-600 cursor-pointer" 
+                                onClick={(e) => e.stopPropagation()} 
+                                className="mt-[0.45em] accent-stone-600 cursor-pointer relative z-10 w-4 h-4 shrink-0" 
                             />
-                            <span className={`flex-1 ${isChecked ? 'line-through opacity-50' : ''}`}>{parseInline(line.slice(6))}</span>
+                            <span 
+                                className={`flex-1 ${isChecked ? 'line-through opacity-50' : ''}`}
+                                onClick={() => onCheckboxChange && onCheckboxChange(i, !isChecked)} // [新增] 點擊文字也能切換
+                                style={{cursor: 'pointer'}}
+                            >
+                                {parseInline(line.slice(6))}
+                            </span>
                         </div>
                     );
                 }
@@ -3081,15 +3088,14 @@ function EchoScriptApp() {
         if (!currentNote) return;
         
         const lines = currentNote.content.split('\n');
-        // 根據行號找到該行，並替換狀態
         const line = lines[lineIndex];
-        if (!line) return;
+        // 確保該行真的存在
+        if (typeof line === 'undefined') return;
 
-        // 簡單替換字串：直接替換前綴
-        // 注意：這裡假設格式是標準的 "- [ ] " 或 "- [x] "
-        lines[lineIndex] = newChecked 
-            ? line.replace('- [ ]', '- [x]') 
-            : line.replace('- [x]', '- [ ]');
+        // [修正] 改用字串重組而非 replace，確保邏輯絕對正確 (避免 replace 只替換第一個或是誤判)
+        // 因為 MarkdownRenderer 是用 slice(6) 來切字，所以我們這裡也保留第 6 個字元之後的內容
+        const textContent = line.length >= 6 ? line.substring(6) : ""; 
+        lines[lineIndex] = newChecked ? `- [x] ${textContent}` : `- [ ] ${textContent}`;
         
         const newContent = lines.join('\n');
 
@@ -4068,6 +4074,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

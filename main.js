@@ -114,6 +114,41 @@ const Cards = (props) => <IconBase d={[
     "M17 4 L21 5.5 a 1 1 0 0 1 .5 1.5 l -2.5 9 a 1 1 0 0 1 -1.5 .5 L 15 16", // 右邊傾斜卡片
     "M9 2 h6 a2 2 0 0 1 2 2 v14 a2 2 0 0 1-2 2 h-6 a2 2 0 0 1-2-2 v-14 a2 2 0 0 1 2-2 z" // 中間卡片 (最上層)
 ]} {...props} />;
+const ImageIcon = (props) => <IconBase d={["M18 3H6a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V6a3 3 0 0 0-3-3z", "M4 14l4-4 4 4", "M14 12l2-2 4 4", "M14 7h.01"]} {...props} />;
+
+// [新增] 圖片處理設定
+const IMG_CONFIG = {
+    maxWidth: 800, // 限制最大寬度 800px
+    quality: 0.7   // 壓縮品質 70%
+};
+
+// [新增] 圖片壓縮工具函式
+const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                if (width > IMG_CONFIG.maxWidth) {
+                    height = (IMG_CONFIG.maxWidth / width) * height;
+                    width = IMG_CONFIG.maxWidth;
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', IMG_CONFIG.quality));
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
 
 
 // === 2. 初始筆記資料庫 (確保有完整分類) ===
@@ -349,8 +384,10 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         category: note?.category || "",
         subcategory: note?.subcategory || "",
         title: note?.title || "",
-        content: note?.content || ""
+        content: note?.content || "",
+        image: note?.image || null // [新增] 圖片欄位
     });
+    const fileInputRef = useRef(null); // [新增] 檔案選擇參照
 
     const [activeTab, setActiveTab] = useState('write'); 
 
@@ -361,13 +398,15 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         const initialSubcategory = note?.subcategory || "";
         const initialTitle = note?.title || "";
         const initialContent = note?.content || "";
+        const initialImage = note?.image || null;
 
         const hasChanges = 
             formData.superCategory !== initialSuper ||
             formData.category !== initialCategory ||
             formData.subcategory !== initialSubcategory ||
             formData.title !== initialTitle ||
-            formData.content !== initialContent;
+            formData.content !== initialContent ||
+            formData.image !== initialImage;
             
         // 如果 setHasUnsavedChanges 存在才執行 (防止報錯)
         if (setHasUnsavedChanges) setHasUnsavedChanges(hasChanges);
@@ -375,6 +414,25 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         // 卸載時重置狀態
         return () => { if (setHasUnsavedChanges) setHasUnsavedChanges(false); };
     }, [formData, note, setHasUnsavedChanges]);
+
+    // [新增] 圖片處理函式
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            const compressedBase64 = await compressImage(file);
+            setFormData(prev => ({ ...prev, image: compressedBase64 }));
+        } catch (error) {
+            console.error("圖片壓縮失敗", error);
+            alert("圖片處理失敗，請重試");
+        }
+    };
+
+    const handleRemoveImage = () => {
+        if(confirm("確定要移除這張圖片嗎？")) {
+            setFormData(prev => ({ ...prev, image: null }));
+        }
+    };
 
     // [新增] 總分類列表 (從現有筆記中提取，並加入預設值)
     const existingSuperCategories = useMemo(() => {
@@ -533,17 +591,35 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                             />
                         </div>
 
-                        <input 
-                            placeholder="主旨語 (必填，如：先讓英雄救貓咪)"
-                            className={`${theme.card} border ${theme.border} rounded-lg p-3 font-bold ${theme.text} focus:outline-none focus:ring-2 focus:ring-stone-400`}
-                            value={formData.title}
-                            onChange={(e) => setFormData({...formData, title: e.target.value})}
-                        />
+                        {/* [修改] 標題區域加入圖片預覽 */}
+                        <div className="flex items-center gap-3">
+                            {formData.image && (
+                                <div className="relative group shrink-0">
+                                    <img src={formData.image} className="w-12 h-12 object-cover rounded-lg border border-stone-200 shadow-sm" />
+                                    <button onClick={handleRemoveImage} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            )}
+                            <input 
+                                placeholder="主旨語 (必填，如：先讓英雄救貓咪)"
+                                className={`flex-1 ${theme.card} border ${theme.border} rounded-lg p-3 font-bold ${theme.text} focus:outline-none focus:ring-2 focus:ring-stone-400`}
+                                value={formData.title}
+                                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                            />
+                        </div>
                     </div>
 
                     {/* 中間區塊：工具列 (固定不捲動) */}
                     <div className={`px-4 py-2 shrink-0 border-b ${theme.border} flex justify-between items-center ${theme.card}`}>
-                        <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                        <div className="flex gap-1 overflow-x-auto no-scrollbar items-center">
+                            {/* [新增] 圖片上傳按鈕 */}
+                            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
+                            <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="插入圖片">
+                                <ImageIcon className="w-4 h-4"/> 圖片
+                            </button>
+                            <div className="w-px h-4 bg-stone-300 mx-1"></div>
+                            
                             {/* [修改] 按鈕順序：內文 -> 大標 -> 小標 -> 引用 -> 項目 -> 粗體 -> 斜體 -> 底線 */}
                             <button onClick={() => insertMarkdown('normal')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="內文"><Type className="w-4 h-4"/> 內文</button>
                             <button onClick={() => insertMarkdown('h1')} className="p-2 hover:bg-stone-100 rounded text-stone-600 flex items-center gap-1 text-xs font-bold min-w-fit" title="大標"><Heading1 className="w-5 h-5"/> 大標</button>
@@ -1636,6 +1712,7 @@ function EchoScriptApp() {
     const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
     
     const [trash, setTrash] = useState([]);
+    const [zoomedImage, setZoomedImage] = useState(null); // [新增] 圖片放大狀態
 
     // [新增] 監聽/載入雲端垃圾桶 (User Specific)
     useEffect(() => {
@@ -3626,7 +3703,24 @@ function EchoScriptApp() {
                                 </div>
                                 
                                 <div className="flex-1">
-                                    <h1 className={`text-2xl font-bold ${theme.text} mb-4`}>{currentNote.title}</h1>
+                                    {/* [修改] 標題區塊改為 Flex 佈局以支援縮圖 */}
+                                    <div className="flex items-start gap-3 mb-4">
+                                        {currentNote.image && (
+                                            <div 
+                                                className="shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-stone-200 cursor-zoom-in active:scale-95 transition-transform"
+                                                onClick={() => setZoomedImage(currentNote.image)}
+                                            >
+                                                <img 
+                                                    src={currentNote.image} 
+                                                    className="w-full h-full object-cover" 
+                                                    alt="thumbnail"
+                                                />
+                                            </div>
+                                        )}
+                                        <h1 className={`text-2xl font-bold ${theme.text} flex-1 min-w-0 break-words`}>
+                                            {currentNote.title}
+                                        </h1>
+                                    </div>
                                     
                                     {/* 日期顯示區 - 移至主旨語下方 */}
                                     <div className={`flex gap-4 mb-6 text-[10px] ${theme.subtext} font-mono border-y ${theme.border} py-2 w-full`}>
@@ -4074,6 +4168,22 @@ function EchoScriptApp() {
                 </div>
             )}
 
+            {/* [新增] 圖片放大檢視器 */}
+            {zoomedImage && (
+                <div 
+                    className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4 animate-in fade-in duration-200"
+                    onClick={() => setZoomedImage(null)}
+                >
+                    <img 
+                        src={zoomedImage} 
+                        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                    />
+                    <button className="absolute top-4 right-4 text-white/50 hover:text-white p-2">
+                        <X className="w-8 h-8" />
+                    </button>
+                </div>
+            )}
+
             {notification && (
                 // [修正] 顏色改為 theme.accent 與 theme.accentText，隨主題變色 (與「我的資料庫」按鈕一致)
                 <div className={`fixed bottom-20 left-1/2 -translate-x-1/2 ${theme.accent} ${theme.accentText} text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2 z-50`}>
@@ -4086,6 +4196,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

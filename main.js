@@ -564,36 +564,51 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         }, 10);
     };
 
-    // [新增] 貼上事件監聽：自動偵測 Excel/試算表 格式並轉換為 Markdown 表格
+    // [修正版] 貼上事件監聽：支援不規則表格與合併儲存格的自動對齊
     const handlePaste = (e) => {
         const text = e.clipboardData.getData('text');
         if (!text) return;
 
         const rows = text.split('\n');
-        // 判斷邏輯：如果貼上的內容超過 1 行，且第一行包含 Tab (Excel 的特徵)，就視為表格
-        if (rows.length > 1 && rows[0].includes('\t')) {
-            e.preventDefault(); // 阻止預設貼上
+        
+        // 寬鬆判斷：只要任一行包含 Tab，且總行數大於 1，就嘗試解析為表格
+        if (rows.length > 1 && rows.some(row => row.includes('\t'))) {
+            
+            // 1. 先將所有資料轉為二維陣列
+            const matrix = rows.map(row => row.split('\t'));
+            
+            // 2. [關鍵修正] 找出「最寬」的一行有幾欄，而不是只看第一行
+            // 這能解決標題列有合併儲存格導致下方內容被裁切的問題
+            const maxCols = Math.max(...matrix.map(row => row.length));
+            
+            if (maxCols <= 1) return; // 如果算出來最大只有一欄，那可能不是表格，不攔截
 
-            // 1. 解析標題
-            const headers = rows[0].split('\t');
-            const colCount = headers.length;
-            if (colCount <= 1) return; // 防呆：如果只有一欄就不轉
+            e.preventDefault(); // 確定是表格後，才阻止預設貼上
 
-            // 2. 建立分隔線 |---|---|
-            const separator = Array(colCount).fill('---').join('|');
-            let markdown = `\n| ${headers.join(' | ')} |\n| ${separator} |\n`;
+            // 3. 處理標題列 (Header)
+            // 取第一行，如果欄位不足 maxCols 則補空字串
+            let headers = matrix[0];
+            while (headers.length < maxCols) headers.push('');
+            
+            // 建立分隔線 |---|---|
+            const separator = Array(maxCols).fill('---').join('|');
+            let markdown = `\n| ${headers.map(h => h.trim()).join(' | ')} |\n| ${separator} |\n`;
 
-            // 3. 解析內容
-            for (let i = 1; i < rows.length; i++) {
-                if (!rows[i].trim()) continue; // 跳過空行
-                const cols = rows[i].split('\t');
-                // 補齊欄位避免跑版
-                while(cols.length < colCount) cols.push('');
-                markdown += `| ${cols.slice(0, colCount).join(' | ')} |\n`;
+            // 4. 處理內容 (Body)
+            for (let i = 1; i < matrix.length; i++) {
+                // 跳過完全空白的行，但保留雖然有 Tab 但內容為空的列 (維持表格結構)
+                if (matrix[i].join('').trim() === '') continue;
+
+                let cols = matrix[i];
+                // 補齊欄位至 maxCols
+                while (cols.length < maxCols) cols.push('');
+                
+                // 組合 Markdown，確保每一格都有被包進去
+                markdown += `| ${cols.map(c => c.trim()).join(' | ')} |\n`;
             }
             markdown += '\n';
 
-            // 4. 插入游標位置
+            // 5. 插入編輯器
             const textarea = contentRef.current;
             if (textarea) {
                 const start = textarea.selectionStart;
@@ -603,7 +618,6 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                 
                 setFormData({ ...formData, content: newVal });
                 
-                // 修正游標位置 (延遲執行以確保狀態更新後才設定)
                 setTimeout(() => {
                     textarea.focus();
                     const newCursor = start + markdown.length;
@@ -4307,6 +4321,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

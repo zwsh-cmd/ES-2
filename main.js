@@ -564,83 +564,152 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         }, 10);
     };
 
-    // [終極修正版] 貼上事件監聽：支援 Excel 換行、引號與合併儲存格
+    // [HTML 支援版] 貼上事件監聽：優先使用 HTML 解析以完美支援 Excel/Word 表格結構
     const handlePaste = (e) => {
+        const html = e.clipboardData.getData('text/html');
         const text = e.clipboardData.getData('text');
-        if (!text) return;
-
-        // [關鍵步驟 1] 預處理：解決儲存格內換行導致的破圖問題
-        // Excel 複製含有換行的內容時，會用雙引號包起來 (例如 "Line1\nLine2")
-        // 我們需要先掃描一遍，把引號內的 \n 暫時換成 <br>，避免被當成新的一列切斷
-        let processedText = '';
-        let inQuote = false;
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            if (char === '"') {
-                if (i + 1 < text.length && text[i+1] === '"') {
-                    processedText += '"'; // 連續兩個引號代表轉義，保留一個
-                    i++; 
-                } else {
-                    inQuote = !inQuote; // 切換引號狀態
-                }
-            } else if (char === '\n' && inQuote) {
-                processedText += '<br>'; // 引號內的換行 -> HTML 換行
-            } else if (char === '\t' && inQuote) {
-                processedText += '    '; // [安全防護] 引號內的 Tab 轉為空白，避免切錯欄位
-            } else {
-                processedText += char;
-            }
-        }
-
-        const rows = processedText.split('\n');
         
-        // 判斷是否為表格：檢查是否有 Tab
-        if (rows.length > 1 && rows.some(row => row.includes('\t'))) {
-            
-            // [關鍵步驟 2] 解析每一行
-            // 因為預處理已經移除了結構性引號，這裡直接 split 即可
-            const matrix = rows.map(row => row.split('\t').map(c => c.trim()));
-
-            // [關鍵步驟 3] 找出最大欄位數 (避免跑版)
-            const maxCols = Math.max(...matrix.map(row => row.length));
-            if (maxCols <= 1) return; 
-
-            e.preventDefault();
-
-            // 處理標題 (第一行)
-            let headers = matrix[0];
-            while (headers.length < maxCols) headers.push('');
-            
-            const separator = Array(maxCols).fill('---').join('|');
-            let markdown = `\n| ${headers.join(' | ')} |\n| ${separator} |\n`;
-
-            // 處理內容
-            for (let i = 1; i < matrix.length; i++) {
-                // 跳過全空行
-                if (matrix[i].join('').trim() === '') continue;
-
-                let cols = matrix[i];
-                while (cols.length < maxCols) cols.push('');
-                markdown += `| ${cols.join(' | ')} |\n`;
-            }
-            markdown += '\n';
-
-            // 寫入編輯器
+        // 插入文字的共用函式
+        const insertToEditor = (markdown) => {
             const textarea = contentRef.current;
             if (textarea) {
                 const start = textarea.selectionStart;
                 const end = textarea.selectionEnd;
                 const current = formData.content;
                 const newVal = current.substring(0, start) + markdown + current.substring(end);
-                
                 setFormData({ ...formData, content: newVal });
-                
                 setTimeout(() => {
                     textarea.focus();
                     const newCursor = start + markdown.length;
                     textarea.setSelectionRange(newCursor, newCursor);
                 }, 0);
             }
+        };
+
+        // 策略 1: HTML 解析 (針對 Word/Excel/網頁複製，精準處理合併儲存格與換行)
+        if (html && (html.includes('<table') || html.includes('<tr'))) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const table = doc.querySelector('table');
+                
+                if (table) {
+                    e.preventDefault();
+                    let grid = [];
+                    const trs = table.querySelectorAll('tr');
+                    
+                    trs.forEach((tr, r) => {
+                        if (!grid[r]) grid[r] = [];
+                        let c = 0;
+                        const cells = tr.querySelectorAll('td, th');
+                        
+                        cells.forEach(cell => {
+                            // 跳過已被 rowspan/colspan 佔用的格子
+                            while (grid[r][c] !== undefined) c++;
+                            
+                            // 取得內容：將 HTML 換行轉為 Markdown <br>，並移除多餘標籤
+                            let content = cell.innerHTML
+                                .replace(/<br\s*\/?>/gi, '___BR___')
+                                .replace(/<\/p>/gi, '___BR___')
+                                .replace(/<[^>]+>/g, '') // 去除標籤
+                                .trim();
+                            
+                            // 解碼 HTML Entity (如 &amp;)
+                            const txt = document.createElement("textarea");
+                            txt.innerHTML = content;
+                            content = txt.value.replace(/___BR___/g, '<br>');
+
+                            grid[r][c] = content;
+
+                            // 處理合併儲存格佔位 (填入空字串保持對齊)
+                            const colspan = parseInt(cell.getAttribute('colspan') || 1);
+                            const rowspan = parseInt(cell.getAttribute('rowspan') || 1);
+                            
+                            for (let i = 0; i < rowspan; i++) {
+                                for (let j = 0; j < colspan; j++) {
+                                    if (i === 0 && j === 0) continue;
+                                    if (!grid[r + i]) grid[r + i] = [];
+                                    grid[r + i][c + j] = ""; 
+                                }
+                            }
+                            c += colspan;
+                        });
+                    });
+
+                    // 轉為 Markdown 表格
+                    const maxCols = Math.max(...grid.map(row => row.length));
+                    if (maxCols > 0) {
+                        // 標題列
+                        let headers = grid[0] || [];
+                        while (headers.length < maxCols) headers.push('');
+                        const separator = Array(maxCols).fill('---').join('|');
+                        
+                        let md = `\n| ${headers.join(' | ')} |\n| ${separator} |\n`;
+                        
+                        // 內容列
+                        for (let i = 1; i < grid.length; i++) {
+                            let row = grid[i] || [];
+                            while (row.length < maxCols) row.push('');
+                            md += `| ${row.join(' | ')} |\n`;
+                        }
+                        md += '\n';
+                        insertToEditor(md);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error("HTML 表格解析失敗，切換回純文字模式", err);
+            }
+        }
+
+        // 策略 2: 純文字解析 (Fallback，保留之前的引號保護邏輯)
+        if (!text) return;
+        
+        let processedText = '';
+        let inQuote = false;
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            if (char === '"') {
+                if (i + 1 < text.length && text[i+1] === '"') {
+                    processedText += '"'; 
+                    i++; 
+                } else {
+                    inQuote = !inQuote;
+                }
+            } else if (char === '\n' && inQuote) {
+                processedText += '<br>';
+            } else if (char === '\t' && inQuote) {
+                processedText += '    ';
+            } else {
+                processedText += char;
+            }
+        }
+
+        const rows = processedText.split('\n');
+        if (rows.length > 1 && rows.some(row => row.includes('\t'))) {
+            const matrix = rows.map(row => row.split('\t').map(c => {
+                let cell = c.trim();
+                if (cell.startsWith('"') && cell.endsWith('"')) cell = cell.slice(1, -1);
+                return cell;
+            }));
+
+            const maxCols = Math.max(...matrix.map(row => row.length));
+            if (maxCols <= 1) return; 
+
+            e.preventDefault();
+            let headers = matrix[0];
+            while (headers.length < maxCols) headers.push('');
+            const separator = Array(maxCols).fill('---').join('|');
+            let md = `\n| ${headers.join(' | ')} |\n| ${separator} |\n`;
+
+            for (let i = 1; i < matrix.length; i++) {
+                if (matrix[i].join('').trim() === '') continue;
+                let cols = matrix[i];
+                while (cols.length < maxCols) cols.push('');
+                md += `| ${cols.join(' | ')} |\n`;
+            }
+            md += '\n';
+            insertToEditor(md);
         }
     };
 
@@ -4338,6 +4407,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

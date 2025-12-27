@@ -171,45 +171,78 @@ class ErrorBoundary extends React.Component {
 // 修改 1: 加入 existingNotes 參數
 // === 新增：Combobox 合體輸入元件 (解決分類被過濾問題) ===
 // === 新增：Markdown 渲染器元件 (顯示預覽用) ===
-const MarkdownRenderer = ({ content, onCheckboxChange }) => { // [修改] 接收 onCheckboxChange
+const MarkdownRenderer = ({ content, onCheckboxChange }) => { 
     const parseInline = (text) => {
-        // 新增支援 *斜體* 與 <u>底線</u>
         const parts = text.split(/(\*\*.*?\*\*|~~.*?~~|\*.*?\*|<u>.*?<\/u>)/g);
         return parts.map((part, index) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-                // [修正] 移除寫死的 text-stone-900，改為繼承顏色
-                return <strong key={index} className="font-extrabold">{part.slice(2, -2)}</strong>;
-            }
-            if (part.startsWith('~~') && part.endsWith('~~')) {
-                return <del key={index} className="opacity-50">{part.slice(2, -2)}</del>;
-            }
-            if (part.startsWith('*') && part.endsWith('*')) {
-                // [修正] 移除 text-stone-600
-                return <em key={index} className="italic opacity-80">{part.slice(1, -1)}</em>;
-            }
-            if (part.startsWith('<u>') && part.endsWith('</u>')) {
-                // [修正] 裝飾線改為 current color
-                return <u key={index} className="underline decoration-current underline-offset-4">{part.slice(3, -4)}</u>;
-            }
+            if (part.startsWith('**') && part.endsWith('**')) return <strong key={index} className="font-extrabold">{part.slice(2, -2)}</strong>;
+            if (part.startsWith('~~') && part.endsWith('~~')) return <del key={index} className="opacity-50">{part.slice(2, -2)}</del>;
+            if (part.startsWith('*') && part.endsWith('*')) return <em key={index} className="italic opacity-80">{part.slice(1, -1)}</em>;
+            if (part.startsWith('<u>') && part.endsWith('</u>')) return <u key={index} className="underline decoration-current underline-offset-4">{part.slice(3, -4)}</u>;
             return part;
         });
     };
 
-    return (
-        // [修正] 移除外層 div 寫死的 text-stone-700
-        <div className="text-base leading-loose font-sans text-justify whitespace-pre-wrap">
-            {content.split('\n').map((line, i) => {
-                // [修正] 標題與引用移除寫死顏色，改用 opacity 區分層次
-                if (line.startsWith('# ')) return <h1 key={i} className="text-xl font-bold mt-5 mb-3">{parseInline(line.slice(2))}</h1>;
-                if (line.startsWith('## ')) return <h2 key={i} className="text-lg font-bold mt-4 mb-2 opacity-90">{parseInline(line.slice(3))}</h2>;
-                if (line.startsWith('> ')) return <blockquote key={i} className="border-l-4 border-current pl-4 italic opacity-70 my-2">{parseInline(line.slice(2))}</blockquote>;
-                
-                // [新增] 處理待辦清單 (Checkboxes) - 必須放在一般清單判定之前
-                if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) {
+    // [新增] 渲染核心邏輯：支援表格群組化處理
+    const renderContent = () => {
+        const lines = content.split('\n');
+        const elements = [];
+        let tableBuffer = []; // 用於暫存表格行
+
+        const flushTable = (keyIndex) => {
+            if (tableBuffer.length === 0) return;
+            
+            // 渲染表格區塊：外層包覆 overflow-x-auto 實現左右滑動
+            elements.push(
+                <div key={`table-${keyIndex}`} className="overflow-x-auto w-full my-3 border border-stone-300/30 rounded-lg shadow-sm">
+                    <table className="min-w-max border-collapse text-sm">
+                        <tbody className="bg-stone-50/50">
+                            {tableBuffer.map((row, rIdx) => {
+                                // 簡單解析：用 | 分割，並過濾掉頭尾可能的空字串
+                                const cells = row.split('|').map(c => c.trim()).filter((c, idx, arr) => {
+                                    if (idx === 0 && c === '') return false;
+                                    if (idx === arr.length - 1 && c === '') return false;
+                                    return true;
+                                });
+                                // 過濾分隔線 (如 |---| )
+                                if (cells.some(c => c.match(/^[-:]+$/))) return null;
+
+                                return (
+                                    <tr key={rIdx} className="border-b border-stone-200 last:border-0 hover:bg-stone-100/50 transition-colors">
+                                        {cells.map((cell, cIdx) => (
+                                            <td key={cIdx} className="px-4 py-2 border-r border-stone-200 last:border-0 whitespace-nowrap">
+                                                {parseInline(cell)}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            );
+            tableBuffer = [];
+        };
+
+        lines.forEach((line, i) => {
+            // [表格偵測] 如果該行以 | 開頭，視為表格的一部分
+            if (line.trim().startsWith('|')) {
+                tableBuffer.push(line);
+            } else {
+                // 遇到非表格行，先將之前的表格(如果有的話)渲染出來
+                flushTable(i);
+
+                // 處理一般 Markdown 語法
+                if (line.startsWith('# ')) {
+                    elements.push(<h1 key={i} className="text-xl font-bold mt-5 mb-3">{parseInline(line.slice(2))}</h1>);
+                } else if (line.startsWith('## ')) {
+                    elements.push(<h2 key={i} className="text-lg font-bold mt-4 mb-2 opacity-90">{parseInline(line.slice(3))}</h2>);
+                } else if (line.startsWith('> ')) {
+                    elements.push(<blockquote key={i} className="border-l-4 border-current pl-4 italic opacity-70 my-2">{parseInline(line.slice(2))}</blockquote>);
+                } else if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) {
                     const isChecked = line.startsWith('- [x] ');
-                    return (
+                    elements.push(
                         <div key={i} className="flex items-start gap-2 ml-4 mb-1 relative">
-                            {/* [修改] 加入 z-10 與 stopPropagation 確保點擊絕對有效 */}
                             <input 
                                 type="checkbox" 
                                 checked={isChecked} 
@@ -219,27 +252,34 @@ const MarkdownRenderer = ({ content, onCheckboxChange }) => { // [修改] 接收
                             />
                             <span 
                                 className={`flex-1 ${isChecked ? 'line-through opacity-50' : ''}`}
-                                onClick={() => onCheckboxChange && onCheckboxChange(i, !isChecked)} // [新增] 點擊文字也能切換
+                                onClick={() => onCheckboxChange && onCheckboxChange(i, !isChecked)}
                                 style={{cursor: 'pointer'}}
                             >
                                 {parseInline(line.slice(6))}
                             </span>
                         </div>
                     );
-                }
-
-                // [新增] 處理清單符號：將 "- " 轉換為縮排 + 圓點
-                if (line.startsWith('- ')) {
-                    return (
+                } else if (line.startsWith('- ')) {
+                    elements.push(
                         <div key={i} className="flex items-start gap-2 ml-4 mb-1">
-                            {/* [修改] 項目符號往下移至文字中間 (mt-[0.1em] -> mt-[0.3em]) */}
                             <span className="text-stone-800 font-bold mt-[0.3em] text-xl leading-none">•</span>
                             <span className="flex-1">{parseInline(line.slice(2))}</span>
                         </div>
                     );
+                } else {
+                    elements.push(<p key={i} className="mb-2 min-h-[1em]">{parseInline(line)}</p>);
                 }
-                return <p key={i} className="mb-2 min-h-[1em]">{parseInline(line)}</p>;
-            })}
+            }
+        });
+
+        // 迴圈結束後，如果還有剩餘的表格內容，記得渲染出來
+        flushTable('end');
+        return elements;
+    };
+
+    return (
+        <div className="text-base leading-loose font-sans text-justify whitespace-pre-wrap">
+            {renderContent()}
         </div>
     );
 };
@@ -4212,6 +4252,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

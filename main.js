@@ -344,7 +344,7 @@ const Combobox = ({ value, onChange, options, placeholder, theme }) => {
 
 // === 新增：HighlightingEditor (支援編輯時高亮的編輯器) ===
 // === 修改後：HighlightingEditor (修復游標錯位版) ===
-const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
+const HighlightingEditor = ({ value, onChange, textareaRef, theme, onPaste }) => {
     // 這個函式負責把 markdown 語法轉成有顏色的 HTML (僅供顯示用)
     const renderHighlights = (text) => {
         // 防止最後一行換行失效，強制補一個空白
@@ -412,6 +412,7 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
                 style={{ fontFamily: 'inherit', lineHeight: '1.6', fontSize: '1rem' }}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                onPaste={onPaste}
                 onScroll={syncScroll}
                 placeholder="在此輸入內容... 支援 Markdown"
                 spellCheck="false" 
@@ -563,6 +564,55 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         }, 10);
     };
 
+    // [新增] 貼上事件監聽：自動偵測 Excel/試算表 格式並轉換為 Markdown 表格
+    const handlePaste = (e) => {
+        const text = e.clipboardData.getData('text');
+        if (!text) return;
+
+        const rows = text.split('\n');
+        // 判斷邏輯：如果貼上的內容超過 1 行，且第一行包含 Tab (Excel 的特徵)，就視為表格
+        if (rows.length > 1 && rows[0].includes('\t')) {
+            e.preventDefault(); // 阻止預設貼上
+
+            // 1. 解析標題
+            const headers = rows[0].split('\t');
+            const colCount = headers.length;
+            if (colCount <= 1) return; // 防呆：如果只有一欄就不轉
+
+            // 2. 建立分隔線 |---|---|
+            const separator = Array(colCount).fill('---').join('|');
+            let markdown = `\n| ${headers.join(' | ')} |\n| ${separator} |\n`;
+
+            // 3. 解析內容
+            for (let i = 1; i < rows.length; i++) {
+                if (!rows[i].trim()) continue; // 跳過空行
+                const cols = rows[i].split('\t');
+                // 補齊欄位避免跑版
+                while(cols.length < colCount) cols.push('');
+                markdown += `| ${cols.slice(0, colCount).join(' | ')} |\n`;
+            }
+            markdown += '\n';
+
+            // 4. 插入游標位置
+            const textarea = contentRef.current;
+            if (textarea) {
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const current = formData.content;
+                const newVal = current.substring(0, start) + markdown + current.substring(end);
+                
+                setFormData({ ...formData, content: newVal });
+                
+                // 修正游標位置 (延遲執行以確保狀態更新後才設定)
+                setTimeout(() => {
+                    textarea.focus();
+                    const newCursor = start + markdown.length;
+                    textarea.setSelectionRange(newCursor, newCursor);
+                }, 0);
+            }
+        }
+    };
+
     const handleSave = () => {
         if (!formData.title || !formData.content) { alert("請至少填寫標題和內容"); return; }
         
@@ -687,6 +737,7 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                             <HighlightingEditor 
                                 value={formData.content} 
                                 onChange={(val) => setFormData({...formData, content: val})} 
+                                onPaste={handlePaste}
                                 textareaRef={contentRef}
                                 theme={theme}
                             />
@@ -4256,6 +4307,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

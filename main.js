@@ -882,6 +882,23 @@ const AllNotesModal = ({
     const [contextMenu, setContextMenu] = useState(null);
     const [moveConfig, setMoveConfig] = useState(null);
 
+    // [新增] 處理長按選單的歷史紀錄與返回鍵 (確保按返回是關閉選單而不是跳轉頁面)
+    useEffect(() => {
+        if (contextMenu) {
+            // 1. 開啟選單時，推入一筆歷史紀錄
+            window.history.pushState({ page: 'modal_context', id: Date.now() }, '', '');
+
+            // 2. 定義返回鍵處理函式
+            const handlePopState = () => {
+                // 當使用者按返回鍵時，關閉選單
+                setContextMenu(null);
+            };
+
+            window.addEventListener('popstate', handlePopState);
+            return () => window.removeEventListener('popstate', handlePopState);
+        }
+    }, [contextMenu]);
+
     // [新增] 處理移動視窗的歷史紀錄與返回鍵
     useEffect(() => {
         if (moveConfig) {
@@ -4195,6 +4212,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

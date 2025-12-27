@@ -3706,7 +3706,7 @@ function EchoScriptApp() {
                                     <div className="flex items-start gap-3 mb-4">
                                         {currentNote.image && (
                                             <div 
-                                                className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-stone-200 cursor-zoom-in active:scale-95 transition-transform"
+                                                className="shrink-0 w-14 h-14 rounded-lg overflow-hidden border border-stone-200 cursor-zoom-in active:scale-95 transition-transform"
                                                 onClick={() => setZoomedImage(currentNote.image)}
                                             >
                                                 <img 
@@ -4195,6 +4195,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

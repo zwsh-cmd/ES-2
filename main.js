@@ -13,7 +13,7 @@ const THEMES = {
     },
     dark: { 
         id: 'dark', name: '都市夜空', hex: '#020617', // bg-slate-950
-        bg: 'bg-slate-950', text: 'text-slate-200', 
+        bg: 'bg-slate-950', text: 'text-slate-400', 
         card: 'bg-slate-900', border: 'border-slate-800', 
         // [修改] 按鈕改為低調的都市灰藍色 (Slate-600)
         accent: 'bg-slate-600', accentText: 'text-white',
@@ -4212,6 +4212,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

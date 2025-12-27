@@ -564,51 +564,68 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         }, 10);
     };
 
-    // [修正版] 貼上事件監聽：支援不規則表格與合併儲存格的自動對齊
+    // [終極修正版] 貼上事件監聽：支援 Excel 換行、引號與合併儲存格
     const handlePaste = (e) => {
         const text = e.clipboardData.getData('text');
         if (!text) return;
 
-        const rows = text.split('\n');
+        // [關鍵步驟 1] 預處理：解決儲存格內換行導致的破圖問題
+        // Excel 複製含有換行的內容時，會用雙引號包起來 (例如 "Line1\nLine2")
+        // 我們需要先掃描一遍，把引號內的 \n 暫時換成 <br>，避免被當成新的一列切斷
+        let processedText = '';
+        let inQuote = false;
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            if (char === '"') {
+                if (i + 1 < text.length && text[i+1] === '"') {
+                    processedText += '"'; // 連續兩個引號代表轉義，保留一個
+                    i++; 
+                } else {
+                    inQuote = !inQuote; // 切換引號狀態
+                }
+            } else if (char === '\n' && inQuote) {
+                processedText += '<br>'; // 引號內的換行 -> HTML 換行
+            } else if (char === '\t' && inQuote) {
+                processedText += '    '; // [安全防護] 引號內的 Tab 轉為空白，避免切錯欄位
+            } else {
+                processedText += char;
+            }
+        }
+
+        const rows = processedText.split('\n');
         
-        // 寬鬆判斷：只要任一行包含 Tab，且總行數大於 1，就嘗試解析為表格
+        // 判斷是否為表格：檢查是否有 Tab
         if (rows.length > 1 && rows.some(row => row.includes('\t'))) {
             
-            // 1. 先將所有資料轉為二維陣列
-            const matrix = rows.map(row => row.split('\t'));
-            
-            // 2. [關鍵修正] 找出「最寬」的一行有幾欄，而不是只看第一行
-            // 這能解決標題列有合併儲存格導致下方內容被裁切的問題
+            // [關鍵步驟 2] 解析每一行
+            // 因為預處理已經移除了結構性引號，這裡直接 split 即可
+            const matrix = rows.map(row => row.split('\t').map(c => c.trim()));
+
+            // [關鍵步驟 3] 找出最大欄位數 (避免跑版)
             const maxCols = Math.max(...matrix.map(row => row.length));
-            
-            if (maxCols <= 1) return; // 如果算出來最大只有一欄，那可能不是表格，不攔截
+            if (maxCols <= 1) return; 
 
-            e.preventDefault(); // 確定是表格後，才阻止預設貼上
+            e.preventDefault();
 
-            // 3. 處理標題列 (Header)
-            // 取第一行，如果欄位不足 maxCols 則補空字串
+            // 處理標題 (第一行)
             let headers = matrix[0];
             while (headers.length < maxCols) headers.push('');
             
-            // 建立分隔線 |---|---|
             const separator = Array(maxCols).fill('---').join('|');
-            let markdown = `\n| ${headers.map(h => h.trim()).join(' | ')} |\n| ${separator} |\n`;
+            let markdown = `\n| ${headers.join(' | ')} |\n| ${separator} |\n`;
 
-            // 4. 處理內容 (Body)
+            // 處理內容
             for (let i = 1; i < matrix.length; i++) {
-                // 跳過完全空白的行，但保留雖然有 Tab 但內容為空的列 (維持表格結構)
+                // 跳過全空行
                 if (matrix[i].join('').trim() === '') continue;
 
                 let cols = matrix[i];
-                // 補齊欄位至 maxCols
                 while (cols.length < maxCols) cols.push('');
-                
-                // 組合 Markdown，確保每一格都有被包進去
-                markdown += `| ${cols.map(c => c.trim()).join(' | ')} |\n`;
+                markdown += `| ${cols.join(' | ')} |\n`;
             }
             markdown += '\n';
 
-            // 5. 插入編輯器
+            // 寫入編輯器
             const textarea = contentRef.current;
             if (textarea) {
                 const start = textarea.selectionStart;
@@ -4321,6 +4338,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

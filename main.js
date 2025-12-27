@@ -194,7 +194,11 @@ const MarkdownRenderer = ({ content, onCheckboxChange }) => {
             
             // 渲染表格區塊：外層包覆 overflow-x-auto 實現左右滑動
             elements.push(
-                <div key={`table-${keyIndex}`} className="overflow-x-auto w-full my-3 border border-stone-300/30 rounded-lg shadow-sm">
+                <div 
+                    key={`table-${keyIndex}`} 
+                    className="overflow-x-auto w-full my-3 border border-stone-300/30 rounded-lg shadow-sm"
+                    onTouchStart={(e) => e.stopPropagation()}
+                >
                     <table className="min-w-max border-collapse text-sm">
                         <tbody className="bg-stone-50/50">
                             {tableBuffer.map((row, rIdx) => {
@@ -4252,6 +4256,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2068,10 +2068,6 @@ function EchoScriptApp() {
     // [新增] 自定義「未存檔警告」視窗狀態 (取代不穩定的 native confirm)
     const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
     
-    // [新增] 同步確認視窗狀態與暫存變數
-    const [showSyncConfirmModal, setShowSyncConfirmModal] = useState(false);
-    const [pendingSyncStatus, setPendingSyncStatus] = useState(false);
-
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
     useEffect(() => { hasDataChangedInSessionRef.current = hasDataChangedInSession; }, [hasDataChangedInSession]);
@@ -2081,8 +2077,8 @@ function EchoScriptApp() {
 
     // 1. 僅在開啟視窗時推入歷史紀錄
     useEffect(() => {
-        // [修改] 加入 showShuffleMenu 與 showSyncConfirmModal
-        const isAnyModalOpen = showMenuModal || showAllNotesModal || showEditModal || showResponseModal || showShuffleMenu || showSyncConfirmModal;
+        // [修改] 加入 showShuffleMenu
+        const isAnyModalOpen = showMenuModal || showAllNotesModal || showEditModal || showResponseModal || showShuffleMenu;
         if (isAnyModalOpen) {
             // [關鍵修正] 如果這次開啟是因為使用者按了「返回鍵」(isRestoringHistoryRef 為 true)
             // 代表瀏覽器已經在正確的歷史位置上了，我們「不應該」再 pushState，否則會覆蓋掉原本的層級路徑
@@ -2100,7 +2096,7 @@ function EchoScriptApp() {
                 window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
             }
         }
-    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu, showSyncConfirmModal]); // [修改] 加入依賴
+    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu]); // [修改] 加入依賴
 
     // 2. 攔截返回鍵 (核心：真實歷史堆疊 + 狀態同步)
     useEffect(() => {
@@ -2129,8 +2125,8 @@ function EchoScriptApp() {
             }
 
             // === D. 正常關閉其他視窗 (優先權調高：先檢查是否要關閉一般視窗) ===
-            // [修改] 加入 showShuffleMenu 與 showSyncConfirmModal
-            const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal || showShuffleMenu || showSyncConfirmModal;
+            // [修改] 加入 showShuffleMenu
+            const isAnyOtherModalOpen = showMenuModal || showEditModal || showResponseModal || showShuffleMenu;
             if (isAnyOtherModalOpen) {
                 // [關鍵修正] 防止 useEffect 再次推入歷史紀錄 (造成死循環)
                 isRestoringHistoryRef.current = true;
@@ -2147,7 +2143,6 @@ function EchoScriptApp() {
                 setShowEditModal(false);
                 setShowResponseModal(false);
                 setShowShuffleMenu(false); // [新增] 關閉抽卡設定
-                setShowSyncConfirmModal(false); // [新增] 關閉同步確認
                 setResponseViewMode('list');
                 return;
             }
@@ -2224,7 +2219,7 @@ function EchoScriptApp() {
 
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
-    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu, showSyncConfirmModal]); // [修改] 加入依賴
+    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu]); // [修改] 加入依賴
     
     // === 雲端版資料監聽 (User Isolated) ===
     useEffect(() => {
@@ -3181,42 +3176,6 @@ function EchoScriptApp() {
         setHasDataChangedInSession(true); // [新增] 標記資料已變更 (觸發備份提醒)
     };
 
-    // [新增] 處理同步狀態切換 - 步驟 1: 開啟確認視窗
-    const handleToggleSync = () => {
-        if (!currentNote) return;
-        const nextStatus = !currentNote.isSynced;
-        setPendingSyncStatus(nextStatus);
-        setShowSyncConfirmModal(true);
-    };
-
-    // [新增] 處理同步狀態切換 - 步驟 2: 執行更新 (使用者確認後)
-    const executeSyncToggle = () => {
-        if (!currentNote) return;
-        
-        // 1. 本地樂觀更新
-        setNotes(prev => prev.map(n => n.id === currentNote.id ? { ...n, isSynced: pendingSyncStatus } : n));
-
-        // 2. 雲端同步
-        try {
-            if (window.fs && window.db && user) {
-                window.fs.setDoc(
-                    window.fs.doc(window.db, "notes", String(currentNote.id)), 
-                    { isSynced: pendingSyncStatus }, 
-                    { merge: true }
-                );
-            }
-        } catch (e) {
-            console.error("同步狀態更新失敗", e);
-        }
-        setHasDataChangedInSession(true);
-        
-        // 關閉視窗並處理歷史紀錄
-        setShowSyncConfirmModal(false);
-        // 主動清除歷史堆疊，避免返回鍵鬼打牆
-        ignoreNextPopState.current = true;
-        window.history.back();
-    };
-
     // [新增] 處理卡片上的核取方塊點擊事件
     const handleCheckboxUpdate = (lineIndex, newChecked) => {
         if (!currentNote) return;
@@ -3780,26 +3739,9 @@ function EchoScriptApp() {
                                     </div>
                                     
                                     {/* 日期顯示區 - 移至主旨語下方 */}
-                                    <div className={`flex flex-nowrap gap-2 mb-6 text-[10px] ${theme.subtext} font-mono border-y ${theme.border} py-2 w-full items-center justify-between`}>
-                                        {/* 左側：日期資訊 (使用 flex 確保排列，並防止換行) */}
-                                        <div className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
-                                            <span className="flex items-center gap-1 shrink-0"><Calendar className="w-3 h-3"/> 建立: {currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設'}</span>
-                                            <div className="w-px h-3 bg-current opacity-20 shrink-0"></div>
-                                            <span className="flex items-center gap-1 shrink-0"><Edit className="w-3 h-3"/> 修改: {currentNote.modifiedDate ? new Date(currentNote.modifiedDate).toLocaleDateString() : (currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設')}</span>
-                                        </div>
-
-                                        {/* 右側：同步狀態勾選框 (透明無底色，僅框線) */}
-                                        <button 
-                                            onClick={handleToggleSync}
-                                            className="flex items-center gap-1 hover:opacity-70 transition-opacity select-none shrink-0 ml-auto"
-                                            title="點擊切換同步狀態"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                                {currentNote.isSynced && <polyline points="9 11 12 14 22 4"></polyline>}
-                                            </svg>
-                                            <span>{currentNote.isSynced ? '已同步' : '未同步'}</span>
-                                        </button>
+                                    <div className={`flex gap-4 mb-6 text-[10px] ${theme.subtext} font-mono border-y ${theme.border} py-2 w-full`}>
+                                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> 建立: {currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設'}</span>
+                                        <span className="flex items-center gap-1"><Edit className="w-3 h-3"/> 修改: {currentNote.modifiedDate ? new Date(currentNote.modifiedDate).toLocaleDateString() : (currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設')}</span>
                                     </div>
 
                                     {/* 內文區域 - 這裡強制使用深色字體以確保 Markdown 在淺色底的卡片上可讀，若為深色模式則自動調整 */ }
@@ -4203,48 +4145,6 @@ function EchoScriptApp() {
                 </div>
             )}
 
-            {/* [新增] 同步確認浮動視窗 */}
-            {showSyncConfirmModal && (
-                <div 
-                    className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
-                    onClick={(e) => { 
-                        if(e.target === e.currentTarget) {
-                            setShowSyncConfirmModal(false);
-                            // 點擊背景關閉時，也要清除歷史堆疊，避免返回鍵行為異常
-                            ignoreNextPopState.current = true;
-                            window.history.back();
-                        }
-                    }}
-                >
-                    <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
-                        <h3 className={`font-bold text-lg mb-2 ${theme.text}`}>同步狀態確認</h3>
-                        <p className={`text-sm ${theme.subtext} mb-6 leading-relaxed`}>
-                            {pendingSyncStatus 
-                                ? '確認已與其他雲端筆記本同步？' 
-                                : '將狀態改為「尚未與其他雲端筆記本同步」？'}
-                        </p>
-                        <div className="flex gap-3">
-                            <button 
-                                onClick={() => {
-                                    setShowSyncConfirmModal(false);
-                                    ignoreNextPopState.current = true;
-                                    window.history.back();
-                                }}
-                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-600 hover:bg-stone-200 rounded-lg font-bold transition-colors text-xs"
-                            >
-                                取消
-                            </button>
-                            <button 
-                                onClick={executeSyncToggle}
-                                className={`flex-1 px-4 py-2 ${theme.accent} ${theme.accentText} rounded-lg font-bold transition-colors text-xs shadow-md`}
-                            >
-                                確認
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* [新增] 抽卡目標選擇選單 */}
             {showShuffleMenu && (
                 <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowShuffleMenu(false); }}>
@@ -4312,8 +4212,6 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
-
-
 
 
 

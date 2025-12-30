@@ -3176,6 +3176,29 @@ function EchoScriptApp() {
         setHasDataChangedInSession(true); // [新增] 標記資料已變更 (觸發備份提醒)
     };
 
+    // [新增] 處理同步狀態切換 (新增於 handleToggleFavorite 下方)
+    const handleToggleSync = () => {
+        if (!currentNote) return;
+        const nextStatus = !currentNote.isSynced;
+
+        // 1. 本地樂觀更新
+        setNotes(prev => prev.map(n => n.id === currentNote.id ? { ...n, isSynced: nextStatus } : n));
+
+        // 2. 雲端同步
+        try {
+            if (window.fs && window.db && user) {
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "notes", String(currentNote.id)), 
+                    { isSynced: nextStatus }, 
+                    { merge: true }
+                );
+            }
+        } catch (e) {
+            console.error("同步狀態更新失敗", e);
+        }
+        setHasDataChangedInSession(true);
+    };
+
     // [新增] 處理卡片上的核取方塊點擊事件
     const handleCheckboxUpdate = (lineIndex, newChecked) => {
         if (!currentNote) return;
@@ -3739,7 +3762,22 @@ function EchoScriptApp() {
                                     </div>
                                     
                                     {/* 日期顯示區 - 移至主旨語下方 */}
-                                    <div className={`flex gap-4 mb-6 text-[10px] ${theme.subtext} font-mono border-y ${theme.border} py-2 w-full`}>
+                                    <div className={`flex gap-4 mb-6 text-[10px] ${theme.subtext} font-mono border-y ${theme.border} py-2 w-full items-center`}>
+                                        {/* [新增] 同步狀態勾選框 (透明無底色，僅框線) */}
+                                        <button 
+                                            onClick={handleToggleSync}
+                                            className="flex items-center gap-1 hover:opacity-70 transition-opacity select-none"
+                                            title="點擊切換同步狀態"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                {currentNote.isSynced && <polyline points="9 11 12 14 22 4"></polyline>}
+                                            </svg>
+                                            <span>{currentNote.isSynced ? '已同步' : '未同步'}</span>
+                                        </button>
+                                        
+                                        <div className="w-px h-3 bg-current opacity-20"></div>
+
                                         <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> 建立: {currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設'}</span>
                                         <span className="flex items-center gap-1"><Edit className="w-3 h-3"/> 修改: {currentNote.modifiedDate ? new Date(currentNote.modifiedDate).toLocaleDateString() : (currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設')}</span>
                                     </div>
@@ -4212,6 +4250,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2051,6 +2051,8 @@ function EchoScriptApp() {
 
     // 新增：使用 Ref 追蹤狀態，解決 EventListener 閉包過期與依賴重覆觸發的問題
     const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
+    // [新增] 解決返回鍵閉包問題：使用 Ref 同步 Alert 狀態，防止狀態更新不及時導致閃退
+    const showUnsavedAlertRef = useRef(showUnsavedAlert);
     const responseViewModeRef = useRef(responseViewMode);
     const exitLockRef = useRef(false); 
     const isExitingRef = useRef(false); // [新增] 標記是否正在執行退出程序
@@ -2073,6 +2075,7 @@ function EchoScriptApp() {
 
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
+    useEffect(() => { showUnsavedAlertRef.current = showUnsavedAlert; }, [showUnsavedAlert]); // [新增] 同步 Alert 狀態
     useEffect(() => { hasDataChangedInSessionRef.current = hasDataChangedInSession; }, [hasDataChangedInSession]);
     useEffect(() => { responseViewModeRef.current = responseViewMode; }, [responseViewMode]);
 
@@ -2114,9 +2117,9 @@ function EchoScriptApp() {
             // 如果已經確認要退出，就不再攔截任何返回動作
             if (isExitingRef.current) return;
 
-            // [關鍵修正] 最高優先級攔截：如果警告視窗已開啟，按返回鍵視為「取消離開」並留在編輯器
-            // 必須放在最前面，防止程式誤判為退出 APP 而導致閃退
-            if (showUnsavedAlert) {
+            // [關鍵修正] 最高優先級攔截：使用 Ref (showUnsavedAlertRef) 確保讀取到最新的 Alert 狀態
+            // 解決「尚未存檔」視窗開啟時，按返回鍵因狀態不同步導致閃退或無效的問題
+            if (showUnsavedAlertRef.current) {
                 setShowUnsavedAlert(false);
                 // 標記為恢復歷史紀錄，防止其他 useEffect 再次推入錯誤的歷史狀態
                 isRestoringHistoryRef.current = true;
@@ -4327,6 +4330,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

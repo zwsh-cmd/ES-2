@@ -2117,14 +2117,17 @@ function EchoScriptApp() {
             // 如果已經確認要退出，就不再攔截任何返回動作
             if (isExitingRef.current) return;
 
-            // [關鍵修正] 最高優先級攔截：使用 Ref (showUnsavedAlertRef) 確保讀取到最新的 Alert 狀態
-            // 解決「尚未存檔」視窗開啟時，按返回鍵因狀態不同步導致閃退或無效的問題
+            // [關鍵修正] 最高優先級攔截：使用 Ref 確保讀取到最新的 Alert 狀態
             if (showUnsavedAlertRef.current) {
+                // 1. 關閉警告視窗
                 setShowUnsavedAlert(false);
-                // 標記為恢復歷史紀錄，防止其他 useEffect 再次推入錯誤的歷史狀態
+                
+                // 2. 標記為恢復歷史紀錄，防止其他 useEffect (如編輯器開啟監聽) 再次推入歷史
                 isRestoringHistoryRef.current = true;
-                // 手動推回 modal 狀態，確保歷史堆疊穩定停留在編輯模式
-                window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
+                
+                // 3. [修正] 不再手動 pushState。
+                // 因為使用者按了返回鍵，瀏覽器已經自動退回了一層 (回到了編輯器狀態)。
+                // 我們只需要讓程式「停」在這裡，不要往下執行關閉編輯器的邏輯即可。
                 return;
             }
 
@@ -4330,6 +4333,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

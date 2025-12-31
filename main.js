@@ -2119,17 +2119,16 @@ function EchoScriptApp() {
 
             // [關鍵修正] 最高優先級攔截：在「尚未存檔」警告中按返回鍵 = 繼續編輯
             if (showUnsavedAlertRef.current) {
-                // 1. 關閉警告視窗
+                // 1. 關閉警告視窗 (視覺上回到編輯器)
                 setShowUnsavedAlert(false);
                 // [FIX] 手動強制同步 Ref 為 false，防止 React 狀態更新延遲
                 showUnsavedAlertRef.current = false;
 
-                // 2. 標記為恢復歷史紀錄
-                isRestoringHistoryRef.current = true;
-
-                // 3. [核心邏輯] 手動修復歷史堆疊，讓使用者留在編輯器
-                window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
-
+                // 2. [核心邏輯修正] 不再手動 pushState
+                // 因為使用者剛剛按了返回鍵，瀏覽器已經「自然地」把我們之前設下的陷阱 (Trap) 移除了，
+                // 現在的歷史狀態已經回到了「編輯器 (modal)」。
+                // 我們只需要讓程式停在這裡 (return)，不要執行後面的退出邏輯，
+                // 這樣使用者就會停留在編輯器，且下次按返回鍵時，會再次觸發下方的 hasUnsavedChangesRef 檢查。
                 return;
             }
 
@@ -4337,6 +4336,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

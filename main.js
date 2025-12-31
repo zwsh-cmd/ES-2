@@ -217,10 +217,9 @@ const MarkdownRenderer = ({ content, onCheckboxChange }) => { // [修改] 接收
                                 onClick={(e) => e.stopPropagation()} 
                                 className="mt-[0.45em] accent-stone-600 cursor-pointer relative z-10 w-4 h-4 shrink-0" 
                             />
+                            {/* [修改] 移除文字點擊觸發，僅保留 checkbox 觸發，防止誤觸 */}
                             <span 
                                 className={`flex-1 ${isChecked ? 'line-through opacity-50' : ''}`}
-                                onClick={() => onCheckboxChange && onCheckboxChange(i, !isChecked)} // [新增] 點擊文字也能切換
-                                style={{cursor: 'pointer'}}
                             >
                                 {parseInline(line.slice(6))}
                             </span>
@@ -4317,6 +4316,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

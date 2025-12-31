@@ -2114,16 +2114,19 @@ function EchoScriptApp() {
             // 如果已經確認要退出，就不再攔截任何返回動作
             if (isExitingRef.current) return;
 
+            // [關鍵修正] 最高優先級攔截：如果警告視窗已開啟，按返回鍵視為「取消離開」並留在編輯器
+            // 必須放在最前面，防止程式誤判為退出 APP 而導致閃退
+            if (showUnsavedAlert) {
+                setShowUnsavedAlert(false);
+                // 標記為恢復歷史紀錄，防止其他 useEffect 再次推入錯誤的歷史狀態
+                isRestoringHistoryRef.current = true;
+                // 手動推回 modal 狀態，確保歷史堆疊穩定停留在編輯模式
+                window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
+                return;
+            }
+
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
-                // [修正] 如果警告視窗已經開啟，再次按返回表示要「取消離開」(回到編輯器)
-                if (showUnsavedAlert) {
-                    setShowUnsavedAlert(false);
-                    // 推回 modal 狀態，恢復成編輯模式的歷史紀錄
-                    window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
-                    return;
-                }
-
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -4324,6 +4327,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

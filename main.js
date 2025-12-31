@@ -2092,10 +2092,11 @@ function EchoScriptApp() {
             }
 
             // [關鍵修正] 調整優先順序：如果上層視窗 (編輯/選單) 開啟，優先推入通用 Modal 狀態
-            // 這避免了在「列表模式」下開啟「新增筆記」時，錯誤地推入「總分類」狀態
-            if (showMenuModal || showEditModal || showResponseModal || showShuffleMenu) { 
-                window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
-            } else if (showAllNotesModal) {
+                    // 這避免了在「列表模式」下開啟「新增筆記」時，錯誤地推入「總分類」狀態
+                    // [修正] 加入 showSyncConfirmModal，確保同步視窗開啟時有正確的歷史紀錄，防止按返回閃退
+                    if (showMenuModal || showEditModal || showResponseModal || showShuffleMenu || showSyncConfirmModal) { 
+                        window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
+                    } else if (showAllNotesModal) {
                 // 只有在單純開啟列表 (且沒有上層視窗) 時，才推入列表專用紀錄
                 window.history.pushState({ page: 'modal', level: 'superCategories', time: Date.now() }, '', '');
             }
@@ -3780,26 +3781,30 @@ function EchoScriptApp() {
                                     </div>
                                     
                                     {/* 日期顯示區 - 移至主旨語下方 */}
-                                    <div className={`flex flex-nowrap gap-2 mb-6 text-[10px] ${theme.subtext} font-mono border-y ${theme.border} py-2 w-full items-center justify-between`}>
-                                        {/* 左側：日期資訊 (使用 flex 確保排列，並防止換行) */}
-                                        <div className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
+                                    <div className={`flex flex-nowrap gap-2 mb-6 text-[10px] ${theme.subtext} font-mono border-y ${theme.border} py-2 w-full items-center`}>
+                                        {/* 左側：日期資訊 (gap-2 讓日期彼此靠近，移除中間分隔線) */}
+                                        <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap">
                                             <span className="flex items-center gap-1 shrink-0"><Calendar className="w-3 h-3"/> 建立: {currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設'}</span>
-                                            <div className="w-px h-3 bg-current opacity-20 shrink-0"></div>
                                             <span className="flex items-center gap-1 shrink-0"><Edit className="w-3 h-3"/> 修改: {currentNote.modifiedDate ? new Date(currentNote.modifiedDate).toLocaleDateString() : (currentNote.createdDate ? new Date(currentNote.createdDate).toLocaleDateString() : '預設')}</span>
                                         </div>
 
-                                        {/* 右側：同步狀態勾選框 (透明無底色，僅框線) */}
-                                        <button 
-                                            onClick={handleToggleSync}
-                                            className="flex items-center gap-1 hover:opacity-70 transition-opacity select-none shrink-0 ml-auto"
-                                            title="點擊切換同步狀態"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                                {currentNote.isSynced && <polyline points="9 11 12 14 22 4"></polyline>}
-                                            </svg>
-                                            <span>{currentNote.isSynced ? '已同步' : '未同步'}</span>
-                                        </button>
+                                        {/* 右側區域：分隔線 + 同步狀態 (ml-auto 將此區塊推至最右，達成較大間距) */}
+                                        <div className="flex items-center gap-3 ml-auto shrink-0">
+                                            {/* 新增分隔線，位於修改日期與同步狀態中間 */}
+                                            <div className="w-px h-3 bg-current opacity-20"></div>
+                                            
+                                            <button 
+                                                onClick={handleToggleSync}
+                                                className="flex items-center gap-1 hover:opacity-70 transition-opacity select-none"
+                                                title="點擊切換同步狀態"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                                    {currentNote.isSynced && <polyline points="9 11 12 14 22 4"></polyline>}
+                                                </svg>
+                                                <span>{currentNote.isSynced ? '已同步' : '未同步'}</span>
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* 內文區域 - 這裡強制使用深色字體以確保 Markdown 在淺色底的卡片上可讀，若為深色模式則自動調整 */ }
@@ -4312,6 +4317,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

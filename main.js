@@ -2051,8 +2051,6 @@ function EchoScriptApp() {
 
     // 新增：使用 Ref 追蹤狀態，解決 EventListener 閉包過期與依賴重覆觸發的問題
     const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
-    // [新增] 解決返回鍵閉包問題：使用 Ref 同步 Alert 狀態，防止狀態更新不及時導致閃退
-    const showUnsavedAlertRef = useRef(showUnsavedAlert);
     const responseViewModeRef = useRef(responseViewMode);
     const exitLockRef = useRef(false); 
     const isExitingRef = useRef(false); // [新增] 標記是否正在執行退出程序
@@ -2075,7 +2073,6 @@ function EchoScriptApp() {
 
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
-    useEffect(() => { showUnsavedAlertRef.current = showUnsavedAlert; }, [showUnsavedAlert]); // [新增] 同步 Alert 狀態
     useEffect(() => { hasDataChangedInSessionRef.current = hasDataChangedInSession; }, [hasDataChangedInSession]);
     useEffect(() => { responseViewModeRef.current = responseViewMode; }, [responseViewMode]);
 
@@ -2117,32 +2114,10 @@ function EchoScriptApp() {
             // 如果已經確認要退出，就不再攔截任何返回動作
             if (isExitingRef.current) return;
 
-            // [關鍵修正] 最高優先級攔截：在「尚未存檔」警告中按返回鍵 = 繼續編輯
-            if (showUnsavedAlertRef.current) {
-                // 1. 關閉警告視窗
-                setShowUnsavedAlert(false);
-                // [FIX] 手動強制同步 Ref 為 false，防止 React 狀態更新延遲
-                showUnsavedAlertRef.current = false;
-
-                // 2. 標記為恢復歷史紀錄 (防止 useEffect 重複推入導致堆疊錯亂)
-                isRestoringHistoryRef.current = true;
-
-                // 3. [核心修正] 使用 setTimeout 延遲推入歷史紀錄
-                // 這是防止閃退的關鍵！直接同步 pushState 可能會被瀏覽器忽略。
-                // 這裡我們手動補回一層歷史紀錄，讓 APP 重新獲得「攔截返回鍵」的能力。
-                setTimeout(() => {
-                    window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
-                }, 0);
-
-                return;
-            }
-
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
-                // [FIX] 手動強制同步 Ref 為 true，確保下一次按返回鍵時絕對能被上方的邏輯攔截
-                showUnsavedAlertRef.current = true;
                 return;
             }
 
@@ -2249,7 +2224,7 @@ function EchoScriptApp() {
 
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
-    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu, showSyncConfirmModal, showUnsavedAlert]); // [修改] 加入依賴，新增 showUnsavedAlert
+    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu, showSyncConfirmModal]); // [修改] 加入依賴
     
     // === 雲端版資料監聽 (User Isolated) ===
     useEffect(() => {
@@ -4341,15 +4316,6 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
-
-
-
-
-
-
-
-
-
 
 
 

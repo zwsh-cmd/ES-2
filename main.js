@@ -2122,12 +2122,14 @@ function EchoScriptApp() {
                 // 1. 關閉警告視窗
                 setShowUnsavedAlert(false);
                 
-                // 2. 標記為恢復歷史紀錄，防止其他 useEffect (如編輯器開啟監聽) 再次推入歷史
+                // 2. 標記為恢復歷史紀錄
                 isRestoringHistoryRef.current = true;
                 
-                // 3. [修正] 不再手動 pushState。
-                // 因為使用者按了返回鍵，瀏覽器已經自動退回了一層 (回到了編輯器狀態)。
-                // 我們只需要讓程式「停」在這裡，不要往下執行關閉編輯器的邏輯即可。
+                // 3. [關鍵修正] 必須手動把 Modal 狀態推回去！
+                // 因為剛剛按了返回，現在歷史紀錄是在「列表(Home)」，但視覺上還在「編輯器」。
+                // 如果不補這一槍，下次按返回就會變成「Home -> Exit」，導致閃退。
+                window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
+                
                 return;
             }
 
@@ -4333,6 +4335,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2116,6 +2116,14 @@ function EchoScriptApp() {
 
             // === A. 編輯中未存檔 (優先攔截) ===
             if (hasUnsavedChangesRef.current) {
+                // [修正] 如果警告視窗已經開啟，再次按返回表示要「取消離開」(回到編輯器)
+                if (showUnsavedAlert) {
+                    setShowUnsavedAlert(false);
+                    // 推回 modal 狀態，恢復成編輯模式的歷史紀錄
+                    window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
+                    return;
+                }
+
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
                 return;
@@ -2224,7 +2232,7 @@ function EchoScriptApp() {
 
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
-    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu, showSyncConfirmModal]); // [修改] 加入依賴
+    }, [showMenuModal, showAllNotesModal, showEditModal, showResponseModal, showShuffleMenu, showSyncConfirmModal, showUnsavedAlert]); // [修改] 加入依賴，新增 showUnsavedAlert
     
     // === 雲端版資料監聽 (User Isolated) ===
     useEffect(() => {
@@ -4316,6 +4324,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

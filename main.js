@@ -2117,19 +2117,19 @@ function EchoScriptApp() {
             // 如果已經確認要退出，就不再攔截任何返回動作
             if (isExitingRef.current) return;
 
-            // [關鍵修正] 最高優先級攔截：使用 Ref 確保讀取到最新的 Alert 狀態
+            // [關鍵修正] 最高優先級攔截：在「尚未存檔」警告中按返回鍵 = 繼續編輯
             if (showUnsavedAlertRef.current) {
                 // 1. 關閉警告視窗
                 setShowUnsavedAlert(false);
-                
+                // [FIX] 手動強制同步 Ref 為 false，防止 React 狀態更新延遲
+                showUnsavedAlertRef.current = false;
+
                 // 2. 標記為恢復歷史紀錄
                 isRestoringHistoryRef.current = true;
-                
-                // 3. [關鍵修正] 必須手動把 Modal 狀態推回去！
-                // 因為剛剛按了返回，現在歷史紀錄是在「列表(Home)」，但視覺上還在「編輯器」。
-                // 如果不補這一槍，下次按返回就會變成「Home -> Exit」，導致閃退。
+
+                // 3. [核心邏輯] 手動修復歷史堆疊，讓使用者留在編輯器
                 window.history.pushState({ page: 'modal', time: Date.now() }, '', '');
-                
+
                 return;
             }
 
@@ -2137,6 +2137,8 @@ function EchoScriptApp() {
             if (hasUnsavedChangesRef.current) {
                 window.history.pushState({ page: 'modal_trap', id: Date.now() }, '', '');
                 setShowUnsavedAlert(true);
+                // [FIX] 手動強制同步 Ref 為 true，確保下一次按返回鍵時絕對能被上方的邏輯攔截
+                showUnsavedAlertRef.current = true;
                 return;
             }
 
@@ -4335,6 +4337,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

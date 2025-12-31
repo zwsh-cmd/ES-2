@@ -3638,7 +3638,7 @@ function EchoScriptApp() {
     }
 
     return (
-        <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`}>
+        <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
                 <div className="flex items-center gap-2">
                     <img src="icon.png" className="w-8 h-8 rounded-lg object-cover" alt="App Icon" />
@@ -3668,7 +3668,7 @@ function EchoScriptApp() {
                 </div>
             </nav>
 
-            <main className="px-6 py-6 max-w-lg mx-auto" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+            <main className="px-6 py-6 max-w-lg mx-auto">
                 {showPinnedPlaceholder ? (
                     // [修正] 釘選卡片被刪除後的空狀態 (點擊跳轉分類)
                     <div className={`transition-all duration-500 opacity-100 translate-y-0`}>
@@ -4316,6 +4316,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

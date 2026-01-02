@@ -3479,7 +3479,7 @@ function EchoScriptApp() {
         URL.revokeObjectURL(url);
     };
 
-    // === [升級版] 完美還原邏輯：非破壞性合併 + 全新身分賦予 ===
+    // === [還原邏輯] 直接覆蓋模式 (Overwrite) ===
     const handleRestore = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -3497,10 +3497,10 @@ function EchoScriptApp() {
                 const data = JSON.parse(ev.target.result);
                 const promises = [];
                 let addedCount = 0;
-                let conflictCount = 0;
+                let overwriteCount = 0; // 記錄覆蓋數量
                 let skippedCount = 0;
 
-                showNotification("正在分析備份檔並執行智慧合併...");
+                showNotification("正在還原並覆蓋資料...");
 
                 // 1. 處理筆記 (核心邏輯)
                 if (data.notes && Array.isArray(data.notes)) {
@@ -3508,72 +3508,51 @@ function EchoScriptApp() {
                         const noteId = String(backupNote.id);
                         const localNote = currentNotesMap.get(noteId);
 
-                        // [情況 A] 本地沒有這則筆記 -> 直接新增
+                        const noteData = { ...backupNote, userId: user.uid }; // 確保歸屬權
+
                         if (!localNote) {
-                            // [Isolation] 強制覆寫 userId
-                            const noteData = { ...backupNote, userId: user.uid };
+                            // [情況 A] 本地沒有 -> 新增
                             if (window.fs && window.db) {
                                 promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", noteId), noteData));
                             }
                             addedCount++;
-                        } 
-                        // [情況 B] 本地有，檢查內容是否衝突
-                        else {
-                            // 簡單比對標題和內容
+                        } else {
+                            // [情況 B] 本地有 -> 檢查是否需要覆蓋
+                            // 只要內容不同，就直接覆蓋 (不再建立副本)
                             const isContentSame = (localNote.title === backupNote.title) && (localNote.content === backupNote.content);
                             
                             if (isContentSame) {
-                                // [情況 B-1] 內容完全一樣 -> 跳過
                                 skippedCount++;
                             } else {
-                                // [情況 B-2] 衝突！內容不一樣 -> 另存新檔 (副本)
-                                // 生成新 ID，標題加上 (還原副本)
-                                const newId = String(Date.now() + Math.random()); 
-                                
-                                // [關鍵修正] 賦予副本全新的建立時間 (createdDate)
-                                // 這樣能避免與原始筆記的建立時間重複，防止 handleSaveNote 的智慧救援機制誤判
-                                const nowISO = new Date().toISOString();
-                                
-                                const newNoteData = {
-                                    ...backupNote,
-                                    id: newId,
-                                    title: `${backupNote.title} (還原副本)`,
-                                    userId: user.uid,
-                                    originalId: noteId, // (選填) 記錄原本的 ID 供參考
-                                    createdDate: nowISO, // 強制更新時間戳記
-                                    modifiedDate: nowISO
-                                };
+                                // [覆蓋] 使用備份檔的資料，直接寫入原本的 ID
                                 if (window.fs && window.db) {
-                                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", newId), newNoteData));
+                                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", noteId), noteData));
                                 }
-                                conflictCount++;
+                                overwriteCount++;
                             }
                         }
                     }
                 }
 
-                // 2. 還原分類結構 (採用合併策略，而非覆蓋)
-                // 這樣能確保你備份後的這段期間，若有新增分類，不會被舊備份洗掉
+                // 2. 還原分類結構 (維持合併策略，以免遺失新分類)
                 if (data.categoryMap && window.fs && window.db) {
-                    const mergedCatMap = { ...categoryMap }; // 複製目前的分類地圖
+                    const mergedCatMap = { ...categoryMap };
                     let layoutChanged = false;
 
                     Object.entries(data.categoryMap).forEach(([cat, subs]) => {
                         if (!mergedCatMap[cat]) {
-                            mergedCatMap[cat] = subs; // 整個大分類都沒有 -> 新增
+                            mergedCatMap[cat] = subs; 
                             layoutChanged = true;
                         } else {
-                            // 大分類有，檢查次分類是否缺漏
                             subs.forEach(sub => {
                                 if (!mergedCatMap[cat].includes(sub)) {
-                                    mergedCatMap[cat].push(sub); // 補上缺少的次分類
+                                    mergedCatMap[cat].push(sub);
                                     layoutChanged = true;
                                 }
                             });
                         }
                     });
 
-                    // 同理處理 superCategoryMap (如果有的話)
                     let mergedSuperMap = { ...superCategoryMap };
                     if (data.superCategoryMap) {
                          Object.entries(data.superCategoryMap).forEach(([sup, cats]) => {
@@ -3596,36 +3575,24 @@ function EchoScriptApp() {
                             categoryMapJSON: JSON.stringify(mergedCatMap),
                             superCategoryMapJSON: JSON.stringify(mergedSuperMap)
                         };
-                        promises.push(
-                            window.fs.setDoc(
-                                window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
-                                payload, 
-                                { merge: true }
-                            )
-                        );
+                        promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), payload, { merge: true }));
                     }
                 }
 
-                // 3. 還原歷史紀錄 (維持合併或覆寫，這裡採用安全合併：寫入但不刪除現有)
+                // 3. 還原歷史紀錄
                 if (data.history && window.fs && window.db) {
-                     promises.push(
-                        window.fs.setDoc(
-                            window.fs.doc(window.db, "settings", `history_${user.uid}`), 
-                            { historyJSON: JSON.stringify(data.history) }, 
-                            { merge: true }
-                        )
-                    );
+                     promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `history_${user.uid}`), { historyJSON: JSON.stringify(data.history) }, { merge: true }));
                 }
 
                 if (promises.length > 0) {
                     await Promise.all(promises);
-                    const msg = `還原完成！\n新增: ${addedCount} 則\n副本: ${conflictCount} 則\n跳過: ${skippedCount} 則`;
+                    const msg = `還原完成！\n新增: ${addedCount} 則\n覆蓋: ${overwriteCount} 則\n跳過: ${skippedCount} 則`;
                     alert(msg);
-                    showNotification("☁️ 雲端還原並合併成功！");
-                    // 稍微延遲後重整，確保資料寫入
-                    setTimeout(() => window.location.reload(), 1500);
+                    showNotification("☁️ 雲端還原完成！");
+                    // 強制重整以確保資料顯示正確
+                    setTimeout(() => window.location.reload(), 1000);
                 } else {
-                    showNotification("備份檔的資料與現有完全一致，無需變更");
+                    showNotification("備份檔與現有資料一致，無需變更");
                 }
 
             } catch (err) { 
@@ -4342,6 +4309,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

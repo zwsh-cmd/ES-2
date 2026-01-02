@@ -2506,41 +2506,54 @@ function EchoScriptApp() {
             let availableCandidates = candidates.filter(n => n.originalIndex !== currentIndex);
 
             if (availableCandidates.length > 0) {
-                // [C] 實作「牌堆循環」邏輯
-                // 1. 將目前的歷史紀錄轉為 Set 以便快速比對
-                const historySet = new Set(recentIndices);
+            // [C] 實作「牌堆循環」邏輯 (修正版：防止重複 - 滑動視窗法)
+            
+            // 1. 找出與「當前分類」相關的歷史紀錄
+            // 我們只過濾出屬於這個分類的歷史 ID，忽略使用者去別的分類逛的紀錄
+            const availableSet = new Set(availableCandidates.map(n => n.originalIndex));
+            // 從最近的歷史開始保留
+            const categoryHistory = recentIndices.filter(idx => availableSet.has(idx));
 
-                // 2. 篩選出「還沒看過」的筆記 (從候選名單中扣除歷史紀錄)
-                let unseenCandidates = availableCandidates.filter(n => !historySet.has(n.originalIndex));
+            // 2. 設定「短期記憶長度」
+            // 規則：只記住最近看過的 (總數 - 1) 張牌。
+            // 這代表直到這分類剩下最後 1 張沒看過的牌之前，都不會重複抽到已經看過的。
+            // 使用 Math.max(0, ...) 防止分類只有 1 張牌時出錯
+            const memorySize = Math.max(0, availableCandidates.length - 1);
+            
+            // 3. 建立黑名單 (最近看過的 N-1 張)
+            const shortTermMemorySet = new Set(categoryHistory.slice(0, memorySize));
 
-                // 3. 決定最終抽獎池
-                // 如果還有沒看過的牌 (unseen > 0)，就只從沒看過的裡面抽。
-                // 如果都看過了 (unseen == 0，例如只有20張且都看完了)，就重置 (finalPool = 所有可用的牌)，開始新的一輪。
-                let finalPool = unseenCandidates.length > 0 ? unseenCandidates : availableCandidates;
+            // 4. 篩選出「不在短期記憶中」的筆記
+            let unseenCandidates = availableCandidates.filter(n => !shortTermMemorySet.has(n.originalIndex));
 
-                // [D] 隨機抽選
-                const rand = Math.floor(Math.random() * finalPool.length);
-                const nextIndex = finalPool[rand].originalIndex;
+            // 5. 決定最終抽獎池 (雙重保險)
+            // 基本上 unseenCandidates 不會空 (因為我們有留 1 個活口)，但為了程式安全，若真的空了就全開
+            let finalPool = unseenCandidates.length > 0 ? unseenCandidates : availableCandidates;
 
-                // [E] 更新歷史堆疊 (上限改為 200)
-                setRecentIndices(prev => {
-                    let currentHistory = [...prev];
-                    if (currentIndex !== -1) {
-                        if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
-                            currentHistory.unshift(currentIndex);
-                        }
+            // [D] 隨機抽選
+            const rand = Math.floor(Math.random() * finalPool.length);
+            const nextIndex = finalPool[rand].originalIndex;
+
+            // [E] 更新歷史堆疊 (上限改為 200)
+            setRecentIndices(prev => {
+                let currentHistory = [...prev];
+                if (currentIndex !== -1) {
+                    // 防止重複推入相同的當前頁
+                    if (currentHistory.length === 0 || currentHistory[0] !== currentIndex) {
+                        currentHistory.unshift(currentIndex);
                     }
-                    const updated = [nextIndex, ...currentHistory];
-                    
-                    // [修改] 這裡將上限調整為 200 張
-                    if (updated.length > 200) updated.pop();
-                    
-                    return updated;
-                });
+                }
+                const updated = [nextIndex, ...currentHistory];
                 
-                setFutureIndices([]);
-                setCurrentIndex(nextIndex);
-            } else {
+                // [修改] 這裡將上限調整為 200 張
+                if (updated.length > 200) updated.pop();
+                
+                return updated;
+            });
+            
+            setFutureIndices([]);
+            setCurrentIndex(nextIndex);
+        } else {
                 // 例外處理：該分類下沒有其他筆記
                 if (shuffleTarget) {
                     showNotification(`目標分類「${targetSuper}」無其他筆記`);
@@ -4329,6 +4342,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

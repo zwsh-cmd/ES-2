@@ -2243,6 +2243,37 @@ function EchoScriptApp() {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const cloudNotes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
+            // === [新增] 自動修復機制：檢查並修正重複的「建立時間」 ===
+            // 這能解決舊的備份副本與原版筆記「出生時間」相同，導致刪除/編輯時系統認錯人的問題
+            const seenDates = new Set();
+            let hasAutoFixed = false;
+
+            cloudNotes.forEach(note => {
+                if (note.createdDate) {
+                    if (seenDates.has(note.createdDate)) {
+                        // 發現雙胞胎！(重複的時間戳記)
+                        console.log(`🔧 自動修復重複時間戳: ${note.title}`);
+                        
+                        // 自動微調 1~999 毫秒，確保它們變為獨立個體
+                        // 不會影響排序，但能讓系統區分它們是不同的筆記
+                        const fixDate = new Date(new Date(note.createdDate).getTime() + Math.floor(Math.random() * 999) + 1).toISOString();
+                        
+                        // 靜默寫回雲端 (這會觸發下一次更新，完成修復)
+                        window.fs.setDoc(window.fs.doc(window.db, "notes", String(note.id)), { 
+                            createdDate: fixDate,
+                            modifiedDate: fixDate 
+                        }, { merge: true }).catch(e => console.error("Auto-fix failed", e));
+                        
+                        hasAutoFixed = true;
+                    } else {
+                        seenDates.add(note.createdDate);
+                    }
+                }
+            });
+
+            // 如果正在執行修復，我們先不更新畫面，等修復後的資料流回來 (避免畫面閃爍)
+            if (hasAutoFixed) return;
+
             // [初始化] 針對該 User 的初始化 (使用 localStorage Key 區隔)
             const initKey = `echoScript_Init_${user.uid}`;
             if (cloudNotes.length === 0 && !localStorage.getItem(initKey)) {
@@ -4311,6 +4342,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

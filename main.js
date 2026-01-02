@@ -2674,7 +2674,7 @@ function EchoScriptApp() {
         }, 300);
     };
 
-    // [修改] 雲端版儲存邏輯 (Auth aware)
+    // [修改] 雲端版儲存邏輯 (Auth aware) - 加入防呆機制
     const handleSaveNote = async (updatedNote) => {
         if (!user) return; // 安全檢查
         const now = new Date().toISOString();
@@ -2684,8 +2684,14 @@ function EchoScriptApp() {
         let nextDeck = [...shuffleDeck];
         let nextPointer = deckPointer;
 
-        if (isCreatingNew) {
-            const newId = updatedNote.id ? String(updatedNote.id) : String(Date.now());
+        // [關鍵修正] 防呆機制：判斷這到底是「新增」還是「修改」？
+        // 即使 isCreatingNew 為 true，如果筆記 ID 已經存在於目前的列表中，我們就強制視為「修改」
+        const idExists = updatedNote.id && notes.some(n => String(n.id) === String(updatedNote.id));
+        const realCreateMode = isCreatingNew && !idExists;
+
+        if (realCreateMode) {
+            // === 真正的【新增】模式 ===
+            const newId = String(Date.now()); // 強制生成新 ID
             // [Auth] 加入 userId
             const newNote = { 
                 ...updatedNote, 
@@ -2698,6 +2704,7 @@ function EchoScriptApp() {
             nextNotes = [newNote, ...notes];
             targetId = newId;
             
+            // 洗牌堆處理：插入新卡片
             nextDeck = nextDeck.map(i => i + 1);
             const futureSlots = nextDeck.length - nextPointer;
             const insertOffset = Math.floor(Math.random() * (futureSlots + 1));
@@ -2708,13 +2715,18 @@ function EchoScriptApp() {
             setCurrentIndex(0); 
             showNotification("新筆記已建立 (同步中...)");
         } else {
+            // === 強制的【修改】模式 ===
             const editedNote = { 
                 ...updatedNote, 
+                // 確保 ID 為字串
                 id: String(updatedNote.id),
                 userId: user.uid, // 確保 userId 存在
+                // 如果是舊筆記，保留原有的 createdDate
                 createdDate: updatedNote.createdDate || now, 
                 modifiedDate: now 
             };
+            
+            // 更新列表中的該筆記
             nextNotes = notes.map(n => String(n.id) === String(editedNote.id) ? editedNote : n);
             setFavorites(prev => prev.map(f => String(f.id) === String(editedNote.id) ? { ...f, ...editedNote } : f));
             targetId = editedNote.id;
@@ -2755,6 +2767,9 @@ function EchoScriptApp() {
 
         setHasDataChangedInSession(true); 
         
+        // [修正] 成功儲存後，務必重置「新增模式」開關，避免下次誤判
+        setIsCreatingNew(false);
+
         const stepsBack = showAllNotesModal ? -2 : -1;
         setShowEditModal(false);
         setShowAllNotesModal(false);
@@ -2905,23 +2920,16 @@ function EchoScriptApp() {
                 }
             }
 
-            // 1. 先找出這張筆記「刪除前」的 Index
-            const deletedIndex = notes.findIndex(n => String(n.id) === String(id));
-
-            // 2. 執行刪除 (更新筆記列表)
+            // 1. 執行刪除 (更新筆記列表)
+            // [關鍵修正] 使用 filter 確保移除所有相同 ID (解決重複顯示導致的索引錯亂)
             const newNotes = notes.filter(n => String(n.id) !== String(id));
             setNotes(newNotes);
 
             // [修正] 同步從編輯歷史中移除該筆記 (Isolation)
             setHistory(prevHistory => {
                 const validHistory = Array.isArray(prevHistory) ? prevHistory : [];
-                const validNoteIds = new Set(newNotes.map(n => String(n.id)));
-                
-                const newHistory = validHistory.filter(h => 
-                    h && 
-                    String(h.id) !== String(id) && 
-                    validNoteIds.has(String(h.id))
-                );
+                // 確保歷史紀錄不包含已刪除的 ID
+                const newHistory = validHistory.filter(h => String(h.id) !== String(id));
                 
                 if(user) localStorage.setItem(`echoScript_History_${user.uid}`, JSON.stringify(newHistory));
                 if (window.fs && window.db && user) {
@@ -2945,7 +2953,9 @@ function EchoScriptApp() {
                 showNotification("⚠️ 雲端同步失敗，請檢查網路");
             }
             
-            // 3. 處理畫面顯示與導航邏輯
+            // 2. 處理畫面顯示與導航邏輯
+            // [關鍵修正] 刪除筆記後，強制「重置」洗牌堆 (Shuffle Deck)，而不是嘗試修補它
+            // 這能徹底解決因為索引錯位 (Index Mismatch) 導致刪除 A 卻消失 H 的嚴重 Bug
             let nextIdx = -1;
             const isDeletingPinned = String(id) === String(pinnedNoteId);
 
@@ -2993,28 +3003,19 @@ function EchoScriptApp() {
             setCurrentIndex(nextIdx);
             setShowEditModal(false);
 
-            // 4. 洗牌堆修正 (維持原有邏輯)
-            if (deletedIndex !== -1) {
-                const newDeck = shuffleDeck
-                    .filter(i => i !== deletedIndex)
-                    .map(i => i > deletedIndex ? i - 1 : i);
-                const indexInDeck = shuffleDeck.indexOf(deletedIndex);
-                let newPointer = deckPointer;
-                if (indexInDeck !== -1 && indexInDeck < deckPointer) {
-                    newPointer = Math.max(0, deckPointer - 1);
-                }
-                newPointer = Math.min(newPointer, newDeck.length);
-
-                setShuffleDeck(newDeck);
-                setDeckPointer(newPointer);
-                // [Isolation] 移除手動寫入，改由 useEffect 自動監聽 state 變化寫入專屬 Key
-                // localStorage.setItem('echoScript_ShuffleDeck', ...);
-                // localStorage.setItem('echoScript_DeckPointer', ...);
+            // 3. 重建洗牌堆 (Deck Rebuild)
+            // 這是修復「隨機消失」的核心：不再依賴舊的 Index，而是根據新的 newNotes 重新生成
+            // 這樣可以確保隨機播放清單絕對指向正確的筆記
+            const newDeck = Array.from({ length: newNotes.length }, (_, i) => i);
+            // 簡單洗牌
+            for (let i = newDeck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
             }
-            
-            // [Isolation] 移除手動寫入，改由 useEffect 自動監聽 notes 變化寫入專屬 Key
-            // localStorage.setItem('echoScript_AllNotes', JSON.stringify(newNotes));
-            
+
+            setShuffleDeck(newDeck);
+            setDeckPointer(0); // 重置指針
+
             setHasDataChangedInSession(true);
             showNotification("筆記已移至垃圾桶");
         }
@@ -4317,6 +4318,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

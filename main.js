@@ -3086,6 +3086,17 @@ function EchoScriptApp() {
                     .catch(e => console.error("分類刪除同步失敗", e));
             }
 
+            // 6. [關鍵修正] 強制重建洗牌堆 (避免索引指向已刪除的筆記)
+            // 這一步能確保刪除後不會有「幽靈卡片」或「隨機消失」的問題
+            const newDeck = Array.from({ length: newNotes.length }, (_, i) => i);
+            for (let i = newDeck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
+            }
+            setShuffleDeck(newDeck);
+            setDeckPointer(0);
+            setCurrentIndex(0); // 重置為第一張
+
             setHasDataChangedInSession(true);
             showNotification("分類及其筆記已移至垃圾桶");
         }
@@ -3437,7 +3448,7 @@ function EchoScriptApp() {
         URL.revokeObjectURL(url);
     };
 
-    // === [升級版] 完美還原邏輯：非破壞性合併 ===
+    // === [升級版] 完美還原邏輯：非破壞性合併 + 全新身分賦予 ===
     const handleRestore = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -3487,12 +3498,19 @@ function EchoScriptApp() {
                                 // [情況 B-2] 衝突！內容不一樣 -> 另存新檔 (副本)
                                 // 生成新 ID，標題加上 (還原副本)
                                 const newId = String(Date.now() + Math.random()); 
+                                
+                                // [關鍵修正] 賦予副本全新的建立時間 (createdDate)
+                                // 這樣能避免與原始筆記的建立時間重複，防止 handleSaveNote 的智慧救援機制誤判
+                                const nowISO = new Date().toISOString();
+                                
                                 const newNoteData = {
                                     ...backupNote,
                                     id: newId,
                                     title: `${backupNote.title} (還原副本)`,
                                     userId: user.uid,
-                                    originalId: noteId // (選填) 記錄原本的 ID 供參考
+                                    originalId: noteId, // (選填) 記錄原本的 ID 供參考
+                                    createdDate: nowISO, // 強制更新時間戳記
+                                    modifiedDate: nowISO
                                 };
                                 if (window.fs && window.db) {
                                     promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", newId), newNoteData));
@@ -3559,10 +3577,6 @@ function EchoScriptApp() {
 
                 // 3. 還原歷史紀錄 (維持合併或覆寫，這裡採用安全合併：寫入但不刪除現有)
                 if (data.history && window.fs && window.db) {
-                     // 注意：歷史紀錄通常比較沒那麼敏感，但為了安全我們還是用 merge
-                     // 但由於 history 是一整個 JSON 字串，Firestore 的 merge 無法合併 JSON 內部的陣列
-                     // 如果需要完美合併歷史紀錄會比較複雜，這裡維持「以備份檔覆蓋歷史紀錄設定」的邏輯
-                     // 但因為這只是瀏覽紀錄，影響不大。若要極致，可在此處做 JSON array concat。
                      promises.push(
                         window.fs.setDoc(
                             window.fs.doc(window.db, "settings", `history_${user.uid}`), 
@@ -4297,6 +4311,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

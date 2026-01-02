@@ -1693,14 +1693,21 @@ function EchoScriptApp() {
     // [Auth] 登入動作
     const handleLogin = async () => {
         if (!window.authFns || !window.auth) return;
+        
+        // [修正] 點擊登入後立即設為載入中，避免選完帳號後短暫跳回登入畫面
+        setAuthLoading(true);
+
         try {
             const provider = new window.authFns.GoogleAuthProvider();
             // [關鍵修正] 強制跳出帳號選擇視窗，避免自動登入上一個帳號
             provider.setCustomParameters({ prompt: 'select_account' });
             
             await window.authFns.signInWithPopup(window.auth, provider);
+            // 登入成功後，onAuthStateChanged 會負責處理狀態更新與頁面切換
         } catch (error) {
             console.error("Login failed:", error);
+            // 發生錯誤時 (或使用者關閉視窗)，必須把 loading 狀態改回來，讓使用者能重試
+            setAuthLoading(false);
             // [修改] 顯示詳細錯誤代碼，以便除錯
             alert("登入錯誤:\n" + error.code + "\n" + error.message);
         }
@@ -4322,6 +4329,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

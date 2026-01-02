@@ -2450,8 +2450,7 @@ function EchoScriptApp() {
     const isFavorite = favorites.some(f => f.id === (currentNote ? currentNote.id : null));
     const currentNoteResponses = currentNote ? (allResponses[currentNote.id] || []) : [];
 
-    // [修改] 統一使用「同分類隨機」邏輯 (移除全域洗牌)
-    // 無論是透過按鈕(local)或左滑(無參數)，現在一律只在同分類中切換
+    // [修改] 統一使用「同分類智慧隨機」邏輯 (支援抽卡目標 + 200張記憶 + 循環機制)
     const handleNextNote = () => {
         if (notes.length <= 1) return;
 
@@ -2480,9 +2479,10 @@ function EchoScriptApp() {
                 return;
             }
 
-            // === 2. 核心邏輯：強制同分類隨機 (Strict Category Shuffle) ===
-            // [新增] 如果使用者有設定 shuffleTarget，優先使用該目標；否則使用當前筆記的分類
-            // 這樣可以確保左滑時，始終在使用者選定的「抽卡目標」中循環
+            // === 2. 核心邏輯：強制同分類智慧隨機 (Smart Category Shuffle) ===
+            
+            // [A] 確定抽卡範圍 (Shuffle Target)
+            // 如果有設定目標，就鎖定目標；否則鎖定當前筆記的分類
             let targetSuper = "其他";
             if (shuffleTarget) {
                 targetSuper = shuffleTarget;
@@ -2490,22 +2490,32 @@ function EchoScriptApp() {
                 targetSuper = String(currentNote.superCategory || "其他").trim();
             }
 
-            // 找出所有同分類的候選筆記
+            // [B] 找出該範圍內所有的候選筆記
             let candidates = notes
                 .map((n, i) => ({ ...n, originalIndex: i }))
                 .filter(n => String(n.superCategory || "其他").trim() === targetSuper);
 
-            // [優化] 強制排除當前正在看的這張 (確保一定會換頁)
-            if (candidates.length > 1) {
-                candidates = candidates.filter(n => n.originalIndex !== currentIndex);
-            }
+            // 排除當前正在看的這張 (防止下一張立刻重複自己)
+            let availableCandidates = candidates.filter(n => n.originalIndex !== currentIndex);
 
-            if (candidates.length > 0) {
-                // 隨機抽選
-                const rand = Math.floor(Math.random() * candidates.length);
-                const nextIndex = candidates[rand].originalIndex;
+            if (availableCandidates.length > 0) {
+                // [C] 實作「牌堆循環」邏輯
+                // 1. 將目前的歷史紀錄轉為 Set 以便快速比對
+                const historySet = new Set(recentIndices);
 
-                // 更新歷史堆疊
+                // 2. 篩選出「還沒看過」的筆記 (從候選名單中扣除歷史紀錄)
+                let unseenCandidates = availableCandidates.filter(n => !historySet.has(n.originalIndex));
+
+                // 3. 決定最終抽獎池
+                // 如果還有沒看過的牌 (unseen > 0)，就只從沒看過的裡面抽。
+                // 如果都看過了 (unseen == 0，例如只有20張且都看完了)，就重置 (finalPool = 所有可用的牌)，開始新的一輪。
+                let finalPool = unseenCandidates.length > 0 ? unseenCandidates : availableCandidates;
+
+                // [D] 隨機抽選
+                const rand = Math.floor(Math.random() * finalPool.length);
+                const nextIndex = finalPool[rand].originalIndex;
+
+                // [E] 更新歷史堆疊 (上限改為 200)
                 setRecentIndices(prev => {
                     let currentHistory = [...prev];
                     if (currentIndex !== -1) {
@@ -2514,16 +2524,19 @@ function EchoScriptApp() {
                         }
                     }
                     const updated = [nextIndex, ...currentHistory];
-                    if (updated.length > 50) updated.pop();
+                    
+                    // [修改] 這裡將上限調整為 200 張
+                    if (updated.length > 200) updated.pop();
+                    
                     return updated;
                 });
                 
                 setFutureIndices([]);
                 setCurrentIndex(nextIndex);
             } else {
+                // 例外處理：該分類下沒有其他筆記
                 if (shuffleTarget) {
-                    showNotification(`目標分類「${targetSuper}」無筆記`);
-                    setShuffleTarget(null); // 重置無效的目標
+                    showNotification(`目標分類「${targetSuper}」無其他筆記`);
                 } else {
                     showNotification(`「${targetSuper}」分類無其他筆記`);
                 }
@@ -4309,6 +4322,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2674,74 +2674,76 @@ function EchoScriptApp() {
         }, 300);
     };
 
-    // [修改] 雲端版儲存邏輯 (Auth aware) - 加入防呆機制
+    // [修改] 雲端版儲存邏輯 (Strict ID Check) - 徹底解決重複卡片問題
     const handleSaveNote = async (updatedNote) => {
         if (!user) return; // 安全檢查
         const now = new Date().toISOString();
-        let targetId;
-        let nextNotes;
         
-        let nextDeck = [...shuffleDeck];
-        let nextPointer = deckPointer;
-
-        // [關鍵修正] 防呆機制：判斷這到底是「新增」還是「修改」？
-        // 即使 isCreatingNew 為 true，如果筆記 ID 已經存在於目前的列表中，我們就強制視為「修改」
-        const idExists = updatedNote.id && notes.some(n => String(n.id) === String(updatedNote.id));
-        const realCreateMode = isCreatingNew && !idExists;
-
-        if (realCreateMode) {
-            // === 真正的【新增】模式 ===
-            const newId = String(Date.now()); // 強制生成新 ID
-            // [Auth] 加入 userId
+        // 1. 取得目標 ID (轉成字串以確保比對正確)
+        const targetId = updatedNote.id ? String(updatedNote.id) : null;
+        
+        // 2. [絕對防呆] 直接在現有筆記中尋找這個 ID，不再依賴 isCreatingNew 開關
+        // 只要 ID 存在，就強制視為「修改」，絕對不允許產生複製品
+        const existingIndex = targetId ? notes.findIndex(n => String(n.id) === targetId) : -1;
+        
+        let nextNotes;
+        let finalId = targetId;
+        
+        // 根據「ID 是否存在」來決定路徑
+        if (existingIndex !== -1) {
+            // === 【修改模式】 (ID 已存在) ===
+            const editedNote = { 
+                ...notes[existingIndex], // 保留舊資料 (如 createdDate)
+                ...updatedNote,          // 覆蓋新資料
+                id: targetId,            // 確保 ID 不變
+                userId: user.uid,
+                modifiedDate: now
+            };
+            
+            // 使用陣列替換，確保不會改變陣列長度或順序
+            nextNotes = [...notes];
+            nextNotes[existingIndex] = editedNote;
+            
+            // 更新收藏列表狀態
+            setFavorites(prev => prev.map(f => String(f.id) === targetId ? { ...f, ...editedNote } : f));
+            
+            showNotification("筆記已更新 (同步中...)");
+        } else {
+            // === 【新增模式】 (ID 不存在) ===
+            finalId = String(Date.now()); // 生成全新 ID
+            
             const newNote = { 
                 ...updatedNote, 
-                id: newId, 
+                id: finalId, 
                 userId: user.uid, 
                 createdDate: now, 
                 modifiedDate: now 
             };
             
+            // 新筆記插入最前方
             nextNotes = [newNote, ...notes];
-            targetId = newId;
             
-            // 洗牌堆處理：插入新卡片
-            nextDeck = nextDeck.map(i => i + 1);
-            const futureSlots = nextDeck.length - nextPointer;
-            const insertOffset = Math.floor(Math.random() * (futureSlots + 1));
-            const insertPos = nextPointer + insertOffset;
+            // [新增模式特有] 處理洗牌堆：插入一張新卡片到隨機位置
+            const currentDeck = [...shuffleDeck];
+            const newDeck = currentDeck.map(i => i + 1); // 所有舊索引 +1
+            // 隨機插入 0 (新筆記永遠是 index 0)
+            const insertPos = deckPointer + Math.floor(Math.random() * (newDeck.length - deckPointer + 1));
+            newDeck.splice(insertPos, 0, 0);
             
-            nextDeck.splice(insertPos, 0, 0);
+            setShuffleDeck(newDeck);
+            // 如果是新增，直接跳到第一張
+            setCurrentIndex(0);
             
-            setCurrentIndex(0); 
             showNotification("新筆記已建立 (同步中...)");
-        } else {
-            // === 強制的【修改】模式 ===
-            const editedNote = { 
-                ...updatedNote, 
-                // 確保 ID 為字串
-                id: String(updatedNote.id),
-                userId: user.uid, // 確保 userId 存在
-                // 如果是舊筆記，保留原有的 createdDate
-                createdDate: updatedNote.createdDate || now, 
-                modifiedDate: now 
-            };
-            
-            // 更新列表中的該筆記
-            nextNotes = notes.map(n => String(n.id) === String(editedNote.id) ? editedNote : n);
-            setFavorites(prev => prev.map(f => String(f.id) === String(editedNote.id) ? { ...f, ...editedNote } : f));
-            targetId = editedNote.id;
-            
-            showNotification("筆記已更新 (同步中...)");
         }
         
         setNotes(nextNotes);
-        setShuffleDeck(nextDeck);
-        setDeckPointer(nextPointer);
         
+        // 3. 執行雲端儲存
         try {
-            const noteToSave = nextNotes.find(n => String(n.id) === String(targetId));
+            const noteToSave = nextNotes.find(n => String(n.id) === String(finalId));
             if (noteToSave) {
-                await window.fs.setDoc(window.fs.doc(window.db, "notes", String(targetId)), noteToSave);
+                await window.fs.setDoc(window.fs.doc(window.db, "notes", String(finalId)), noteToSave);
                 console.log("✅ 雲端儲存成功");
             }
         } catch (e) {
@@ -2749,27 +2751,28 @@ function EchoScriptApp() {
             showNotification("⚠️ 雲端儲存失敗");
         }
         
-        // [User ID] 設定檔儲存
-        // [Isolation] Deck 與 Pointer 已由 useEffect 自動監聽並寫入正確的 Key (echoScript_ShuffleDeck_UID)，此處無需重複寫入
-        
         // [Isolation] 確保 ResumeNoteId 寫入
-        localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(targetId));
-        
+        localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(finalId));
         if (window.fs && window.db && user) {
-            window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(targetId) }, { merge: true });
+            window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(finalId) }, { merge: true });
         }
         
-        const savedNote = nextNotes.find(n => String(n.id) === String(targetId));
+        const savedNote = nextNotes.find(n => String(n.id) === String(finalId));
         if (savedNote) addToHistory(savedNote);
 
-        const savedIndex = nextNotes.findIndex(n => String(n.id) === String(targetId));
-        if (savedIndex !== -1) setCurrentIndex(savedIndex);
+        // 如果是修改，保持在當前頁面；如果是新增，上面已經設為 0
+        if (existingIndex !== -1) {
+            const newIdx = nextNotes.findIndex(n => String(n.id) === String(finalId));
+            if (newIdx !== -1) setCurrentIndex(newIdx);
+        }
 
         setHasDataChangedInSession(true); 
         
-        // [修正] 成功儲存後，務必重置「新增模式」開關，避免下次誤判
+        // 重置狀態
         setIsCreatingNew(false);
+        setNewNoteTemplate(null);
 
+        // 關閉視窗邏輯
         const stepsBack = showAllNotesModal ? -2 : -1;
         setShowEditModal(false);
         setShowAllNotesModal(false);
@@ -2921,14 +2924,13 @@ function EchoScriptApp() {
             }
 
             // 1. 執行刪除 (更新筆記列表)
-            // [關鍵修正] 使用 filter 確保移除所有相同 ID (解決重複顯示導致的索引錯亂)
+            // 使用 filter 會移除「所有」ID 相同的卡片，這能自動修復之前產生的重複卡片問題
             const newNotes = notes.filter(n => String(n.id) !== String(id));
             setNotes(newNotes);
 
-            // [修正] 同步從編輯歷史中移除該筆記 (Isolation)
+            // [修正] 同步從編輯歷史中移除該筆記
             setHistory(prevHistory => {
                 const validHistory = Array.isArray(prevHistory) ? prevHistory : [];
-                // 確保歷史紀錄不包含已刪除的 ID
                 const newHistory = validHistory.filter(h => String(h.id) !== String(id));
                 
                 if(user) localStorage.setItem(`echoScript_History_${user.uid}`, JSON.stringify(newHistory));
@@ -2942,7 +2944,7 @@ function EchoScriptApp() {
                 return newHistory;
             });
 
-            // [新增] 同步刪除雲端資料 (Firestore) - 從 notes 集合中移除
+            // 同步刪除雲端資料
             try {
                 if (window.fs && window.db) {
                     window.fs.deleteDoc(window.fs.doc(window.db, "notes", String(id)));
@@ -2953,15 +2955,12 @@ function EchoScriptApp() {
                 showNotification("⚠️ 雲端同步失敗，請檢查網路");
             }
             
-            // 2. 處理畫面顯示與導航邏輯
-            // [關鍵修正] 刪除筆記後，強制「重置」洗牌堆 (Shuffle Deck)，而不是嘗試修補它
-            // 這能徹底解決因為索引錯位 (Index Mismatch) 導致刪除 A 卻消失 H 的嚴重 Bug
-            let nextIdx = -1;
+            // 2. 處理畫面顯示與導航邏輯 (安全索引計算)
+            let nextIdx = 0;
             const isDeletingPinned = String(id) === String(pinnedNoteId);
 
             if (isDeletingPinned) {
                 setPinnedNoteId(null);
-                // [Isolation] 移除專屬 PinnedId
                 if(user) localStorage.removeItem(`echoScript_PinnedId_${user.uid}`);
                 if (window.fs && window.db && user) {
                     window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { pinnedNoteId: null }, { merge: true });
@@ -2972,6 +2971,7 @@ function EchoScriptApp() {
                 if(user) localStorage.removeItem(`echoScript_ResumeNoteId_${user.uid}`);
             
             } else if (newNotes.length > 0) {
+                // 嘗試尋找最新的筆記作為停留點
                 const latestNote = [...newNotes].sort((a, b) => {
                     const timeA = new Date(a.modifiedDate || a.createdDate || 0).getTime();
                     const timeB = new Date(b.modifiedDate || b.createdDate || 0).getTime();
@@ -2980,8 +2980,10 @@ function EchoScriptApp() {
                 
                 if (latestNote) {
                     nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
+                    // [關鍵修正] 安全檢查：如果找不到索引，或者索引超出範圍，強制歸零
+                    if (nextIdx === -1 || nextIdx >= newNotes.length) nextIdx = 0;
+
                     const targetId = String(latestNote.id);
-                    // [Isolation] 修正為專屬 Key
                     if (user) localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, targetId);
                     if (window.fs && window.db && user) {
                         window.fs.setDoc(
@@ -2994,18 +2996,14 @@ function EchoScriptApp() {
                 setShowPinnedPlaceholder(false);
             
             } else {
+                // 筆記已清空
                 setShowPinnedPlaceholder(false);
                 nextIdx = -1;
-                // [Isolation] 修正為專屬 Key
                 if (user) localStorage.removeItem(`echoScript_ResumeNoteId_${user.uid}`);
             }
             
-            setCurrentIndex(nextIdx);
-            setShowEditModal(false);
-
             // 3. 重建洗牌堆 (Deck Rebuild)
-            // 這是修復「隨機消失」的核心：不再依賴舊的 Index，而是根據新的 newNotes 重新生成
-            // 這樣可以確保隨機播放清單絕對指向正確的筆記
+            // 根據「刪除後」的實際數量重建，確保索引絕對安全
             const newDeck = Array.from({ length: newNotes.length }, (_, i) => i);
             // 簡單洗牌
             for (let i = newDeck.length - 1; i > 0; i--) {
@@ -3013,9 +3011,12 @@ function EchoScriptApp() {
                 [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
             }
 
+            // [關鍵順序] 先設定索引，再設定洗牌堆，避免 React 渲染時使用了舊 Deck 對應新 Index
+            setCurrentIndex(nextIdx);
             setShuffleDeck(newDeck);
-            setDeckPointer(0); // 重置指針
+            setDeckPointer(0);
 
+            setShowEditModal(false);
             setHasDataChangedInSession(true);
             showNotification("筆記已移至垃圾桶");
         }
@@ -4318,6 +4319,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

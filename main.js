@@ -378,6 +378,9 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
 // === 4. Markdown 編輯器組件 (整合高亮編輯器) ===
 // 修改：加入 setHasUnsavedChanges 參數，並監聽內容變更
 const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges, theme }) => {
+    // [新增] 使用 Ref 鎖定 ID，確保它在編輯過程中絕對不會遺失或改變
+    const originalIdRef = useRef(note?.id);
+
     const [formData, setFormData] = useState({
         superCategory: note?.superCategory || "其他", // [新增] 總分類 (預設為其他)
         category: note?.category || "",
@@ -521,10 +524,9 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
     const handleSave = () => {
         if (!formData.title || !formData.content) { alert("請至少填寫標題和內容"); return; }
         
-        // [修正] 移除舊版「流水號 ID」生成邏輯 (maxId + 1)
-        // 改為傳遞 null/undefined，讓主程式的 handleSaveNote 自動使用 Date.now() 生成時間戳 ID
-        // 這能避免在多裝置同時新增筆記時發生 ID 衝突 (例如兩台裝置都搶著用 ID: 11)
-        let finalId = note?.id;
+        // [修正] 從 Ref 讀取最原始的 ID，而不是依賴可能變動的 props
+        // 如果是編輯舊筆記，originalIdRef.current 一定會有值，絕不會掉
+        let finalId = originalIdRef.current;
 
         onSave({ ...note, ...formData, id: finalId });
     };
@@ -2746,17 +2748,7 @@ function EchoScriptApp() {
         // === ID 救援行動 ===
         // 1. 先嘗試直接讀取 ID
         let targetId = updatedNote.id ? String(updatedNote.id) : null;
-        
-        // 2. 如果 ID 不見了 (例如核取方塊編輯時 ID 遺失)，我們嘗試用 createdDate (建立時間) 來認人
-        // 因為每張筆記的建立時間幾乎是唯一的，這比 ID 還可靠
-        if (!targetId && updatedNote.createdDate) {
-            const match = notes.find(n => n.createdDate === updatedNote.createdDate);
-            if (match) {
-                targetId = String(match.id);
-                console.log("⚠️ 偵測到 ID 遺失，已透過建立時間找回 ID:", targetId);
-            }
-        }
-
+                
         // 3. 再次確認：資料庫裡到底有沒有這張卡片？
         const existingIndex = targetId ? notes.findIndex(n => String(n.id) === targetId) : -1;
         
@@ -4342,6 +4334,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

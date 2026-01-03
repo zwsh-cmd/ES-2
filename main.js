@@ -2740,7 +2740,7 @@ function EchoScriptApp() {
         }, 300);
     };
 
-    // [最終修正] 智慧型儲存邏輯：包含 ID 救援機制與防跳轉修正
+    // [最終修正] 智慧型儲存邏輯：採用「樂觀 UI 更新」策略，解決儲存跳轉問題
     const handleSaveNote = async (updatedNote) => {
         if (!user) return; 
         const now = new Date().toISOString();
@@ -2798,19 +2798,44 @@ function EchoScriptApp() {
             showNotification("新筆記已建立");
         }
         
-        // [關鍵修正] 在更新 State 與寫入雲端之前，立刻更新本地 ResumeID
-        // 這能防止雲端 onSnapshot 回調時讀取到舊的 ID，導致跳轉回上一張卡片
+        // [關鍵修正] 1. 立即寫入 Local ResumeID (最優先)
         if (finalId) {
             localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(finalId));
-            // 同步更新雲端設定
-            if (window.fs && window.db && user) {
-                window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(finalId) }, { merge: true }).catch(e => {});
-            }
         }
 
+        // [關鍵修正] 2. 立即更新本地 UI 狀態 (React State)
         setNotes(nextNotes);
+        if (existingIndex !== -1) {
+            // 確保修改後，當前 Index 依然指在正確的卡片上
+            const newIdx = nextNotes.findIndex(n => String(n.id) === String(finalId));
+            if (newIdx !== -1) setCurrentIndex(newIdx);
+        }
         
+        const savedNote = nextNotes.find(n => String(n.id) === String(finalId));
+        if (savedNote) addToHistory(savedNote);
+
+        setHasDataChangedInSession(true); 
+        setIsCreatingNew(false);
+        setNewNoteTemplate(null);
+
+        // [關鍵修正] 3. 立即執行導航與關閉視窗 (Synchronous)
+        // 我們不等待雲端回應，直接關閉視窗，這樣使用者體驗最順暢，且不會受非同步延遲影響
+        const stepsBack = showAllNotesModal ? -2 : -1;
+        setShowEditModal(false);
+        setShowAllNotesModal(false);
+
+        ignoreNextPopState.current = true;
+        window.history.go(stepsBack);
+
+        // [關鍵修正] 4. 最後才在背景執行雲端同步 (Async)
+        // 就算這裡網路慢，UI 已經都處理好了，不會跳轉亂掉
         try {
+            // 同步 Settings (ResumeID)
+            if (finalId && window.fs && window.db && user) {
+                window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(finalId) }, { merge: true }).catch(e => {});
+            }
+
+            // 同步 Notes
             const noteToSave = nextNotes.find(n => String(n.id) === String(finalId));
             if (noteToSave) {
                 await window.fs.setDoc(window.fs.doc(window.db, "notes", String(finalId)), noteToSave);
@@ -2819,26 +2844,6 @@ function EchoScriptApp() {
             console.error(e);
             showNotification("⚠️ 雲端儲存失敗");
         }
-        
-        const savedNote = nextNotes.find(n => String(n.id) === String(finalId));
-        if (savedNote) addToHistory(savedNote);
-
-        if (existingIndex !== -1) {
-            const newIdx = nextNotes.findIndex(n => String(n.id) === String(finalId));
-            if (newIdx !== -1) setCurrentIndex(newIdx);
-        }
-
-        setHasDataChangedInSession(true); 
-        setIsCreatingNew(false);
-        setNewNoteTemplate(null);
-
-        // 關閉視窗並清理歷史堆疊
-        const stepsBack = showAllNotesModal ? -2 : -1;
-        setShowEditModal(false);
-        setShowAllNotesModal(false);
-
-        ignoreNextPopState.current = true;
-        window.history.go(stepsBack);
     };
 
     // [新增] 通用復原功能 (支援筆記與分類資料夾)
@@ -4341,6 +4346,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2740,7 +2740,7 @@ function EchoScriptApp() {
         }, 300);
     };
 
-    // [最終修正] 智慧型儲存邏輯：包含 ID 救援機制 (透過建立時間找回遺失的 ID)
+    // [最終修正] 智慧型儲存邏輯：包含 ID 救援機制與防跳轉修正
     const handleSaveNote = async (updatedNote) => {
         if (!user) return; 
         const now = new Date().toISOString();
@@ -2748,7 +2748,7 @@ function EchoScriptApp() {
         // === ID 救援行動 ===
         // 1. 先嘗試直接讀取 ID
         let targetId = updatedNote.id ? String(updatedNote.id) : null;
-                
+        
         // 3. 再次確認：資料庫裡到底有沒有這張卡片？
         const existingIndex = targetId ? notes.findIndex(n => String(n.id) === targetId) : -1;
         
@@ -2775,7 +2775,6 @@ function EchoScriptApp() {
             
         } else {
             // === 【真正的新增模式】 ===
-            // 只有在 ID 真的找不到，且連建立時間都對不上時，才允許新增
             finalId = String(Date.now()); 
             
             const newNote = { 
@@ -2799,6 +2798,16 @@ function EchoScriptApp() {
             showNotification("新筆記已建立");
         }
         
+        // [關鍵修正] 在更新 State 與寫入雲端之前，立刻更新本地 ResumeID
+        // 這能防止雲端 onSnapshot 回調時讀取到舊的 ID，導致跳轉回上一張卡片
+        if (finalId) {
+            localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(finalId));
+            // 同步更新雲端設定
+            if (window.fs && window.db && user) {
+                window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(finalId) }, { merge: true }).catch(e => {});
+            }
+        }
+
         setNotes(nextNotes);
         
         try {
@@ -2811,14 +2820,6 @@ function EchoScriptApp() {
             showNotification("⚠️ 雲端儲存失敗");
         }
         
-        // [Isolation] 寫入 ResumeNoteId
-        if (finalId) {
-            localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, String(finalId));
-            if (window.fs && window.db && user) {
-                window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: String(finalId) }, { merge: true });
-            }
-        }
-
         const savedNote = nextNotes.find(n => String(n.id) === String(finalId));
         if (savedNote) addToHistory(savedNote);
 
@@ -2831,6 +2832,7 @@ function EchoScriptApp() {
         setIsCreatingNew(false);
         setNewNoteTemplate(null);
 
+        // 關閉視窗並清理歷史堆疊
         const stepsBack = showAllNotesModal ? -2 : -1;
         setShowEditModal(false);
         setShowAllNotesModal(false);
@@ -4200,21 +4202,26 @@ function EchoScriptApp() {
                             <button 
                                 onClick={() => {
                                     // 1. 解除未存檔狀態
-                                    hasUnsavedChangesRef.current = false; // 手動更新 Ref 確保同步
+                                    hasUnsavedChangesRef.current = false;
                                     setHasUnsavedChanges(false);
                                     setShowUnsavedAlert(false);
                                     
-                                    // 2. 關閉所有編輯視窗
+                                    // 2. 計算需要退回的層級 (與儲存邏輯一致)
+                                    // 如果是從列表開啟的(-2)，如果是從卡片開啟的(-1)
+                                    const stepsBack = showAllNotesModal ? -2 : -1;
+
+                                    // 3. 強制關閉所有視窗 (確保 UI 停留在當前卡片)
                                     setShowMenuModal(false);
                                     setShowAllNotesModal(false);
                                     setAllNotesViewLevel('categories');
                                     setShowEditModal(false);
                                     setShowResponseModal(false);
                                     setResponseViewMode('list');
-
-                                    // 3. 模擬「確定離開」，退回上一頁 (抵銷剛剛為了攔截而 pushState 的那一層)
-                                    // 這樣使用者就會回到列表頁，感覺像是「真的退出了」
-                                    window.history.back();
+                                    
+                                    // [關鍵修正] 使用 ignoreNextPopState 防止自動導航干擾
+                                    // 手動控制歷史堆疊清理，確保畫面穩定的停留在當前卡片
+                                    ignoreNextPopState.current = true;
+                                    window.history.go(stepsBack);
                                 }} 
                                 className="flex-1 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg font-bold transition-colors"
                             >
@@ -4334,6 +4341,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

@@ -2777,8 +2777,11 @@ function EchoScriptApp() {
             // === 【真正的新增模式】 ===
             finalId = String(Date.now()); 
             
+            // [修正] 強制解構移除來源可能夾帶的 createdDate，確保新筆記絕對使用當下時間
+            const { createdDate, ...cleanNoteData } = updatedNote;
+            
             const newNote = { 
-                ...updatedNote, 
+                ...cleanNoteData, 
                 id: finalId, 
                 userId: user.uid, 
                 createdDate: now, 
@@ -4346,6 +4349,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

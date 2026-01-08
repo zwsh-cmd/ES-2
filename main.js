@@ -528,7 +528,10 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
         // 如果是編輯舊筆記，originalIdRef.current 一定會有值，絕不會掉
         let finalId = originalIdRef.current;
 
-        onSave({ ...note, ...formData, id: finalId });
+        // [修復] 僅回傳 formData (編輯的內容) 與 ID，絕對不要展開 ...note
+        // 這防止了當背景列表更新導致 props.note 被替換成別張卡片時，
+        // 錯誤地將別張卡片的 createdDate 或 responses 寫入當前筆記
+        onSave({ ...formData, id: finalId });
     };
 
     // 內部的關閉按鈕邏輯 (備用，主要依賴主程式的攔截)
@@ -2252,37 +2255,8 @@ function EchoScriptApp() {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const cloudNotes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // === [新增] 自動修復機制：檢查並修正重複的「建立時間」 ===
-            // 這能解決舊的備份副本與原版筆記「出生時間」相同，導致刪除/編輯時系統認錯人的問題
-            const seenDates = new Set();
-            let hasAutoFixed = false;
-
-            cloudNotes.forEach(note => {
-                if (note.createdDate) {
-                    if (seenDates.has(note.createdDate)) {
-                        // 發現雙胞胎！(重複的時間戳記)
-                        console.log(`🔧 自動修復重複時間戳: ${note.title}`);
-                        
-                        // 自動微調 1~999 毫秒，確保它們變為獨立個體
-                        // 不會影響排序，但能讓系統區分它們是不同的筆記
-                        const fixDate = new Date(new Date(note.createdDate).getTime() + Math.floor(Math.random() * 999) + 1).toISOString();
-                        
-                        // 靜默寫回雲端 (這會觸發下一次更新，完成修復)
-                        window.fs.setDoc(window.fs.doc(window.db, "notes", String(note.id)), { 
-                            createdDate: fixDate,
-                            modifiedDate: fixDate 
-                        }, { merge: true }).catch(e => console.error("Auto-fix failed", e));
-                        
-                        hasAutoFixed = true;
-                    } else {
-                        seenDates.add(note.createdDate);
-                    }
-                }
-            });
-
-            // 如果正在執行修復，我們先不更新畫面，等修復後的資料流回來 (避免畫面閃爍)
-            if (hasAutoFixed) return;
-
+            // [修復] 移除自動修復機制，避免列表在背景自動重整導致編輯時發生錯位 (Soul Swap)
+            
             // [初始化] 針對該 User 的初始化 (使用 localStorage Key 區隔)
             const initKey = `echoScript_Init_${user.uid}`;
             if (cloudNotes.length === 0 && !localStorage.getItem(initKey)) {
@@ -2775,7 +2749,8 @@ function EchoScriptApp() {
             
         } else {
             // === 【真正的新增模式】 ===
-            finalId = String(Date.now()); 
+            // [修復] 加入隨機後綴，確保 ID 絕對唯一，防止高速建立時發生衝突
+            finalId = String(Date.now()) + '-' + Math.random().toString(36).substr(2, 5);
             
             // [修正] 強制解構移除來源可能夾帶的 createdDate，確保新筆記絕對使用當下時間
             const { createdDate, ...cleanNoteData } = updatedNote;
@@ -4349,6 +4324,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

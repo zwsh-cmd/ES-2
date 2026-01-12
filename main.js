@@ -1643,9 +1643,7 @@ const LoginScreen = ({ onLogin, theme }) => {
         <div className={`min-h-screen ${theme.bg} flex flex-col items-center justify-center p-4 transition-colors duration-300`}>
             <div className={`${theme.card} p-8 rounded-2xl shadow-2xl border ${theme.border} max-w-sm w-full text-center`}>
                 <div className="mb-6 flex justify-center">
-                    <div className={`w-16 h-16 rounded-2xl ${theme.accent} flex items-center justify-center text-white`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                    </div>
+                    <img src="icon.png" className="w-20 h-20 rounded-2xl object-cover shadow-sm" alt="EchoScript" />
                 </div>
                 <h1 className={`text-2xl font-bold ${theme.text} mb-2`}>EchoScript</h1>
                 <p className={`text-sm ${theme.subtext} mb-8`}>您的雲端靈感筆記庫</p>
@@ -4324,6 +4322,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

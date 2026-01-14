@@ -697,6 +697,10 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
     const [editText, setEditText] = useState("");
     const [originalText, setOriginalText] = useState("");
 
+    // [新增] 自定義提示框狀態與暫存動作
+    const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
+    const [pendingAction, setPendingAction] = useState(null);
+
     // 新增：監聽內容變更，回報給主程式
     useEffect(() => {
         const isDirty = viewMode === 'edit' && editText !== originalText;
@@ -728,9 +732,9 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
     // 內部的檢查邏輯 (點擊背景或按鈕時使用)
     const handleCheckUnsaved = (action) => {
         if (viewMode === 'edit' && editText !== originalText) {
-            if (confirm("編輯內容還未存檔，是否離開？")) {
-                action();
-            }
+            // [修改] 改為觸發自定義提示框，而非原生 confirm
+            setPendingAction(() => action);
+            setShowUnsavedAlert(true);
         } else {
             action();
         }
@@ -801,6 +805,36 @@ const ResponseModal = ({ note, responses = [], onClose, onSave, onDelete, viewMo
                     )}
                 </div>
             </div>
+
+            {/* [新增] 尚未存檔提示框 (完全採用與 App 一致的樣式) */}
+            {showUnsavedAlert && (
+                <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowUnsavedAlert(false); }}>
+                    <div className="bg-white rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95">
+                        <h3 className="font-bold text-lg mb-2 text-stone-800">尚未存檔</h3>
+                        <p className="text-sm text-stone-600 mb-6">您有變更尚未儲存，確定要直接離開嗎？</p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => {
+                                    setShowUnsavedAlert(false);
+                                    setPendingAction(null);
+                                }}
+                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-700 hover:bg-stone-200 rounded-lg font-bold transition-colors"
+                            >
+                                繼續編輯
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setShowUnsavedAlert(false);
+                                    if (pendingAction) pendingAction();
+                                }} 
+                                className="flex-1 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg font-bold transition-colors"
+                            >
+                                確定離開
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -4342,6 +4376,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

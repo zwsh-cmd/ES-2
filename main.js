@@ -390,7 +390,7 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
 
 // === 4. Markdown 編輯器組件 (整合高亮編輯器) ===
 // 修改：加入 setHasUnsavedChanges 參數，並監聽內容變更
-const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges, theme }) => {
+const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges, theme, triggerUnsavedAlert }) => {
     // [新增] 使用 Ref 鎖定 ID，確保它在編輯過程中絕對不會遺失或改變
     const originalIdRef = useRef(note?.id);
 
@@ -561,8 +561,14 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
             formData.content !== initialContent;
 
         if (hasChanges) {
-            if (confirm("編輯內容還未存檔，是否離開？")) {
-                onClose();
+            // [修改] 改用 triggerUnsavedAlert 呼叫統一的未存檔提示框
+            if (triggerUnsavedAlert) {
+                triggerUnsavedAlert();
+            } else {
+                // Fallback (保留以防萬一)
+                if (confirm("編輯內容還未存檔，是否離開？")) {
+                    onClose();
+                }
             }
         } else {
             onClose();
@@ -4108,6 +4114,7 @@ function EchoScriptApp() {
                     onSave={(data) => { handleSaveNote(data); setHasUnsavedChanges(false); setNewNoteTemplate(null); }} 
                     onDelete={() => { handleDeleteNote(currentNote?.id); setHasUnsavedChanges(false); }}
                     setHasUnsavedChanges={setHasUnsavedChanges}
+                    triggerUnsavedAlert={() => setShowUnsavedAlert(true)}
                     theme={theme}
                 />
             )}
@@ -4335,6 +4342,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

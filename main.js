@@ -173,31 +173,44 @@ class ErrorBoundary extends React.Component {
 // === 新增：Markdown 渲染器元件 (顯示預覽用) ===
 const MarkdownRenderer = ({ content, onCheckboxChange }) => { // [修改] 接收 onCheckboxChange
     const parseInline = (text) => {
-        // 新增支援 *斜體* 與 <u>底線</u>
-        const parts = text.split(/(\*\*.*?\*\*|~~.*?~~|\*.*?\*|<u>.*?<\/u>)/g);
+        // [新增] 同時支援 Markdown 語法與 URL 自動偵測
+        const parts = text.split(/(\*\*.*?\*\*|~~.*?~~|\*.*?\*|<u>.*?<\/u>|(https?:\/\/[^\s]+))/g);
         return parts.map((part, index) => {
+            if (!part) return null;
             if (part.startsWith('**') && part.endsWith('**')) {
-                // [修正] 移除寫死的 text-stone-900，改為繼承顏色
                 return <strong key={index} className="font-extrabold">{part.slice(2, -2)}</strong>;
             }
             if (part.startsWith('~~') && part.endsWith('~~')) {
                 return <del key={index} className="opacity-50">{part.slice(2, -2)}</del>;
             }
             if (part.startsWith('*') && part.endsWith('*')) {
-                // [修正] 移除 text-stone-600
                 return <em key={index} className="italic opacity-80">{part.slice(1, -1)}</em>;
             }
             if (part.startsWith('<u>') && part.endsWith('</u>')) {
-                // [修正] 裝飾線改為 current color
                 return <u key={index} className="underline decoration-current underline-offset-4">{part.slice(3, -4)}</u>;
+            }
+            // [新增] 偵測並渲染可點擊的連結，使用 break-all 避免裁切
+            if (part.startsWith('http')) {
+                return (
+                    <a 
+                        key={index} 
+                        href={part} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-blue-500 underline break-all hover:text-blue-600 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {part}
+                    </a>
+                );
             }
             return part;
         });
     };
 
     return (
-        // [修正] 移除外層 div 寫死的 text-stone-700
-        <div className="text-base leading-loose font-sans text-justify whitespace-pre-wrap">
+        // [修改] 加入 break-words 確保長網址或連續字元不會撐破容器
+        <div className="text-base leading-loose font-sans text-justify whitespace-pre-wrap break-words">
             {content.split('\n').map((line, i) => {
                 // [修正] 標題與引用移除寫死顏色，改用 opacity 區分層次
                 if (line.startsWith('# ')) return <h1 key={i} className="text-xl font-bold mt-5 mb-3">{parseInline(line.slice(2))}</h1>;
@@ -4322,6 +4335,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

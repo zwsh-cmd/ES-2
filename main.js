@@ -3693,7 +3693,7 @@ function EchoScriptApp() {
     return (
         <div className={`min-h-screen ${theme.bg} ${theme.text} font-sans pb-20 transition-colors duration-300`} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
             <nav className={`sticky top-0 z-30 ${theme.bg}/90 backdrop-blur-md px-6 py-4 flex justify-between items-center border-b ${theme.border}`}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={handleGoHome} title="回到首頁">
                     {/* [修改] Icon 尺寸由 w-8 h-8 改為 w-10 h-10 (放大約 1.2 倍) */}
                     <img src="icon.png" className="w-10 h-10 rounded-lg object-cover" alt="App Icon" />
                     <h1 className={`text-lg font-bold tracking-tight ${theme.text}`}>EchoScript</h1>
@@ -4376,6 +4376,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

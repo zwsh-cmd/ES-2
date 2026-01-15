@@ -2142,6 +2142,10 @@ function EchoScriptApp() {
     const [showDeleteNoteAlert, setShowDeleteNoteAlert] = useState(false);
     const [noteIdToDelete, setNoteIdToDelete] = useState(null);
 
+    // [新增] 分類刪除確認視窗狀態
+    const [showDeleteCategoryAlert, setShowDeleteCategoryAlert] = useState(false);
+    const [categoryToDelete, setCategoryToDelete] = useState(null);
+
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
     useEffect(() => { hasDataChangedInSessionRef.current = hasDataChangedInSession; }, [hasDataChangedInSession]);
@@ -3112,106 +3116,127 @@ function EchoScriptApp() {
         setNoteIdToDelete(null);
     };
 
-// [新增] 階層式分類刪除功能
+// [修改] 階層式分類刪除功能 - 步驟 1: 觸發確認視窗
     const handleDeleteCategory = (type, name) => {
-        // 確認刪除範圍與筆記
         let targetNotes = [];
-        let confirmMsg = "";
         
         // 根據當前選擇的 context 來篩選 (依賴主程式的 selectedSuper/Category 狀態)
         if (type === 'superCategory') {
             targetNotes = notes.filter(n => (n.superCategory || "其他") === name);
-            confirmMsg = `確定要刪除總分類「${name}」嗎？\n這將會同時刪除其下的 ${targetNotes.length} 則筆記。`;
         } else if (type === 'category') {
             targetNotes = notes.filter(n => (n.superCategory || "其他") === selectedSuper && (n.category || "未分類") === name);
-            confirmMsg = `確定要刪除大分類「${name}」嗎？\n這將會同時刪除其下的 ${targetNotes.length} 則筆記。`;
         } else if (type === 'subcategory') {
             targetNotes = notes.filter(n => 
                 (n.superCategory || "其他") === selectedSuper && 
                 (n.category || "未分類") === selectedCategory && 
                 (n.subcategory || "一般") === name
             );
-            confirmMsg = `確定要刪除次分類「${name}」嗎？\n這將會同時刪除其下的 ${targetNotes.length} 則筆記。`;
         }
 
-        if (confirm(confirmMsg)) {
-            // 1. 建立「資料夾」形式的垃圾桶物件
-            const trashFolder = {
-                id: `folder-${Date.now()}`,
-                isFolder: true,
-                type: 'folder',
-                level: type,
-                title: name, // 顯示名稱
-                context: { super: selectedSuper, category: selectedCategory }, // 保存刪除時的父層路徑以便還原
-                deletedAt: new Date().toISOString(),
-                notes: targetNotes.map(n => ({ ...n, deletedAt: new Date().toISOString() })) // 將筆記打包
-            };
+        // 設定暫存狀態並開啟視窗
+        setCategoryToDelete({ type, name, count: targetNotes.length });
+        setShowDeleteCategoryAlert(true);
+    };
 
-            // 2. 更新垃圾桶
-            const newTrash = [trashFolder, ...trash];
-            setTrash(newTrash);
+    // [新增] 階層式分類刪除功能 - 步驟 2: 執行刪除
+    const executeDeleteCategory = () => {
+        if (!categoryToDelete) return;
+        const { type, name } = categoryToDelete;
 
-            // 3. 更新筆記列表 (移除被打包的筆記)
-            const targetIds = new Set(targetNotes.map(n => String(n.id)));
-            const newNotes = notes.filter(n => !targetIds.has(String(n.id)));
-            setNotes(newNotes);
+        let targetNotes = [];
+        // 重新執行篩選邏輯
+        if (type === 'superCategory') {
+            targetNotes = notes.filter(n => (n.superCategory || "其他") === name);
+        } else if (type === 'category') {
+            targetNotes = notes.filter(n => (n.superCategory || "其他") === selectedSuper && (n.category || "未分類") === name);
+        } else if (type === 'subcategory') {
+            targetNotes = notes.filter(n => 
+                (n.superCategory || "其他") === selectedSuper && 
+                (n.category || "未分類") === selectedCategory && 
+                (n.subcategory || "一般") === name
+            );
+        }
 
-            // 4. 更新分類地圖 (移除該分類) - Isolation: layout_UID
-            const promises = [];
-            if (window.fs && window.db && user) {
-                if (type === 'superCategory') {
-                    const newMap = { ...superCategoryMap }; delete newMap[name]; 
-                    setSuperCategoryMap(newMap);
-                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
-                } else if (type === 'category') {
-                    // 移除大分類地圖
-                    const newCatMap = { ...categoryMap }; delete newCatMap[name];
-                    setCategoryMap(newCatMap);
-                    // 移除總分類關聯
-                    const newSuperMap = { ...superCategoryMap };
-                    if (newSuperMap[selectedSuper]) newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== name);
-                    setSuperCategoryMap(newSuperMap);
-                    
-                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { 
-                        categoryMapJSON: JSON.stringify(newCatMap),
-                        superCategoryMapJSON: JSON.stringify(newSuperMap)
-                    }, { merge: true }));
-                    
-                } else if (type === 'subcategory') {
-                    const newMap = { ...categoryMap }; 
-                    if (newMap[selectedCategory]) newMap[selectedCategory] = newMap[selectedCategory].filter(s => s !== name);
-                    setCategoryMap(newMap);
-                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { categoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
-                }
+        // 1. 建立「資料夾」形式的垃圾桶物件
+        const trashFolder = {
+            id: `folder-${Date.now()}`,
+            isFolder: true,
+            type: 'folder',
+            level: type,
+            title: name, // 顯示名稱
+            context: { super: selectedSuper, category: selectedCategory }, // 保存刪除時的父層路徑以便還原
+            deletedAt: new Date().toISOString(),
+            notes: targetNotes.map(n => ({ ...n, deletedAt: new Date().toISOString() })) // 將筆記打包
+        };
 
-                // 5. 同步垃圾桶與刪除雲端筆記 - Isolation: trash_UID
-                // 更新垃圾桶
-                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `trash_${user.uid}`), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
+        // 2. 更新垃圾桶
+        const newTrash = [trashFolder, ...trash];
+        setTrash(newTrash);
+
+        // 3. 更新筆記列表 (移除被打包的筆記)
+        const targetIds = new Set(targetNotes.map(n => String(n.id)));
+        const newNotes = notes.filter(n => !targetIds.has(String(n.id)));
+        setNotes(newNotes);
+
+        // 4. 更新分類地圖 (移除該分類) - Isolation: layout_UID
+        const promises = [];
+        if (window.fs && window.db && user) {
+            if (type === 'superCategory') {
+                const newMap = { ...superCategoryMap }; delete newMap[name]; 
+                setSuperCategoryMap(newMap);
+                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+            } else if (type === 'category') {
+                // 移除大分類地圖
+                const newCatMap = { ...categoryMap }; delete newCatMap[name];
+                setCategoryMap(newCatMap);
+                // 移除總分類關聯
+                const newSuperMap = { ...superCategoryMap };
+                if (newSuperMap[selectedSuper]) newSuperMap[selectedSuper] = newSuperMap[selectedSuper].filter(c => c !== name);
+                setSuperCategoryMap(newSuperMap);
                 
-                // 批量刪除雲端筆記
-                targetNotes.forEach(n => {
-                    promises.push(window.fs.deleteDoc(window.fs.doc(window.db, "notes", String(n.id))));
-                });
-
-                Promise.all(promises)
-                    .then(() => console.log("✅ 分類刪除同步完成"))
-                    .catch(e => console.error("分類刪除同步失敗", e));
+                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { 
+                    categoryMapJSON: JSON.stringify(newCatMap),
+                    superCategoryMapJSON: JSON.stringify(newSuperMap)
+                }, { merge: true }));
+                
+            } else if (type === 'subcategory') {
+                const newMap = { ...categoryMap }; 
+                if (newMap[selectedCategory]) newMap[selectedCategory] = newMap[selectedCategory].filter(s => s !== name);
+                setCategoryMap(newMap);
+                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { categoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
             }
 
-            // 6. [關鍵修正] 強制重建洗牌堆 (避免索引指向已刪除的筆記)
-            // 這一步能確保刪除後不會有「幽靈卡片」或「隨機消失」的問題
-            const newDeck = Array.from({ length: newNotes.length }, (_, i) => i);
-            for (let i = newDeck.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
-            }
-            setShuffleDeck(newDeck);
-            setDeckPointer(0);
-            setCurrentIndex(0); // 重置為第一張
+            // 5. 同步垃圾桶與刪除雲端筆記 - Isolation: trash_UID
+            // 更新垃圾桶
+            promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `trash_${user.uid}`), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
+            
+            // 批量刪除雲端筆記
+            targetNotes.forEach(n => {
+                promises.push(window.fs.deleteDoc(window.fs.doc(window.db, "notes", String(n.id))));
+            });
 
-            setHasDataChangedInSession(true);
-            showNotification("分類及其筆記已移至垃圾桶");
+            Promise.all(promises)
+                .then(() => console.log("✅ 分類刪除同步完成"))
+                .catch(e => console.error("分類刪除同步失敗", e));
         }
+
+        // 6. [關鍵修正] 強制重建洗牌堆 (避免索引指向已刪除的筆記)
+        // 這一步能確保刪除後不會有「幽靈卡片」或「隨機消失」的問題
+        const newDeck = Array.from({ length: newNotes.length }, (_, i) => i);
+        for (let i = newDeck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
+        }
+        setShuffleDeck(newDeck);
+        setDeckPointer(0);
+        setCurrentIndex(0); // 重置為第一張
+
+        setHasDataChangedInSession(true);
+        showNotification("分類及其筆記已移至垃圾桶");
+
+        // 關閉視窗與重置狀態
+        setShowDeleteCategoryAlert(false);
+        setCategoryToDelete(null);
     };
 
     // [新增] 處理釘選/取消釘選
@@ -4414,6 +4439,46 @@ function EchoScriptApp() {
                 </div>
             )}
 
+            {/* [新增] 分類刪除確認浮動視窗 (Z-Index 設為 90) */}
+            {showDeleteCategoryAlert && categoryToDelete && (
+                <div 
+                    className="fixed inset-0 z-[90] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
+                    onClick={(e) => { 
+                        if(e.target === e.currentTarget) {
+                            setShowDeleteCategoryAlert(false);
+                            setCategoryToDelete(null);
+                        }
+                    }}
+                >
+                    <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
+                        <h3 className={`font-bold text-lg mb-2 ${theme.text}`}>
+                            刪除{categoryToDelete.type === 'superCategory' ? '總分類' : categoryToDelete.type === 'category' ? '大分類' : '次分類'}
+                        </h3>
+                        <p className={`text-sm ${theme.subtext} mb-6 leading-relaxed`}>
+                            確定要刪除「{categoryToDelete.name}」嗎？<br/>
+                            這將會同時刪除其下的 {categoryToDelete.count} 則筆記。
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => {
+                                    setShowDeleteCategoryAlert(false);
+                                    setCategoryToDelete(null);
+                                }}
+                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-600 hover:bg-stone-200 rounded-lg font-bold transition-colors text-xs"
+                            >
+                                取消
+                            </button>
+                            <button 
+                                onClick={executeDeleteCategory}
+                                className="flex-1 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg font-bold transition-colors text-xs shadow-md"
+                            >
+                                刪除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* [新增] 抽卡目標選擇選單 */}
             {showShuffleMenu && (
                 <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowShuffleMenu(false); }}>
@@ -4481,6 +4546,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

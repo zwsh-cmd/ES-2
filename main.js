@@ -947,6 +947,9 @@ const AllNotesModal = ({
     const [inputConfig, setInputConfig] = useState(null); 
     const [inputValue, setInputValue] = useState("");
 
+    // [新增] 筆記編輯提示窗狀態
+    const [showNoteEditAlert, setShowNoteEditAlert] = useState(false);
+
     // [新增] 處理長按選單的歷史紀錄與返回鍵 (確保按返回是關閉選單而不是跳轉頁面)
     useEffect(() => {
         if (contextMenu) {
@@ -1311,7 +1314,7 @@ const AllNotesModal = ({
     const handleRename = async () => {
         if (!contextMenu) return;
         const { type, item } = contextMenu;
-        if (type === 'note') { alert("筆記請直接點擊進入編輯模式修改。"); setContextMenu(null); return; }
+        if (type === 'note') { setShowNoteEditAlert(true); setContextMenu(null); return; }
 
         // [修改] 改用自定義視窗取代 prompt
         setInputValue(item); // 預填舊名稱
@@ -1708,6 +1711,31 @@ const AllNotesModal = ({
                                 className={`flex-1 px-4 py-2 ${theme.accent} ${theme.accentText} rounded-lg font-bold transition-colors text-xs shadow-md`}
                             >
                                 確認
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* [新增] 筆記編輯提示視窗 */}
+            {showNoteEditAlert && (
+                <div 
+                    className="fixed inset-0 z-[90] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
+                    onClick={(e) => { 
+                        if(e.target === e.currentTarget) setShowNoteEditAlert(false);
+                    }}
+                >
+                    <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
+                        <h3 className={`font-bold text-lg mb-2 ${theme.text}`}>提示</h3>
+                        <p className={`text-sm ${theme.subtext} mb-6 leading-relaxed`}>
+                            請點擊進入編輯模式修改主旨。
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setShowNoteEditAlert(false)}
+                                className={`flex-1 px-4 py-2 ${theme.accent} ${theme.accentText} rounded-lg font-bold transition-colors text-xs shadow-md`}
+                            >
+                                我知道了
                             </button>
                         </div>
                     </div>
@@ -4614,6 +4642,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

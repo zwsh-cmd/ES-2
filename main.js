@@ -2242,6 +2242,9 @@ function EchoScriptApp() {
     const [showDeleteCategoryAlert, setShowDeleteCategoryAlert] = useState(false);
     const [categoryToDelete, setCategoryToDelete] = useState(null);
 
+    // [新增] 退出應用程式確認視窗狀態
+    const [showExitAlert, setShowExitAlert] = useState(false);
+
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
     useEffect(() => { hasDataChangedInSessionRef.current = hasDataChangedInSession; }, [hasDataChangedInSession]);
@@ -2383,13 +2386,9 @@ function EchoScriptApp() {
             window.history.pushState({ page: 'home_trap', id: Date.now() }, '', '');
 
             
-            // 3. 退出確認提示
+            // 3. 退出確認提示 [修改] 改用自定義視窗
             setTimeout(() => {
-                if (confirm("確定退出EchoScript?")) {
-                    isExitingRef.current = true;
-                    // [修正] 改回標準 -2 (Trap -> Home -> Exit)，配合乾淨的 Save 邏輯
-                    window.history.go(-2);
-                }
+                setShowExitAlert(true);
             }, 10);
         };
 
@@ -4575,6 +4574,41 @@ function EchoScriptApp() {
                 </div>
             )}
 
+            {/* [新增] 退出應用程式確認視窗 (Z-Index 設為 100 確保最高) */}
+            {showExitAlert && (
+                <div 
+                    className="fixed inset-0 z-[100] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
+                    onClick={(e) => { 
+                        if(e.target === e.currentTarget) setShowExitAlert(false);
+                    }}
+                >
+                    <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
+                        <h3 className={`font-bold text-lg mb-2 ${theme.text}`}>離開 EchoScript</h3>
+                        <p className={`text-sm ${theme.subtext} mb-6 leading-relaxed`}>
+                            確定要退出應用程式嗎？
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setShowExitAlert(false)}
+                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-600 hover:bg-stone-200 rounded-lg font-bold transition-colors text-xs"
+                            >
+                                取消
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    isExitingRef.current = true;
+                                    // [修正] 改回標準 -2 (Trap -> Home -> Exit)
+                                    window.history.go(-2);
+                                }}
+                                className="flex-1 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg font-bold transition-colors text-xs shadow-md"
+                            >
+                                確定
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* [新增] 抽卡目標選擇選單 */}
             {showShuffleMenu && (
                 <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowShuffleMenu(false); }}>
@@ -4642,6 +4676,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

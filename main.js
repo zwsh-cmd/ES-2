@@ -870,65 +870,68 @@ const AllNotesModal = ({
         const typeName = viewLevel === 'superCategories' ? '總分類' : 
                          viewLevel === 'categories' ? '大分類' : '次分類';
         
-        // 修改：提示使用者字數限制
-        const newName = prompt(`請輸入新的${typeName}名稱 (最多16字)`);
-        if (!newName || !newName.trim()) return;
+        // [修改] 改用自定義視窗取代 prompt
+        setInputValue(""); // 清空輸入框
+        setInputConfig({
+            title: `新增${typeName}`,
+            placeholder: `請輸入${typeName}名稱 (最多16字)`,
+            callback: async (newName) => {
+                const name = newName.trim();
+                const updates = [];
 
-        const name = newName.trim();
-        // 修改：檢查字數限制
-        if (name.length > 16) { alert("名稱不能超過16個字"); return; }
-        const updates = [];
+                if (viewLevel === 'superCategories') {
+                    if (superCategoryMap[name]) { alert("該總分類已存在"); return; }
+                    
+                    const newMap = { ...superCategoryMap, [name]: [] };
+                    setSuperCategoryMap(newMap);
+                    
+                    if (window.fs && window.db && user) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
+                            { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+                    }
+                } 
+                else if (viewLevel === 'categories') {
+                    if (categoryMap[name]) { alert("該大分類已存在"); return; }
+                    
+                    // 1. 更新大分類地圖 (建立空陣列)
+                    const newCatMap = { ...categoryMap, [name]: [] };
+                    setCategoryMap(newCatMap);
 
-        if (viewLevel === 'superCategories') {
-            if (superCategoryMap[name]) { alert("該總分類已存在"); return; }
-            
-            const newMap = { ...superCategoryMap, [name]: [] };
-            setSuperCategoryMap(newMap);
-            
-            if (window.fs && window.db && user) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
-                    { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+                    // 2. 更新總分類地圖 (將新大分類加入目前選定的總分類中)
+                    const newSuperMap = { ...superCategoryMap };
+                    if (!newSuperMap[selectedSuper]) newSuperMap[selectedSuper] = [];
+                    if (!newSuperMap[selectedSuper].includes(name)) newSuperMap[selectedSuper].push(name);
+                    setSuperCategoryMap(newSuperMap);
+
+                    if (window.fs && window.db && user) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
+                            { 
+                                categoryMapJSON: JSON.stringify(newCatMap),
+                                superCategoryMapJSON: JSON.stringify(newSuperMap)
+                            }, { merge: true }));
+                    }
+                } 
+                else if (viewLevel === 'subcategories') {
+                    const currentSubs = categoryMap[selectedCategory] || [];
+                    if (currentSubs.includes(name)) { alert("該次分類已存在"); return; }
+
+                    // 更新大分類地圖 (將新次分類加入目前選定的大分類中)
+                    const newCatMap = { ...categoryMap };
+                    if (!newCatMap[selectedCategory]) newCatMap[selectedCategory] = [];
+                    newCatMap[selectedCategory].push(name);
+                    setCategoryMap(newCatMap);
+
+                    if (window.fs && window.db && user) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
+                            { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
+                    }
+                }
+
+                if (updates.length > 0) try { await Promise.all(updates); } catch(e) { console.error(e); }
+                if (setHasDataChangedInSession) setHasDataChangedInSession(true);
             }
-        } 
-        else if (viewLevel === 'categories') {
-            if (categoryMap[name]) { alert("該大分類已存在"); return; }
-            
-            // 1. 更新大分類地圖 (建立空陣列)
-            const newCatMap = { ...categoryMap, [name]: [] };
-            setCategoryMap(newCatMap);
-
-            // 2. 更新總分類地圖 (將新大分類加入目前選定的總分類中)
-            const newSuperMap = { ...superCategoryMap };
-            if (!newSuperMap[selectedSuper]) newSuperMap[selectedSuper] = [];
-            if (!newSuperMap[selectedSuper].includes(name)) newSuperMap[selectedSuper].push(name);
-            setSuperCategoryMap(newSuperMap);
-
-            if (window.fs && window.db && user) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
-                    { 
-                        categoryMapJSON: JSON.stringify(newCatMap),
-                        superCategoryMapJSON: JSON.stringify(newSuperMap)
-                    }, { merge: true }));
-            }
-        } 
-        else if (viewLevel === 'subcategories') {
-            const currentSubs = categoryMap[selectedCategory] || [];
-            if (currentSubs.includes(name)) { alert("該次分類已存在"); return; }
-
-            // 更新大分類地圖 (將新次分類加入目前選定的大分類中)
-            const newCatMap = { ...categoryMap };
-            if (!newCatMap[selectedCategory]) newCatMap[selectedCategory] = [];
-            newCatMap[selectedCategory].push(name);
-            setCategoryMap(newCatMap);
-
-            if (window.fs && window.db && user) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), 
-                    { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
-            }
-        }
-
-        if (updates.length > 0) try { await Promise.all(updates); } catch(e) { console.error(e); }
-        if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+        });
+        setShowInputModal(true);
     };
 
     const [draggingIndex, setDraggingIndex] = useState(null);
@@ -938,6 +941,11 @@ const AllNotesModal = ({
     
     const [contextMenu, setContextMenu] = useState(null);
     const [moveConfig, setMoveConfig] = useState(null);
+
+    // [新增] 自定義輸入視窗狀態 (取代 prompt)
+    const [showInputModal, setShowInputModal] = useState(false);
+    const [inputConfig, setInputConfig] = useState(null); 
+    const [inputValue, setInputValue] = useState("");
 
     // [新增] 處理長按選單的歷史紀錄與返回鍵 (確保按返回是關閉選單而不是跳轉頁面)
     useEffect(() => {
@@ -1305,84 +1313,88 @@ const AllNotesModal = ({
         const { type, item } = contextMenu;
         if (type === 'note') { alert("筆記請直接點擊進入編輯模式修改。"); setContextMenu(null); return; }
 
-        // 修改：提示使用者字數限制
-        const newName = prompt(`請輸入新的名稱 (最多16字)`, item);
-        if (!newName || newName === item) { setContextMenu(null); return; }
-        
-        // 修改：檢查字數限制
-        if (newName.length > 16) { alert("名稱不能超過16個字"); setContextMenu(null); return; }
-
-        let isDuplicate = false;
-        if (type === 'superCategory' && superCategoryMap[newName]) isDuplicate = true;
-        else if (type === 'category' && categoryMap[newName]) isDuplicate = true;
-        else if (type === 'subcategory') {
-            const subs = categoryMap[selectedCategory] || [];
-            if (subs.includes(newName)) isDuplicate = true;
-        }
-
-        if (isDuplicate) { alert("新名稱已存在，請使用其他名稱。"); return; }
-
-        const updates = [];
-        let updatedNotes = [...notes];
-        const layoutDocId = user ? `layout_${user.uid}` : "layout"; // Helper for isolation
-
-        if (type === 'superCategory') {
-            if (selectedSuper === item) setSelectedSuper(newName);
-            const newMap = { ...superCategoryMap };
-            newMap[newName] = newMap[item]; delete newMap[item];
-            setSuperCategoryMap(newMap);
-            if (window.fs && window.db && user) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
-            updatedNotes = notes.map(n => {
-                if ((n.superCategory || "其他") === item) {
-                    const newNote = { ...n, superCategory: newName };
-                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { superCategory: newName }, { merge: true }));
-                    return newNote;
+        // [修改] 改用自定義視窗取代 prompt
+        setInputValue(item); // 預填舊名稱
+        setInputConfig({
+            title: '重新命名',
+            placeholder: `請輸入新的名稱 (最多16字)`,
+            callback: async (newName) => {
+                if (newName === item) return;
+                
+                let isDuplicate = false;
+                if (type === 'superCategory' && superCategoryMap[newName]) isDuplicate = true;
+                else if (type === 'category' && categoryMap[newName]) isDuplicate = true;
+                else if (type === 'subcategory') {
+                    const subs = categoryMap[selectedCategory] || [];
+                    if (subs.includes(newName)) isDuplicate = true;
                 }
-                return n;
-            });
-        } else if (type === 'category') {
-            if (selectedCategory === item) setSelectedCategory(newName);
-            const newCatMap = { ...categoryMap };
-            newCatMap[newName] = newCatMap[item]; delete newCatMap[item];
-            setCategoryMap(newCatMap);
-            const newSuperMap = { ...superCategoryMap };
-            Object.keys(newSuperMap).forEach(k => {
-                const idx = newSuperMap[k].indexOf(item); if (idx !== -1) newSuperMap[k][idx] = newName;
-            });
-            setSuperCategoryMap(newSuperMap);
-            if (window.fs && window.db && user) {
-                updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { categoryMapJSON: JSON.stringify(newCatMap), superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
+
+                if (isDuplicate) { alert("新名稱已存在，請使用其他名稱。"); return; }
+
+                const updates = [];
+                let updatedNotes = [...notes];
+                const layoutDocId = user ? `layout_${user.uid}` : "layout"; // Helper for isolation
+
+                if (type === 'superCategory') {
+                    if (selectedSuper === item) setSelectedSuper(newName);
+                    const newMap = { ...superCategoryMap };
+                    newMap[newName] = newMap[item]; delete newMap[item];
+                    setSuperCategoryMap(newMap);
+                    if (window.fs && window.db && user) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { superCategoryMapJSON: JSON.stringify(newMap) }, { merge: true }));
+                    updatedNotes = notes.map(n => {
+                        if ((n.superCategory || "其他") === item) {
+                            const newNote = { ...n, superCategory: newName };
+                            if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { superCategory: newName }, { merge: true }));
+                            return newNote;
+                        }
+                        return n;
+                    });
+                } else if (type === 'category') {
+                    if (selectedCategory === item) setSelectedCategory(newName);
+                    const newCatMap = { ...categoryMap };
+                    newCatMap[newName] = newCatMap[item]; delete newCatMap[item];
+                    setCategoryMap(newCatMap);
+                    const newSuperMap = { ...superCategoryMap };
+                    Object.keys(newSuperMap).forEach(k => {
+                        const idx = newSuperMap[k].indexOf(item); if (idx !== -1) newSuperMap[k][idx] = newName;
+                    });
+                    setSuperCategoryMap(newSuperMap);
+                    if (window.fs && window.db && user) {
+                        updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { categoryMapJSON: JSON.stringify(newCatMap), superCategoryMapJSON: JSON.stringify(newSuperMap) }, { merge: true }));
+                    }
+                    updatedNotes = notes.map(n => {
+                        if ((n.category || "未分類") === item) {
+                            const newNote = { ...n, category: newName };
+                            if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { category: newName }, { merge: true }));
+                            return newNote;
+                        }
+                        return n;
+                    });
+                } else if (type === 'subcategory') {
+                    if (selectedSubcategory === item) setSelectedSubcategory(newName);
+                    const newCatMap = { ...categoryMap };
+                    const subs = newCatMap[selectedCategory] || [];
+                    const idx = subs.indexOf(item);
+                    if (idx !== -1) { subs[idx] = newName; newCatMap[selectedCategory] = subs; }
+                    setCategoryMap(newCatMap);
+                    if (window.fs && window.db && user) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
+                    updatedNotes = notes.map(n => {
+                        if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
+                            const newNote = { ...n, subcategory: newName };
+                            if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { subcategory: newName }, { merge: true }));
+                            return newNote;
+                        }
+                        return n;
+                    });
+                }
+
+                setNotes(updatedNotes);
+                if (setHasDataChangedInSession) setHasDataChangedInSession(true);
+                if (updates.length > 0) try { await Promise.all(updates); } catch(e) {}
             }
-            updatedNotes = notes.map(n => {
-                if ((n.category || "未分類") === item) {
-                    const newNote = { ...n, category: newName };
-                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { category: newName }, { merge: true }));
-                    return newNote;
-                }
-                return n;
-            });
-        } else if (type === 'subcategory') {
-            if (selectedSubcategory === item) setSelectedSubcategory(newName);
-            const newCatMap = { ...categoryMap };
-            const subs = newCatMap[selectedCategory] || [];
-            const idx = subs.indexOf(item);
-            if (idx !== -1) { subs[idx] = newName; newCatMap[selectedCategory] = subs; }
-            setCategoryMap(newCatMap);
-            if (window.fs && window.db && user) updates.push(window.fs.setDoc(window.fs.doc(window.db, "settings", layoutDocId), { categoryMapJSON: JSON.stringify(newCatMap) }, { merge: true }));
-            updatedNotes = notes.map(n => {
-                if ((n.category || "未分類") === selectedCategory && (n.subcategory || "一般") === item) {
-                    const newNote = { ...n, subcategory: newName };
-                    if (window.fs && window.db) updates.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(n.id)), { subcategory: newName }, { merge: true }));
-                    return newNote;
-                }
-                return n;
-            });
-        }
-
-        setNotes(updatedNotes);
-        setContextMenu(null);
-        if (setHasDataChangedInSession) setHasDataChangedInSession(true);
-        if (updates.length > 0) try { await Promise.all(updates); } catch(e) {}
+        });
+        setContextMenu(null); // Close context menu
+        setShowInputModal(true); // Open Input modal
     };
 
     const handleBack = () => { window.history.back(); };
@@ -1642,6 +1654,62 @@ const AllNotesModal = ({
                             })()}
                         </div>
                         <div className={`p-2 border-t ${theme.border}`}><button onClick={() => setMoveConfig(null)} className="w-full py-2 text-stone-400 font-bold text-xs hover:text-stone-600">取消</button></div>
+                    </div>
+                </div>
+            )}
+
+            {/* [新增] 自定義輸入/命名視窗 */}
+            {showInputModal && inputConfig && (
+                <div 
+                    className="fixed inset-0 z-[80] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
+                    onClick={(e) => { 
+                        if(e.target === e.currentTarget) {
+                            setShowInputModal(false);
+                            setInputConfig(null);
+                        }
+                    }}
+                >
+                    <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
+                        <h3 className={`font-bold text-lg mb-4 ${theme.text}`}>{inputConfig.title}</h3>
+                        <input 
+                            autoFocus
+                            className={`w-full border ${theme.border} rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400 mb-4 ${theme.bg} ${theme.text}`}
+                            placeholder={inputConfig.placeholder}
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    if (!inputValue.trim()) return;
+                                    if (inputValue.length > 16) { alert("名稱不能超過16個字"); return; }
+                                    inputConfig.callback(inputValue);
+                                    setShowInputModal(false);
+                                    setInputConfig(null);
+                                }
+                            }}
+                        />
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => {
+                                    setShowInputModal(false);
+                                    setInputConfig(null);
+                                }}
+                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-600 hover:bg-stone-200 rounded-lg font-bold transition-colors text-xs"
+                            >
+                                取消
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (!inputValue.trim()) return;
+                                    if (inputValue.length > 16) { alert("名稱不能超過16個字"); return; }
+                                    inputConfig.callback(inputValue);
+                                    setShowInputModal(false);
+                                    setInputConfig(null);
+                                }}
+                                className={`flex-1 px-4 py-2 ${theme.accent} ${theme.accentText} rounded-lg font-bold transition-colors text-xs shadow-md`}
+                            >
+                                確認
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -4546,6 +4614,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

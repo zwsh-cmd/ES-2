@@ -2138,6 +2138,10 @@ function EchoScriptApp() {
     const [showDeleteResponseAlert, setShowDeleteResponseAlert] = useState(false);
     const [responseIdToDelete, setResponseIdToDelete] = useState(null);
 
+    // [新增] 筆記刪除確認視窗狀態
+    const [showDeleteNoteAlert, setShowDeleteNoteAlert] = useState(false);
+    const [noteIdToDelete, setNoteIdToDelete] = useState(null);
+
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
     useEffect(() => { hasDataChangedInSessionRef.current = hasDataChangedInSession; }, [hasDataChangedInSession]);
@@ -3001,99 +3005,111 @@ function EchoScriptApp() {
         }
     };
                                 
+    // [修改] 觸發刪除筆記確認視窗
     const handleDeleteNote = (id) => {
-        if (confirm("確定要刪除這則筆記嗎？它將被移至垃圾桶保留 30 天。")) {
-            // 0. 備份到垃圾桶
-            const noteToDelete = notes.find(n => String(n.id) === String(id));
-            if (noteToDelete) {
-                const trashItem = { ...noteToDelete, deletedAt: new Date().toISOString() };
-                const newTrash = [trashItem, ...trash];
-                setTrash(newTrash);
-                
-                if (window.fs && window.db && user) {
-                     window.fs.setDoc(
-                        window.fs.doc(window.db, "settings", `trash_${user.uid}`), 
-                        { trashJSON: JSON.stringify(newTrash) }, 
-                        { merge: true }
-                    ).catch(e => console.error("垃圾桶備份失敗", e));
-                }
-            }
+        setNoteIdToDelete(id);
+        setShowDeleteNoteAlert(true);
+    };
 
-            // 1. 執行刪除 (移除所有相同 ID 的卡片，清除重複項)
-            const newNotes = notes.filter(n => String(n.id) !== String(id));
-            setNotes(newNotes);
+    // [新增] 執行刪除筆記 (使用者確認後)
+    const executeDeleteNote = () => {
+        if (!noteIdToDelete) return;
+        const id = noteIdToDelete;
 
-            // 2. 同步歷史紀錄
-            setHistory(prevHistory => {
-                const validHistory = Array.isArray(prevHistory) ? prevHistory : [];
-                const newHistory = validHistory.filter(h => String(h.id) !== String(id));
-                
-                if(user) localStorage.setItem(`echoScript_History_${user.uid}`, JSON.stringify(newHistory));
-                if (window.fs && window.db && user) {
-                    window.fs.setDoc(window.fs.doc(window.db, "settings", `history_${user.uid}`), { historyJSON: JSON.stringify(newHistory) }, { merge: true });
-                }
-                return newHistory;
-            });
-
-            // 3. 刪除雲端文件
-            try {
-                if (window.fs && window.db) {
-                    window.fs.deleteDoc(window.fs.doc(window.db, "notes", String(id)));
-                    console.log("✅ 雲端 notes 移除成功");
-                }
-            } catch (e) {
-                console.error("雲端刪除失敗", e);
-                showNotification("⚠️ 雲端同步失敗");
-            }
+        // 0. 備份到垃圾桶
+        const noteToDelete = notes.find(n => String(n.id) === String(id));
+        if (noteToDelete) {
+            const trashItem = { ...noteToDelete, deletedAt: new Date().toISOString() };
+            const newTrash = [trashItem, ...trash];
+            setTrash(newTrash);
             
-            // 4. 計算新的索引位置 (防止索引錯位)
-            let nextIdx = 0;
-            const isDeletingPinned = String(id) === String(pinnedNoteId);
-
-            if (isDeletingPinned) {
-                setPinnedNoteId(null);
-                if(user) localStorage.removeItem(`echoScript_PinnedId_${user.uid}`);
-                if (window.fs && window.db && user) window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { pinnedNoteId: null }, { merge: true });
-                setShowPinnedPlaceholder(true);
-                showPinnedPlaceholderRef.current = true;
-                nextIdx = -1;
-            } else if (newNotes.length > 0) {
-                const latestNote = [...newNotes].sort((a, b) => {
-                    const timeA = new Date(a.modifiedDate || a.createdDate || 0).getTime();
-                    const timeB = new Date(b.modifiedDate || b.createdDate || 0).getTime();
-                    return timeB - timeA;
-                })[0];
-                
-                if (latestNote) {
-                    nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
-                    if (nextIdx === -1) nextIdx = 0;
-
-                    const targetId = String(latestNote.id);
-                    if (user) localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, targetId);
-                    if (window.fs && window.db && user) window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: targetId }, { merge: true });
-                }
-                setShowPinnedPlaceholder(false);
-            } else {
-                setShowPinnedPlaceholder(false);
-                nextIdx = -1;
-                if (user) localStorage.removeItem(`echoScript_ResumeNoteId_${user.uid}`);
+            if (window.fs && window.db && user) {
+                    window.fs.setDoc(
+                    window.fs.doc(window.db, "settings", `trash_${user.uid}`), 
+                    { trashJSON: JSON.stringify(newTrash) }, 
+                    { merge: true }
+                ).catch(e => console.error("垃圾桶備份失敗", e));
             }
-            
-            // 5. [關鍵] 完全重建洗牌堆 (Deck)，確保不會有懸空索引
-            const newDeck = Array.from({ length: newNotes.length }, (_, i) => i);
-            for (let i = newDeck.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
-            }
-
-            setCurrentIndex(nextIdx);
-            setShuffleDeck(newDeck);
-            setDeckPointer(0);
-
-            setShowEditModal(false);
-            setHasDataChangedInSession(true);
-            showNotification("筆記已移至垃圾桶");
         }
+
+        // 1. 執行刪除 (移除所有相同 ID 的卡片，清除重複項)
+        const newNotes = notes.filter(n => String(n.id) !== String(id));
+        setNotes(newNotes);
+
+        // 2. 同步歷史紀錄
+        setHistory(prevHistory => {
+            const validHistory = Array.isArray(prevHistory) ? prevHistory : [];
+            const newHistory = validHistory.filter(h => String(h.id) !== String(id));
+            
+            if(user) localStorage.setItem(`echoScript_History_${user.uid}`, JSON.stringify(newHistory));
+            if (window.fs && window.db && user) {
+                window.fs.setDoc(window.fs.doc(window.db, "settings", `history_${user.uid}`), { historyJSON: JSON.stringify(newHistory) }, { merge: true });
+            }
+            return newHistory;
+        });
+
+        // 3. 刪除雲端文件
+        try {
+            if (window.fs && window.db) {
+                window.fs.deleteDoc(window.fs.doc(window.db, "notes", String(id)));
+                console.log("✅ 雲端 notes 移除成功");
+            }
+        } catch (e) {
+            console.error("雲端刪除失敗", e);
+            showNotification("⚠️ 雲端同步失敗");
+        }
+        
+        // 4. 計算新的索引位置 (防止索引錯位)
+        let nextIdx = 0;
+        const isDeletingPinned = String(id) === String(pinnedNoteId);
+
+        if (isDeletingPinned) {
+            setPinnedNoteId(null);
+            if(user) localStorage.removeItem(`echoScript_PinnedId_${user.uid}`);
+            if (window.fs && window.db && user) window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { pinnedNoteId: null }, { merge: true });
+            setShowPinnedPlaceholder(true);
+            showPinnedPlaceholderRef.current = true;
+            nextIdx = -1;
+        } else if (newNotes.length > 0) {
+            const latestNote = [...newNotes].sort((a, b) => {
+                const timeA = new Date(a.modifiedDate || a.createdDate || 0).getTime();
+                const timeB = new Date(b.modifiedDate || b.createdDate || 0).getTime();
+                return timeB - timeA;
+            })[0];
+            
+            if (latestNote) {
+                nextIdx = newNotes.findIndex(n => n.id === latestNote.id);
+                if (nextIdx === -1) nextIdx = 0;
+
+                const targetId = String(latestNote.id);
+                if (user) localStorage.setItem(`echoScript_ResumeNoteId_${user.uid}`, targetId);
+                if (window.fs && window.db && user) window.fs.setDoc(window.fs.doc(window.db, "settings", `preferences_${user.uid}`), { resumeNoteId: targetId }, { merge: true });
+            }
+            setShowPinnedPlaceholder(false);
+        } else {
+            setShowPinnedPlaceholder(false);
+            nextIdx = -1;
+            if (user) localStorage.removeItem(`echoScript_ResumeNoteId_${user.uid}`);
+        }
+        
+        // 5. [關鍵] 完全重建洗牌堆 (Deck)，確保不會有懸空索引
+        const newDeck = Array.from({ length: newNotes.length }, (_, i) => i);
+        for (let i = newDeck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
+        }
+
+        setCurrentIndex(nextIdx);
+        setShuffleDeck(newDeck);
+        setDeckPointer(0);
+
+        setShowEditModal(false);
+        setHasDataChangedInSession(true);
+        showNotification("筆記已移至垃圾桶");
+
+        // 重置狀態並關閉視窗
+        setShowDeleteNoteAlert(false);
+        setNoteIdToDelete(null);
     };
 
 // [新增] 階層式分類刪除功能
@@ -4361,6 +4377,43 @@ function EchoScriptApp() {
                 </div>
             )}
 
+            {/* [新增] 筆記刪除確認浮動視窗 (Z-Index 設為 80 確保最上層) */}
+            {showDeleteNoteAlert && (
+                <div 
+                    className="fixed inset-0 z-[80] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
+                    onClick={(e) => { 
+                        if(e.target === e.currentTarget) {
+                            setShowDeleteNoteAlert(false);
+                            setNoteIdToDelete(null);
+                        }
+                    }}
+                >
+                    <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
+                        <h3 className={`font-bold text-lg mb-2 ${theme.text}`}>刪除筆記</h3>
+                        <p className={`text-sm ${theme.subtext} mb-6 leading-relaxed`}>
+                            確定要刪除這則筆記嗎？<br/>它將被移至垃圾桶保留 30 天。
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => {
+                                    setShowDeleteNoteAlert(false);
+                                    setNoteIdToDelete(null);
+                                }}
+                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-600 hover:bg-stone-200 rounded-lg font-bold transition-colors text-xs"
+                            >
+                                取消
+                            </button>
+                            <button 
+                                onClick={executeDeleteNote}
+                                className="flex-1 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg font-bold transition-colors text-xs shadow-md"
+                            >
+                                刪除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* [新增] 抽卡目標選擇選單 */}
             {showShuffleMenu && (
                 <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowShuffleMenu(false); }}>
@@ -4428,6 +4481,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

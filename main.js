@@ -2134,6 +2134,10 @@ function EchoScriptApp() {
     const [showSyncConfirmModal, setShowSyncConfirmModal] = useState(false);
     const [pendingSyncStatus, setPendingSyncStatus] = useState(false);
 
+    // [新增] 回應刪除確認視窗狀態
+    const [showDeleteResponseAlert, setShowDeleteResponseAlert] = useState(false);
+    const [responseIdToDelete, setResponseIdToDelete] = useState(null);
+
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
     useEffect(() => { hasDataChangedInSessionRef.current = hasDataChangedInSession; }, [hasDataChangedInSession]);
@@ -3409,38 +3413,49 @@ function EchoScriptApp() {
         window.history.back();
     };
 
+    // [修改] 觸發刪除回應確認視窗
     const handleDeleteResponse = (responseId) => {
-        if(confirm("確定要刪除這則回應嗎？")) {
-            // 1. 計算刪除後的陣列
-            const prevResponses = allResponses;
-            const noteResponses = prevResponses[currentNote.id] || [];
-            const newNoteResponses = noteResponses.filter(r => r.id !== responseId);
-            const nextAllResponses = { ...prevResponses, [currentNote.id]: newNoteResponses };
+        setResponseIdToDelete(responseId);
+        setShowDeleteResponseAlert(true);
+    };
 
-            // 2. 更新本地狀態與 LocalStorage (確保 UI 反應即時)
-            setAllResponses(nextAllResponses);
-            // [Isolation] 寫入專屬 Responses Key
-            if (user) localStorage.setItem(`echoScript_AllResponses_${user.uid}`, JSON.stringify(nextAllResponses));
+    // [新增] 執行刪除回應 (使用者確認後)
+    const executeDeleteResponse = () => {
+        if (!responseIdToDelete || !currentNote) return;
 
-            // 3. [新增] 同步更新雲端 Firestore
-            try {
-                if (window.fs && window.db && currentNote) {
-                    // 將過濾後的陣列寫回雲端，覆蓋原本的 responses 欄位
-                    window.fs.setDoc(
-                        window.fs.doc(window.db, "notes", String(currentNote.id)), 
-                        { responses: newNoteResponses }, 
-                        { merge: true }
-                    );
-                    console.log("✅ 雲端回應刪除成功");
-                }
-            } catch (e) {
-                console.error("雲端回應刪除失敗", e);
-                showNotification("⚠️ 雲端同步失敗，請檢查網路");
+        // 1. 計算刪除後的陣列
+        const prevResponses = allResponses;
+        const noteResponses = prevResponses[currentNote.id] || [];
+        const newNoteResponses = noteResponses.filter(r => r.id !== responseIdToDelete);
+        const nextAllResponses = { ...prevResponses, [currentNote.id]: newNoteResponses };
+
+        // 2. 更新本地狀態與 LocalStorage (確保 UI 反應即時)
+        setAllResponses(nextAllResponses);
+        // [Isolation] 寫入專屬 Responses Key
+        if (user) localStorage.setItem(`echoScript_AllResponses_${user.uid}`, JSON.stringify(nextAllResponses));
+
+        // 3. [新增] 同步更新雲端 Firestore
+        try {
+            if (window.fs && window.db && currentNote) {
+                // 將過濾後的陣列寫回雲端，覆蓋原本的 responses 欄位
+                window.fs.setDoc(
+                    window.fs.doc(window.db, "notes", String(currentNote.id)), 
+                    { responses: newNoteResponses }, 
+                    { merge: true }
+                );
+                console.log("✅ 雲端回應刪除成功");
             }
-
-            setHasDataChangedInSession(true); // [新增] 標記資料已變更
-            showNotification("回應已刪除");
+        } catch (e) {
+            console.error("雲端回應刪除失敗", e);
+            showNotification("⚠️ 雲端同步失敗，請檢查網路");
         }
+
+        setHasDataChangedInSession(true); // [新增] 標記資料已變更
+        showNotification("回應已刪除");
+        
+        // 重置狀態並關閉視窗
+        setShowDeleteResponseAlert(false);
+        setResponseIdToDelete(null);
     };
 
     const handleCopyText = () => {
@@ -4309,6 +4324,43 @@ function EchoScriptApp() {
                 </div>
             )}
 
+            {/* [新增] 回應刪除確認浮動視窗 (Z-Index 設為 70 以覆蓋 ResponseModal) */}
+            {showDeleteResponseAlert && (
+                <div 
+                    className="fixed inset-0 z-[70] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
+                    onClick={(e) => { 
+                        if(e.target === e.currentTarget) {
+                            setShowDeleteResponseAlert(false);
+                            setResponseIdToDelete(null);
+                        }
+                    }}
+                >
+                    <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
+                        <h3 className={`font-bold text-lg mb-2 ${theme.text}`}>刪除回應</h3>
+                        <p className={`text-sm ${theme.subtext} mb-6 leading-relaxed`}>
+                            確定要永久刪除這則回應嗎？<br/>此動作無法復原。
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => {
+                                    setShowDeleteResponseAlert(false);
+                                    setResponseIdToDelete(null);
+                                }}
+                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-600 hover:bg-stone-200 rounded-lg font-bold transition-colors text-xs"
+                            >
+                                取消
+                            </button>
+                            <button 
+                                onClick={executeDeleteResponse}
+                                className="flex-1 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg font-bold transition-colors text-xs shadow-md"
+                            >
+                                刪除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* [新增] 抽卡目標選擇選單 */}
             {showShuffleMenu && (
                 <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowShuffleMenu(false); }}>
@@ -4376,6 +4428,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 

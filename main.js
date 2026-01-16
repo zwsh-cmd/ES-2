@@ -390,7 +390,7 @@ const HighlightingEditor = ({ value, onChange, textareaRef, theme }) => {
 
 // === 4. Markdown 編輯器組件 (整合高亮編輯器) ===
 // 修改：加入 setHasUnsavedChanges 參數，並監聽內容變更
-const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges, theme, triggerUnsavedAlert }) => {
+const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose, onSave, onDelete, setHasUnsavedChanges, theme, triggerUnsavedAlert, showNotification }) => {
     // [新增] 使用 Ref 鎖定 ID，確保它在編輯過程中絕對不會遺失或改變
     const originalIdRef = useRef(note?.id);
 
@@ -405,6 +405,8 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
     const fileInputRef = useRef(null); // [新增] 檔案選擇參照
 
     const [activeTab, setActiveTab] = useState('write'); 
+    // [新增] 移除圖片確認視窗狀態
+    const [showRemoveImageConfirm, setShowRemoveImageConfirm] = useState(false); 
 
     // 新增：監聽內容變更，同步狀態給主程式 (給手機返回鍵使用)
     useEffect(() => {
@@ -439,14 +441,12 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
             setFormData(prev => ({ ...prev, image: compressedBase64 }));
         } catch (error) {
             console.error("圖片壓縮失敗", error);
-            alert("圖片處理失敗，請重試");
+            showNotification("圖片處理失敗，請重試");
         }
     };
 
     const handleRemoveImage = () => {
-        if(confirm("確定要移除這張圖片嗎？")) {
-            setFormData(prev => ({ ...prev, image: null }));
-        }
+        setShowRemoveImageConfirm(true);
     };
 
     // [新增] 總分類列表 (從現有筆記中提取，並加入預設值)
@@ -535,7 +535,7 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
     };
 
     const handleSave = () => {
-        if (!formData.title || !formData.content) { alert("請至少填寫標題和內容"); return; }
+        if (!formData.title || !formData.content) { showNotification("請至少填寫標題和內容"); return; }
         
         // [修正] 從 Ref 讀取最原始的 ID，而不是依賴可能變動的 props
         // 如果是編輯舊筆記，originalIdRef.current 一定會有值，絕不會掉
@@ -560,16 +560,9 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
             formData.title !== initialTitle ||
             formData.content !== initialContent;
 
-        if (hasChanges) {
+        if (hasChanges && triggerUnsavedAlert) {
             // [修改] 改用 triggerUnsavedAlert 呼叫統一的未存檔提示框
-            if (triggerUnsavedAlert) {
-                triggerUnsavedAlert();
-            } else {
-                // Fallback (保留以防萬一)
-                if (confirm("編輯內容還未存檔，是否離開？")) {
-                    onClose();
-                }
-            }
+            triggerUnsavedAlert();
         } else {
             onClose();
         }
@@ -683,6 +676,20 @@ const MarkdownEditorModal = ({ note, existingNotes = [], isNew = false, onClose,
                         <button onClick={onDelete} className="text-stone-400 hover:text-stone-600 flex items-center gap-2 text-xs font-bold transition-colors">
                             <Trash2 className="w-4 h-4" /> 刪除筆記
                         </button>
+                    </div>
+                )}
+
+                {/* [新增] 移除圖片確認視窗 */}
+                {showRemoveImageConfirm && (
+                    <div className="fixed inset-0 z-[60] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={(e) => { if(e.target === e.currentTarget) setShowRemoveImageConfirm(false); }}>
+                        <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
+                            <h3 className={`font-bold text-lg mb-2 ${theme.text}`}>移除圖片</h3>
+                            <p className={`text-sm ${theme.subtext} mb-6`}>確定要移除這張圖片嗎？</p>
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowRemoveImageConfirm(false)} className="flex-1 px-4 py-2 bg-stone-100 text-stone-600 hover:bg-stone-200 rounded-lg font-bold text-xs">取消</button>
+                                <button onClick={() => { setFormData(prev => ({ ...prev, image: null })); setShowRemoveImageConfirm(false); }} className="flex-1 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg font-bold text-xs">移除</button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -852,7 +859,8 @@ const AllNotesModal = ({
     categoryMap, setCategoryMap, superCategoryMap, setSuperCategoryMap, 
     setHasDataChangedInSession, theme,
     onAddNote, // [新增] 接收新增筆記的 callback
-    onDeleteCategory // [新增] 接收分類刪除功能
+    onDeleteCategory, // [新增] 接收分類刪除功能
+    showNotification // [新增]
 }) => {
     
     // [新增] 處理新增分類或筆記的邏輯
@@ -877,10 +885,11 @@ const AllNotesModal = ({
             placeholder: `請輸入${typeName}名稱 (最多16字)`,
             callback: async (newName) => {
                 const name = newName.trim();
+                if (name.length > 16) { showNotification("名稱不能超過16個字"); return; }
                 const updates = [];
 
                 if (viewLevel === 'superCategories') {
-                    if (superCategoryMap[name]) { alert("該總分類已存在"); return; }
+                    if (superCategoryMap[name]) { showNotification("該總分類已存在"); return; }
                     
                     const newMap = { ...superCategoryMap, [name]: [] };
                     setSuperCategoryMap(newMap);
@@ -891,7 +900,7 @@ const AllNotesModal = ({
                     }
                 } 
                 else if (viewLevel === 'categories') {
-                    if (categoryMap[name]) { alert("該大分類已存在"); return; }
+                    if (categoryMap[name]) { showNotification("該大分類已存在"); return; }
                     
                     // 1. 更新大分類地圖 (建立空陣列)
                     const newCatMap = { ...categoryMap, [name]: [] };
@@ -913,7 +922,7 @@ const AllNotesModal = ({
                 } 
                 else if (viewLevel === 'subcategories') {
                     const currentSubs = categoryMap[selectedCategory] || [];
-                    if (currentSubs.includes(name)) { alert("該次分類已存在"); return; }
+                    if (currentSubs.includes(name)) { showNotification("該次分類已存在"); return; }
 
                     // 更新大分類地圖 (將新次分類加入目前選定的大分類中)
                     const newCatMap = { ...categoryMap };
@@ -1153,7 +1162,7 @@ const AllNotesModal = ({
             if (type === 'category') {
                 // [終點] 移動「大分類」
                 if (superCategoryMap[nextSuper]?.includes(item)) {
-                    alert(`總分類「${nextSuper}」下已存在相同名稱的大分類`);
+                    showNotification(`總分類「${nextSuper}」下已存在相同名稱的大分類`);
                     return;
                 }
 
@@ -1196,7 +1205,7 @@ const AllNotesModal = ({
                 // [過場] 移動次分類或筆記 -> 下一步：選擇大分類
                 const cats = superCategoryMap[nextSuper] || [];
                 if (cats.length === 0) {
-                    alert(`總分類「${nextSuper}」下沒有大分類，無法移動至此。`);
+                    showNotification(`總分類「${nextSuper}」下沒有大分類，無法移動至此。`);
                     return;
                 }
                 setMoveConfig({ ...moveConfig, step: 'category', targetSuper: nextSuper });
@@ -1211,7 +1220,7 @@ const AllNotesModal = ({
                 // [終點] 移動「次分類」
                 const currentSubs = categoryMap[nextCategory] || [];
                 if (currentSubs.includes(item)) {
-                    alert(`大分類「${nextCategory}」下已存在相同名稱的次分類`);
+                    showNotification(`大分類「${nextCategory}」下已存在相同名稱的次分類`);
                     return;
                 }
 
@@ -1323,6 +1332,7 @@ const AllNotesModal = ({
             placeholder: `請輸入新的名稱 (最多16字)`,
             callback: async (newName) => {
                 if (newName === item) return;
+                if (newName.length > 16) { showNotification("名稱不能超過16個字"); return; }
                 
                 let isDuplicate = false;
                 if (type === 'superCategory' && superCategoryMap[newName]) isDuplicate = true;
@@ -1332,7 +1342,7 @@ const AllNotesModal = ({
                     if (subs.includes(newName)) isDuplicate = true;
                 }
 
-                if (isDuplicate) { alert("新名稱已存在，請使用其他名稱。"); return; }
+                if (isDuplicate) { showNotification("新名稱已存在，請使用其他名稱。"); return; }
 
                 const updates = [];
                 let updatedNotes = [...notes];
@@ -1683,7 +1693,7 @@ const AllNotesModal = ({
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                     if (!inputValue.trim()) return;
-                                    if (inputValue.length > 16) { alert("名稱不能超過16個字"); return; }
+                                    if (inputValue.length > 16) { showNotification("名稱不能超過16個字"); return; }
                                     inputConfig.callback(inputValue);
                                     setShowInputModal(false);
                                     setInputConfig(null);
@@ -1703,7 +1713,7 @@ const AllNotesModal = ({
                             <button 
                                 onClick={() => {
                                     if (!inputValue.trim()) return;
-                                    if (inputValue.length > 16) { alert("名稱不能超過16個字"); return; }
+                                    if (inputValue.length > 16) { showNotification("名稱不能超過16個字"); return; }
                                     inputConfig.callback(inputValue);
                                     setShowInputModal(false);
                                     setInputConfig(null);
@@ -1861,17 +1871,21 @@ function EchoScriptApp() {
             // 發生錯誤時 (或使用者關閉視窗)，必須把 loading 狀態改回來，讓使用者能重試
             setAuthLoading(false);
             // [修改] 顯示詳細錯誤代碼，以便除錯
-            alert("登入錯誤:\n" + error.code + "\n" + error.message);
+            showNotification("登入錯誤: " + error.message);
         }
     };
     
     // [Auth] 登出動作
     const handleLogout = async () => {
         if (!window.authFns || !window.auth) return;
-        if (confirm("確定要登出嗎？")) {
-            await window.authFns.signOut(window.auth);
-            window.location.reload(); 
-        }
+        setConfirmModal({
+            title: "登出帳號",
+            message: "確定要登出嗎？",
+            onConfirm: async () => {
+                await window.authFns.signOut(window.auth);
+                window.location.reload(); 
+            }
+        });
     };
 
     const [notes, setNotes] = useState([]);
@@ -2244,6 +2258,8 @@ function EchoScriptApp() {
 
     // [新增] 退出應用程式確認視窗狀態
     const [showExitAlert, setShowExitAlert] = useState(false);
+    // [新增] 萬用確認視窗狀態 (用於登出、垃圾桶等操作)
+    const [confirmModal, setConfirmModal] = useState(null);
 
     // 同步 Ref 與 State
     useEffect(() => { hasUnsavedChangesRef.current = hasUnsavedChanges; }, [hasUnsavedChanges]);
@@ -2990,118 +3006,126 @@ function EchoScriptApp() {
         const isFolder = itemToRestore.isFolder === true;
         const displayName = isFolder ? itemToRestore.title : itemToRestore.title;
 
-        if (confirm(`確定要復原「${displayName}」${isFolder ? '及其所有內容' : ''}嗎？`)) {
-            // 1. 從垃圾桶移除
-            const newTrash = trash.filter(n => String(n.id) !== String(itemId));
-            setTrash(newTrash);
+        setConfirmModal({
+            title: "復原項目",
+            message: `確定要復原「${displayName}」${isFolder ? '及其所有內容' : ''}嗎？`,
+            onConfirm: async () => {
+                // 1. 從垃圾桶移除
+                const newTrash = trash.filter(n => String(n.id) !== String(itemId));
+                setTrash(newTrash);
 
-            const promises = [];
-            let newNotes = [...notes];
-            let newCatMap = { ...categoryMap };
-            let newSuperMap = { ...superCategoryMap };
-            let layoutChanged = false;
+                const promises = [];
+                let newNotes = [...notes];
+                let newCatMap = { ...categoryMap };
+                let newSuperMap = { ...superCategoryMap };
+                let layoutChanged = false;
 
-            // 輔助函式：確保分類存在
-            const ensureStructure = (sup, cat, sub) => {
-                let changed = false;
-                // 檢查總分類
-                if (sup && sup !== "其他") {
-                    if (!newSuperMap[sup]) { newSuperMap[sup] = []; changed = true; }
-                    if (cat && !newSuperMap[sup].includes(cat)) { newSuperMap[sup].push(cat); changed = true; }
+                // 輔助函式：確保分類存在
+                const ensureStructure = (sup, cat, sub) => {
+                    let changed = false;
+                    // 檢查總分類
+                    if (sup && sup !== "其他") {
+                        if (!newSuperMap[sup]) { newSuperMap[sup] = []; changed = true; }
+                        if (cat && !newSuperMap[sup].includes(cat)) { newSuperMap[sup].push(cat); changed = true; }
+                    }
+                    // 檢查大分類
+                    if (cat && cat !== "未分類") {
+                        if (!newCatMap[cat]) { newCatMap[cat] = []; changed = true; }
+                        if (sub && !newCatMap[cat].includes(sub)) { newCatMap[cat].push(sub); changed = true; }
+                    }
+                    if (changed) layoutChanged = true;
+                };
+
+                if (isFolder) {
+                    // === A. 復原資料夾 ===
+                    // 1. 還原結構 (即使資料夾是空的也要還原)
+                    const { level, title: name, context } = itemToRestore;
+                    if (level === 'superCategory') {
+                        if (!newSuperMap[name]) { newSuperMap[name] = []; layoutChanged = true; }
+                    } else if (level === 'category') {
+                        ensureStructure(context.super, name, null);
+                    } else if (level === 'subcategory') {
+                        ensureStructure(context.super, context.category, name);
+                    }
+
+                    // 2. 還原內含的筆記
+                    if (itemToRestore.notes && itemToRestore.notes.length > 0) {
+                        itemToRestore.notes.forEach(note => {
+                            // 移除刪除標記
+                            const { deletedAt, ...restoredNote } = note;
+                            newNotes.unshift(restoredNote);
+                            // 確保該筆記的分類結構存在 (雙重保險)
+                            ensureStructure(note.superCategory, note.category, note.subcategory);
+                            
+                            // 加入寫入排程
+                            if (window.fs && window.db) {
+                                promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(restoredNote.id)), restoredNote));
+                            }
+                        });
+                    }
+                    showNotification(`已復原分類「${name}」`);
+
+                } else {
+                    // === B. 復原單一筆記 ===
+                    const { deletedAt, ...restoredNote } = itemToRestore;
+                    newNotes.unshift(restoredNote);
+                    ensureStructure(restoredNote.superCategory, restoredNote.category, restoredNote.subcategory);
+                    
+                    if (window.fs && window.db) {
+                        promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(restoredNote.id)), restoredNote));
+                    }
+                    showNotification("筆記已復原");
                 }
-                // 檢查大分類
-                if (cat && cat !== "未分類") {
-                    if (!newCatMap[cat]) { newCatMap[cat] = []; changed = true; }
-                    if (sub && !newCatMap[cat].includes(sub)) { newCatMap[cat].push(sub); changed = true; }
-                }
-                if (changed) layoutChanged = true;
-            };
 
-            if (isFolder) {
-                // === A. 復原資料夾 ===
-                // 1. 還原結構 (即使資料夾是空的也要還原)
-                const { level, title: name, context } = itemToRestore;
-                if (level === 'superCategory') {
-                    if (!newSuperMap[name]) { newSuperMap[name] = []; layoutChanged = true; }
-                } else if (level === 'category') {
-                    ensureStructure(context.super, name, null);
-                } else if (level === 'subcategory') {
-                    ensureStructure(context.super, context.category, name);
-                }
-
-                // 2. 還原內含的筆記
-                if (itemToRestore.notes && itemToRestore.notes.length > 0) {
-                    itemToRestore.notes.forEach(note => {
-                        // 移除刪除標記
-                        const { deletedAt, ...restoredNote } = note;
-                        newNotes.unshift(restoredNote);
-                        // 確保該筆記的分類結構存在 (雙重保險)
-                        ensureStructure(note.superCategory, note.category, note.subcategory);
-                        
-                        // 加入寫入排程
-                        if (window.fs && window.db) {
-                            promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(restoredNote.id)), restoredNote));
-                        }
-                    });
-                }
-                showNotification(`已復原分類「${name}」`);
-
-            } else {
-                // === B. 復原單一筆記 ===
-                const { deletedAt, ...restoredNote } = itemToRestore;
-                newNotes.unshift(restoredNote);
-                ensureStructure(restoredNote.superCategory, restoredNote.category, restoredNote.subcategory);
-                
-                if (window.fs && window.db) {
-                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "notes", String(restoredNote.id)), restoredNote));
-                }
-                showNotification("筆記已復原");
-            }
-
-            // 更新狀態
-            setNotes(newNotes);
-            if (layoutChanged) {
-                setCategoryMap(newCatMap);
-                setSuperCategoryMap(newSuperMap);
-                console.log("♻️ 復原：自動重建遺失的分類結構");
-            }
-
-            // 同步 Trash 與 Layout (Isolation)
-            if (window.fs && window.db && user) {
-                promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `trash_${user.uid}`), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
+                // 更新狀態
+                setNotes(newNotes);
                 if (layoutChanged) {
-                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { 
-                        categoryMapJSON: JSON.stringify(newCatMap),
-                        superCategoryMapJSON: JSON.stringify(newSuperMap)
-                    }, { merge: true }));
+                    setCategoryMap(newCatMap);
+                    setSuperCategoryMap(newSuperMap);
+                    console.log("♻️ 復原：自動重建遺失的分類結構");
                 }
-                try {
-                    await Promise.all(promises);
-                } catch (e) {
-                    console.error("復原同步失敗", e);
-                    showNotification("⚠️ 復原部分失敗，請檢查網路");
+
+                // 同步 Trash 與 Layout (Isolation)
+                if (window.fs && window.db && user) {
+                    promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `trash_${user.uid}`), { trashJSON: JSON.stringify(newTrash) }, { merge: true }));
+                    if (layoutChanged) {
+                        promises.push(window.fs.setDoc(window.fs.doc(window.db, "settings", `layout_${user.uid}`), { 
+                            categoryMapJSON: JSON.stringify(newCatMap),
+                            superCategoryMapJSON: JSON.stringify(newSuperMap)
+                        }, { merge: true }));
+                    }
+                    try {
+                        await Promise.all(promises);
+                    } catch (e) {
+                        console.error("復原同步失敗", e);
+                        showNotification("⚠️ 復原部分失敗，請檢查網路");
+                    }
                 }
+                
+                setHasDataChangedInSession(true);
             }
-            
-            setHasDataChangedInSession(true);
-        }
+        });
     };
 
     // [新增] 清空垃圾桶功能
     const handleEmptyTrash = () => {
         if (trash.length === 0) return;
-        if (confirm("確定要清空垃圾桶嗎？此動作無法復原。")) {
-            setTrash([]);
-            if (window.fs && window.db && user) {
-                // [Isolation] 清空專屬 trash
-                window.fs.setDoc(
-                    window.fs.doc(window.db, "settings", `trash_${user.uid}`), 
-                    { trashJSON: "[]" }, 
-                    { merge: true }
-                ).catch(e => console.error("清空垃圾桶失敗", e));
+        setConfirmModal({
+            title: "清空垃圾桶",
+            message: "確定要清空垃圾桶嗎？此動作無法復原。",
+            onConfirm: () => {
+                setTrash([]);
+                if (window.fs && window.db && user) {
+                    // [Isolation] 清空專屬 trash
+                    window.fs.setDoc(
+                        window.fs.doc(window.db, "settings", `trash_${user.uid}`), 
+                        { trashJSON: "[]" }, 
+                        { merge: true }
+                    ).catch(e => console.error("清空垃圾桶失敗", e));
+                }
+                showNotification("垃圾桶已清空");
             }
-            showNotification("垃圾桶已清空");
-        }
+        });
     };
                                 
     // [修改] 觸發刪除筆記確認視窗
@@ -3697,7 +3721,7 @@ function EchoScriptApp() {
         if (!file) return;
 
         // [Safety Check] 確保已登入
-        if (!user) { alert("請先登入後再執行還原"); return; }
+        if (!user) { showNotification("請先登入後再執行還原"); return; }
 
         // 為了比對，我們需要一個快速查找表 (Map)，用 ID 當鑰匙
         // notes 是目前已讀取的筆記狀態，可直接用來比對
@@ -3799,10 +3823,12 @@ function EchoScriptApp() {
                 if (promises.length > 0) {
                     await Promise.all(promises);
                     const msg = `還原完成！\n新增: ${addedCount} 則\n覆蓋: ${overwriteCount} 則\n跳過: ${skippedCount} 則`;
-                    alert(msg);
-                    showNotification("☁️ 雲端還原完成！");
-                    // 強制重整以確保資料顯示正確
-                    setTimeout(() => window.location.reload(), 1000);
+                    
+                    setConfirmModal({
+                        title: "還原報告",
+                        message: msg,
+                        onConfirm: () => window.location.reload()
+                    });
                 } else {
                     showNotification("備份檔與現有資料一致，無需變更");
                 }
@@ -4301,6 +4327,7 @@ function EchoScriptApp() {
                     setHasUnsavedChanges={setHasUnsavedChanges}
                     triggerUnsavedAlert={() => setShowUnsavedAlert(true)}
                     theme={theme}
+                    showNotification={showNotification}
                 />
             )}
 
@@ -4348,6 +4375,7 @@ function EchoScriptApp() {
                     viewLevel={allNotesViewLevel}
                     setViewLevel={setAllNotesViewLevel}
                     theme={theme}
+                    showNotification={showNotification}
                     // [新增] 處理從列表新增筆記的動作
                     onAddNote={(template) => {
                         setNewNoteTemplate(template); // 設定預填分類
@@ -4663,6 +4691,39 @@ function EchoScriptApp() {
                     </button>
                 </div>
             )}
+{/* [新增] 萬用確認視窗 (用於登出、垃圾桶等操作) */}
+            {confirmModal && (
+                <div 
+                    className="fixed inset-0 z-[110] bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" 
+                    onClick={(e) => { 
+                        if(e.target === e.currentTarget) setConfirmModal(null);
+                    }}
+                >
+                    <div className={`${theme.card} rounded-xl shadow-2xl p-6 max-w-xs w-full animate-in zoom-in-95 border ${theme.border}`}>
+                        <h3 className={`font-bold text-lg mb-2 ${theme.text}`}>{confirmModal.title}</h3>
+                        <p className={`text-sm ${theme.subtext} mb-6 leading-relaxed whitespace-pre-wrap`}>
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setConfirmModal(null)}
+                                className="flex-1 px-4 py-2 bg-stone-100 text-stone-600 hover:bg-stone-200 rounded-lg font-bold transition-colors text-xs"
+                            >
+                                取消
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    confirmModal.onConfirm();
+                                    setConfirmModal(null);
+                                }}
+                                className={`flex-1 px-4 py-2 ${theme.accent} ${theme.accentText} rounded-lg font-bold transition-colors text-xs shadow-md`}
+                            >
+                                確定
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {notification && (
                 // [修正] 顏色改為 theme.accent 與 theme.accentText，隨主題變色 (與「我的資料庫」按鈕一致)
@@ -4676,6 +4737,7 @@ function EchoScriptApp() {
 
 const root = createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><EchoScriptApp /></ErrorBoundary>);
+
 
 
 
